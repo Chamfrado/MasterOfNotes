@@ -2,7 +2,9 @@ mod commands;
 mod db;
 mod error;
 mod library;
+mod live;
 mod mic;
+mod performance;
 mod reference;
 mod sessions;
 mod settings;
@@ -38,6 +40,7 @@ pub fn run() {
             }
             app.manage(commands::AppState::new(db));
             app.manage(mic::MicMonitor::default());
+            app.manage(live::LiveState::default());
             commands::restore_library(app.handle());
             Ok(())
         })
@@ -65,6 +68,10 @@ pub fn run() {
             sessions::cmd::set_round_status,
             sessions::cmd::complete_session,
             sessions::cmd::get_leaderboard,
+            live::start_performance,
+            live::sync_performance,
+            live::finish_performance,
+            live::abort_performance,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
