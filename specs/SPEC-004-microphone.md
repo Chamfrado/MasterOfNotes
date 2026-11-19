@@ -29,7 +29,7 @@ Critérios:
 | T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | done |
 | T-004-03 | Calibração de ruído | Agente 2 | done |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | done |
-| T-004-05 | Tela de microfone e calibração | Agente 3 | todo |
+| T-004-05 | Tela de microfone e calibração | Agente 3 | done |
 
 ## TEST
 `audio-engine/tests/synthetic.rs`: senoides, oitavas, glissando, silêncio, ruído, clipping, invariância a volume, harmônicos. Dispositivo real = teste manual registrado em `docs/testing/evidence/`.
@@ -54,3 +54,12 @@ Critérios:
 - ⏳ Microfone real: o Realtek padrão mediu −104,8 dBFS (provavelmente mudo ou bloqueado pela privacidade do Windows). Teste com voz pendente com o proprietário.
 - T-004-04 `review` (Agente 1, 2026-11-19): `src-tauri/src/mic.rs`. `list_input_devices`; `start_mic_monitor` envia 1 de cada 3 frames (~33 Hz) pelo Channel, com `clipped` somado (OR) sobre os frames pulados; usa o `noiseFloorDbfs` salvo como gate; reiniciar substitui o medidor anterior. `stop_mic_monitor`; `calibrate_noise` aceita 1–10 s, roda `audio_engine::calibrate_noise` e grava `noiseFloorDbfs` nas settings. Erros de dispositivo viram `audio_device` com mensagem pt-BR. `MicFrame` é local até o `performance.rs` existir. ⏳ Sem teste automatizado com dispositivo (precisa de microfone); validado só por compilação e clippy.
 - T-004-04 done (Agente 0, 2026-11-19): integrado em main; clippy --workspace e cargo test --workspace (92) verdes. Pendente: emitir `audio://error` (contrato novo).
+- T-004-05 em review (Agente 3, 2026-11-19): `src/screens/Mic.tsx`.
+  - R1: dispositivo persistido em `inputDeviceId`; "Padrão do sistema" = null; troca reinicia o monitor.
+  - R2: `MicMeter` mostra nível (meter -60..0 dBFS), linha do noise floor, "Saturando", "Voz detectada" e a nota/Hz detectada.
+  - R6: calibração de 3 s com `issues[]` em pt-BR, ou "Ambiente bom para cantar."
+  - R7: ajuste manual de −500 a +500 ms em passos de 10 ms, persistido.
+  - R9: aviso no Player (ver SPEC-003 STATUS).
+  - Testes: `Mic.test.tsx` (5).
+  - ⏳ O "teste de palmas sobre clique" do R7 não foi feito. Os frames do monitor chegam a ~30 Hz pelo Channel, resolução insuficiente para medir latência na UI sem enganar; precisa de um command que meça no Rust (proposta ao coordenador). Dispositivo real não testado.
+- T-004-05 done (Agente 0, 2026-11-19): integrado em main; vitest 124/124. R7 assistido vira T-004-07.
