@@ -555,6 +555,264 @@ fn scoring_is_deterministic() {
     assert_eq!(score(&s, &audio), score(&s, &audio));
 }
 
+// ---------- v3 targets (SPEC-006 "Algoritmo v3"; probes from scoring-review-v2) ----------
+
+/// The T-003-05 test song (frozen copy): legato, repeated notes, a 150 ms note, a rest, a fifth leap.
+fn test_song() -> Song {
+    let json = include_str!("../../../tests/fixtures/references/test-song.json");
+    scoring_engine::parse_reference_json(json)
+        .expect("test song")
+        .notes
+        .iter()
+        .map(|n| (n.start_ms as f64, n.dur_ms as f64, n.midi as f64))
+        .collect()
+}
+
+/// Realistic voice (formants, jitter, shimmer) with drift up to ±`drift` cents,
+/// vibrato ±`vib` cents at 5.5 Hz and a constant `bias` (probe P9).
+fn amateur(song: &Song, d: Difficulty, drift: f64, vib: f64, bias: f64) -> ScoreResult {
+    let v = Voice {
+        drift_cents: drift,
+        ..HUMAN
+    };
+    let audio = render(
+        song_end(song),
+        |t| at(song, t).map(|m| m + (bias + vib * (TAU * 5.5 * t / 1000.0).sin()) / 100.0),
+        AMP,
+        v,
+    );
+    score_with(song, d, &audio)
+}
+
+/// Scorer only: ideal frames every 10 ms, kept by `keep(index, t)`.
+fn ideal(
+    song: &Song,
+    d: Difficulty,
+    keep: impl Fn(usize, f64) -> bool,
+    pitch: impl Fn(f64) -> Option<f64>,
+) -> ScoreResult {
+    let mut s = Scorer::new(&reference(song), 0, d);
+    for (i, t) in (0..(song_end(song) / 10.0) as usize).map(|i| (i, i as f64 * 10.0)) {
+        if keep(i, t) {
+            let m = pitch(t);
+            s.push(VoiceFrame {
+                t_ms: t,
+                f0_hz: m.map(|m| midi_hz(m) as f32),
+                confidence: 0.95,
+                voiced: m.is_some(),
+            });
+        }
+    }
+    s.finish()
+}
+
+#[test]
+fn n1_vibrato_is_not_detune() {
+    for (name, s) in [
+        ("regressão", regression_song()),
+        ("música de teste", test_song()),
+    ] {
+        for (vib, min) in [(50.0, 95.0), (75.0, 92.0), (100.0, 88.0)] {
+            let r = amateur(&s, Difficulty::Normal, 0.0, vib, 0.0);
+            report(
+                &format!("N1 voz humana centrada, vibrato ±{vib} c, {name}"),
+                &r,
+            );
+            assert!(r.score >= min, "±{vib} {name}: {r:?}");
+            let drifting = amateur(&s, Difficulty::Normal, 25.0, vib, 0.0);
+            report(
+                &format!("N1 idem com drift ±25 c (informativo), {name}"),
+                &drifting,
+            );
+        }
+    }
+}
+
+/// Probe P9b: the amateur curve that triggers the tolerance calibration (informative).
+#[test]
+fn amateur_curve_is_measured() {
+    let s = test_song();
+    for bias in [0.0, 20.0, 30.0, -40.0] {
+        for d in [Difficulty::Easy, Difficulty::Normal, Difficulty::Hard] {
+            let r = amateur(&s, d, 20.0, 50.0, bias);
+            report(
+                &format!("Amador drift ±20 + vibrato ±50, desvio {bias:+} c, {d:?} (informativo)"),
+                &r,
+            );
+        }
+    }
+}
+
+#[test]
+fn n2_frames_that_never_arrived_do_not_count() {
+    let s = regression_song();
+    let sing = |t: f64| at(&s, t);
+    for (pct, thr) in [(5, -0.9), (10, -0.8), (15, -0.7)] {
+        let mut rng = Rng(0xD20B + pct);
+        let drop: Vec<bool> = (0..2000).map(|_| rng.next() < thr).collect();
+        let r = ideal(&s, Difficulty::Normal, |i, _| !drop[i], sing);
+        report(
+            &format!("N2 ~{pct}% dos frames perdidos, canto perfeito"),
+            &r,
+        );
+        assert_eq!(r.score, 100.0, "{pct}%: {r:?}");
+    }
+    let burst = ideal(&s, Difficulty::Normal, |_, t| t % 5000.0 >= 200.0, sing);
+    report("N2 rajada de 200 ms perdida a cada 5 s", &burst);
+    assert!(burst.score >= 99.0, "{burst:?}");
+    // Silence that did arrive still counts 0 (A8 stays solved by the training rule).
+    let first_100 = ideal(
+        &s,
+        Difficulty::Normal,
+        |_, _| true,
+        |t| {
+            s.iter()
+                .any(|&(st, _, _)| t >= st && t < st + 100.0)
+                .then(|| at(&s, t))
+                .flatten()
+        },
+    );
+    report(
+        "N2 só os 100 ms iniciais cantados, resto calado",
+        &first_100,
+    );
+    assert!(first_100.score <= 20.0, "{first_100:?}");
+}
+
+#[test]
+fn n3_holding_the_previous_note_costs_like_arriving_late_in_silence() {
+    let s = tied(
+        &[60.0, 62.0, 64.0, 62.0, 60.0, 62.0, 64.0, 62.0, 60.0, 62.0],
+        500.0,
+    );
+    for hold in [80.0, 150.0] {
+        let sung = |held: bool| {
+            sing(&s, |t| {
+                let i = s.iter().position(|&(st, d, _)| t >= st && t < st + d)?;
+                if i > 0 && t < s[i].0 + hold {
+                    held.then_some(s[i - 1].2)
+                } else {
+                    Some(s[i].2)
+                }
+            })
+        };
+        let (held, silent) = (sung(true), sung(false));
+        report(&format!("N3 segura a nota anterior {hold} ms"), &held);
+        report(&format!("N3 calado {hold} ms e entra"), &silent);
+        assert!(
+            held.score >= silent.score - 3.0,
+            "{hold}: {held:?} vs {silent:?}"
+        );
+    }
+}
+
+#[test]
+fn n4_short_tied_notes_tolerate_latency_error() {
+    let pitches: Vec<f64> = (0..20)
+        .map(|i| if i % 2 == 0 { 60.0 } else { 64.0 })
+        .collect();
+    for (dur, min) in [(50.0, 70.0), (100.0, 85.0), (150.0, 0.0)] {
+        let s = tied(&pitches, dur);
+        for late in [25.0, 50.0] {
+            // The formant voice makes YIN jump octaves on fast changes: the
+            // in-note median must keep the pitch class.
+            for (voice, v) in [("senoide", SINE), ("voz humana", HUMAN)] {
+                let audio = render(song_end(&s), |t| at(&s, t - late), AMP, v);
+                let r = score(&s, &audio);
+                report(
+                    &format!("N4 ligadas de {dur} ms, {late} ms atrasadas, {voice}"),
+                    &r,
+                );
+                if late == 25.0 {
+                    assert!(r.score >= min, "{dur} ms {voice}: {r:?}");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a3_short_rests_do_not_cap_the_early_penalty() {
+    // The regression song has 200 ms rests: shifting ±300 ms must cost the same.
+    let s = regression_song();
+    for shift in [150.0, 200.0, 300.0] {
+        let late = sing(&s, |t| at(&s, t - shift));
+        let early = sing(&s, |t| at(&s, t + shift));
+        report(&format!("A3 pausas de 200 ms, atrasado {shift} ms"), &late);
+        report(
+            &format!("A3 pausas de 200 ms, adiantado {shift} ms"),
+            &early,
+        );
+        assert!(
+            (late.rhythm - early.rhythm).abs() <= 0.06,
+            "{shift}: {late:?} vs {early:?}"
+        );
+    }
+    // Enters each note `early` ms before its start and holds it to the end,
+    // cutting the previous note short when the rest is shorter than that.
+    let enter = |early: f64| {
+        sing(&s, |t| {
+            s.iter()
+                .rev()
+                .find(|&&(st, d, _)| t >= st - early && t < st + d)
+                .map(|n| n.2)
+        })
+    };
+    let (e190, e400) = (enter(190.0), enter(400.0));
+    report("A3 pausas de 200 ms, entra 190 ms antes e segura", &e190);
+    report(
+        "A3 pausas de 200 ms, entra 400 ms antes (corta a anterior)",
+        &e400,
+    );
+    assert!((0.4..=0.6).contains(&e190.rhythm), "{e190:?}");
+    assert!(e400.rhythm <= 0.05, "{e400:?}");
+    // Rests ≤ 105 ms: filling the rest with the next note is an early entry.
+    let short: Song = [60.0, 62.0, 64.0, 65.0, 67.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &m)| (500.0 + i as f64 * 1100.0, 1000.0, m))
+        .collect();
+    let late = sing(&short, |t| at(&short, t - 200.0));
+    let early = sing(&short, |t| at(&short, t + 200.0));
+    report("A3 pausas de 100 ms, atrasado 200 ms", &late);
+    report("A3 pausas de 100 ms, adiantado 200 ms", &early);
+    assert!(
+        (late.rhythm - early.rhythm).abs() <= 0.06,
+        "{late:?} vs {early:?}"
+    );
+}
+
+#[test]
+fn a4_constant_detune_on_the_regression_song() {
+    // A4 (a)/(b)/(c) with ideal frames on the 10-note song, every cent 0..300.
+    let s = regression_song();
+    for d in [Difficulty::Easy, Difficulty::Normal, Difficulty::Hard] {
+        let curve: Vec<f32> = (0..=300)
+            .map(|c| {
+                ideal(
+                    &s,
+                    d,
+                    |_, _| true,
+                    |t| at(&s, t).map(|m| m + c as f64 / 100.0),
+                )
+                .score
+            })
+            .collect();
+        let max_jump = (10..curve.len())
+            .map(|c| curve[c - 10] - curve[c])
+            .fold(0f32, f32::max);
+        eprintln!(
+            "A4 {d:?}: maior queda em 10 cents = {max_jump:.1}; +90 = {}",
+            curve[90]
+        );
+        assert!(curve.windows(2).all(|w| w[1] <= w[0]), "{d:?} not monotone");
+        assert!(max_jump <= 10.0, "{d:?}: {max_jump}");
+        if d == Difficulty::Normal {
+            assert!(curve[90] <= 40.0, "+90 = {}", curve[90]);
+        }
+    }
+}
+
 // ---------- A7: golden values ----------
 
 fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
@@ -579,39 +837,92 @@ fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
             "human_voice",
             score(&s, &render(song_end(&s), |t| at(&s, t), AMP, HUMAN)),
         ),
+        (
+            "human_vibrato_75",
+            amateur(&s, Difficulty::Normal, 0.0, 75.0, 0.0),
+        ),
+        ("hold_previous_150", {
+            let l = tied(
+                &[60.0, 62.0, 64.0, 62.0, 60.0, 62.0, 64.0, 62.0, 60.0, 62.0],
+                500.0,
+            );
+            sing(&l, |t| {
+                let i = l.iter().position(|&(st, d, _)| t >= st && t < st + d)?;
+                Some(if i > 0 && t < l[i].0 + 150.0 {
+                    l[i - 1].2
+                } else {
+                    l[i].2
+                })
+            })
+        }),
+        ("short_50_late_25", {
+            let p: Vec<f64> = (0..20)
+                .map(|i| if i % 2 == 0 { 60.0 } else { 64.0 })
+                .collect();
+            let l = tied(&p, 50.0);
+            sing(&l, |t| at(&l, t - 25.0))
+        }),
+        ("missing_10_percent", {
+            let mut rng = Rng(0xD20B + 10);
+            let drop: Vec<bool> = (0..2000).map(|_| rng.next() < -0.8).collect();
+            ideal(&s, Difficulty::Normal, |i, _| !drop[i], |t| at(&s, t))
+        }),
+        (
+            "early_400",
+            sing(&s, |t| {
+                s.iter()
+                    .rev()
+                    .find(|&&(st, d, _)| t >= st - 400.0 && t < st + d)
+                    .map(|n| n.2)
+            }),
+        ),
     ]
 }
 
-/// Exact expected results for ALGORITHM_VERSION 2. Regenerate only together
+/// Exact expected results for ALGORITHM_VERSION 3. Regenerate only together
 /// with a version bump: run with `-- --nocapture golden` and paste.
 fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
-    let r = |score, pitch, rhythm, sustain, coverage, notes_hit| ScoreResult {
+    let r = |score, pitch, rhythm, sustain, coverage, notes_hit, notes_total| ScoreResult {
         score,
         pitch,
         rhythm,
         sustain,
         coverage,
-        notes_total: 10,
+        notes_total,
         notes_hit,
-        algorithm_version: 2,
+        algorithm_version: 3,
     };
     vec![
-        ("perfect", r(100.0, 1.0, 1.0, 1.0, 1.0, 10)),
+        ("perfect", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
             "plus_75_cents",
-            r(51.1, 0.642329, 0.25618285, 0.2846579, 1.0, 10),
+            r(51.7, 0.6424838, 0.28496748, 0.28496748, 1.0, 10, 10),
         ),
         (
             "delay_200",
-            r(72.3, 0.80178905, 0.43075225, 0.772261, 1.0, 10),
+            r(73.1, 0.80178905, 0.44848484, 0.804, 1.0, 10, 10),
+        ),
+        ("vibrato", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
+        ("siren", r(9.5, 0.1454789, 0.0, 0.0, 0.0, 0, 10)),
+        ("tied_repeated", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
+        ("human_voice", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
+        (
+            "human_vibrato_75",
+            r(99.9, 0.99835986, 1.0, 1.0, 1.0, 10, 10),
         ),
         (
-            "vibrato",
-            r(91.6, 0.9381456, 0.87629116, 0.87629116, 1.0, 10),
+            "hold_previous_150",
+            r(72.6, 0.7412293, 0.66727275, 0.7412293, 1.0, 10, 10),
         ),
-        ("siren", r(9.5, 0.14691764, 0.0, 0.0, 0.0, 0)),
-        ("tied_repeated", r(100.0, 1.0, 1.0, 1.0, 1.0, 10)),
-        ("human_voice", r(99.7, 0.998, 0.996, 0.99404, 1.0, 10)),
+        (
+            "short_50_late_25",
+            r(95.8, 0.9685284, 0.9370568, 0.9370568, 1.0, 20, 20),
+        ),
+        ("missing_10_percent", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
+        (
+            "early_400",
+            r(66.5, 0.8455609, 0.005064616, 0.7639583, 1.0, 10, 10),
+        ),
     ]
 }
 
@@ -620,8 +931,8 @@ fn golden_results_are_exact() {
     let got = golden_cases();
     for (name, r) in &got {
         eprintln!(
-            "        (\"{name}\", r({:?}, {:?}, {:?}, {:?}, {:?}, {})),",
-            r.score, r.pitch, r.rhythm, r.sustain, r.coverage, r.notes_hit
+            "        (\"{name}\", r({:?}, {:?}, {:?}, {:?}, {:?}, {}, {})),",
+            r.score, r.pitch, r.rhythm, r.sustain, r.coverage, r.notes_hit, r.notes_total
         );
     }
     assert_eq!(

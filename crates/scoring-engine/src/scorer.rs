@@ -1,15 +1,26 @@
-//! Deterministic vocal scoring, algorithm v2 (SPEC-006 "Algoritmo v2"). Every
-//! constant below is quoted from the spec; changing any result requires bumping
-//! `ALGORITHM_VERSION` and the golden values in `tests/regression.rs`.
+//! Deterministic vocal scoring, algorithm v3 (SPEC-006 "Algoritmo v3", on top of
+//! v2). Every constant below is quoted from the spec; changing any result
+//! requires bumping `ALGORITHM_VERSION` and the golden values in
+//! `tests/regression.rs`.
 //!
-//! Per note i (duration d, scored region = note minus transition zones):
+//! Per note i (duration d, scored region = note minus transition zones), scored
+//! once its frames are in:
+//! - Pitch is judged on the vibrato-free contour: each voiced frame's in-note
+//!   5-frame median, averaged over ~190 ms (one vibrato period) inside the note
+//!   and on the same side of the onset; values farther than 250 cents from the
+//!   frame are not averaged in, so short ornaments stay local.
 //! - `p(frame)` = 1 within T_full cents, 0 beyond T_zero, linear between
-//!   (octave-folded error of the in-note median pitch; unvoiced = 0).
-//! - `pitch_i` = Σp / expected frames (missing frames count 0).
-//! - `accuracy_i` = mean p over the voiced frames (how in tune, when singing).
-//! - `gate_i` = clamp(2·accuracy_i − 1) · min(1, 2·pitch_i): continuous; 0 for
-//!   notes sung mostly off-pitch (sirens) or barely sung at all.
+//!   (octave-folded; unvoiced = 0).
+//! - `pitch_i` = Σp / frames that arrived (+ the frames after the last one
+//!   received, which count 0). Frames that never arrived are left out (N2).
+//! - `accuracy_i` = mean p over the voiced frames from the onset (or start +
+//!   80 ms without one) until the next note's onset, so arriving late or
+//!   leaving early is charged once, by rhythm and pitch (N3).
+//! - `gate_i` = clamp(2·accuracy_i − 1) · min(1, 2·pitch_i).
 //! - `rhythm_i` = timing(onset) · gate_i; `sustain_i` = held_i · gate_i.
+//! - Notes shorter than 120 ms take the best of their region shifted by up to
+//!   min(120 − d, 30) ms, in 10 ms steps, and their onset window ends that much
+//!   later (N4: latency error on fast passages).
 //!
 //! Score = 100·(0.65·P + 0.20·R + 0.15·S), duration-weighted over all notes.
 
@@ -17,13 +28,18 @@ use crate::MelodyReference;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-pub const ALGORITHM_VERSION: u32 = 2;
+pub const ALGORITHM_VERSION: u32 = 3;
 
 /// Frame period of the analysis (contract: one frame every 10 ms).
 const HOP_MS: f64 = 10.0;
-/// Median window (frames) applied to f0 before computing the cents error.
-const MEDIAN_FRAMES: usize = 5;
-const MEDIAN_HALF: usize = MEDIAN_FRAMES / 2;
+/// Median window (frames) applied to f0 before anything else: 5 = ±2.
+const MEDIAN_HALF: usize = 2;
+/// Contour window: 2·9 + 1 = 19 frames = 190 ms, about one period of a 5.3 Hz
+/// vibrato. A boxcar of that length leaves ≤ 21% of a 4.5–7 Hz vibrato.
+const CONTOUR_HALF: usize = 9;
+/// Only values within this distance (semitones) of the frame enter its contour:
+/// covers a ±125 cent vibrato, keeps note changes and ornaments out.
+const CONTOUR_RANGE_ST: f64 = 2.5;
 /// Onset search starts at max(start − 300 ms, end of the previous note + guard).
 const ONSET_EARLY_MS: f64 = 300.0;
 /// Right after a note ends the analysis window (≈ 43 ms, dated at its centre)
@@ -36,6 +52,11 @@ const RHYTHM_ZERO_MS: f64 = 300.0;
 const TIED_GAP_MS: f64 = 30.0;
 /// Transition zone length: min(25 ms, d/4).
 const TRANSITION_MS: f64 = 25.0;
+/// N4: notes shorter than this may be matched up to `SHORT_SHIFT_MS` off.
+const SHORT_NOTE_MS: f64 = 120.0;
+const SHORT_SHIFT_MS: f64 = 30.0;
+/// A note is scored once frames reach its end + this (shift + median lookahead).
+const SCORE_LAG_MS: f64 = SHORT_SHIFT_MS + (MEDIAN_HALF as f64 + 1.0) * HOP_MS;
 const LIVE_WINDOW_MS: f64 = 200.0;
 const W_PITCH: f64 = 0.65;
 const W_RHYTHM: f64 = 0.20;
@@ -63,6 +84,7 @@ impl Difficulty {
 }
 
 /// One analysis frame mapped to song time (offsets and latency already applied).
+/// Frames must come in increasing time; a frame not after the previous one is ignored.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceFrame {
@@ -92,8 +114,9 @@ pub struct LiveFeedback {
     pub sung_midi: Option<f32>,
     /// Octave-folded error in (−600, 600] cents.
     pub cents_error: Option<f32>,
+    /// From the median error of the last 200 ms (≈ one vibrato period).
     pub label: FeedbackLabel,
-    /// Score (0..100) over notes already finished.
+    /// Score (0..100) over notes already scored (finished ≥ 60 ms ago).
     pub running_score: f32,
 }
 
@@ -111,6 +134,19 @@ pub struct ScoreResult {
     pub algorithm_version: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct NoteScore {
+    pitch: f64,
+    rhythm: f64,
+    sustain: f64,
+}
+
+impl NoteScore {
+    fn weighted(&self) -> f64 {
+        W_PITCH * self.pitch + W_RHYTHM * self.rhythm + W_SUSTAIN * self.sustain
+    }
+}
+
 #[derive(Debug, Clone)]
 struct NoteState {
     start: f64,
@@ -118,51 +154,30 @@ struct NoteState {
     midi: f64,
     /// Scored region: the note minus transition zones at tied boundaries.
     region: (f64, f64),
-    expected: u32,
     onset_from: f64,
     /// Target of the previous note: an onset must be nearer this note than that one.
     prev_midi: Option<f64>,
-    received: u32,
-    voiced: u32,
-    held: u32,
-    p_sum: f64,
-    onset: Option<f64>,
     /// Jumped over by a seek (training only): excluded from every aggregate.
     skipped: bool,
+    /// Set once scored; `None` inside = no frame of the note arrived (excluded).
+    score: Option<Option<NoteScore>>,
 }
 
 impl NoteState {
     fn dur(&self) -> f64 {
         self.end - self.start
     }
-    /// Frames that should have been scored; never below what was received.
-    fn denom(&self) -> f64 {
-        self.expected.max(self.received).max(1) as f64
-    }
-    fn pitch(&self) -> f64 {
-        self.p_sum / self.denom()
-    }
-    fn accuracy(&self) -> f64 {
-        if self.voiced == 0 {
-            0.0
-        } else {
-            self.p_sum / self.voiced as f64
-        }
-    }
-    fn gate(&self) -> f64 {
-        (2.0 * self.accuracy() - 1.0).clamp(0.0, 1.0) * (2.0 * self.pitch()).min(1.0)
-    }
-    fn sustain(&self) -> f64 {
-        self.held as f64 / self.denom() * self.gate()
-    }
-    fn rhythm(&self) -> f64 {
-        self.onset.map_or(0.0, |o| {
-            ramp((o - self.start).abs(), RHYTHM_FULL_MS, RHYTHM_ZERO_MS)
-        }) * self.gate()
-    }
-    fn weighted(&self) -> f64 {
-        W_PITCH * self.pitch() + W_RHYTHM * self.rhythm() + W_SUSTAIN * self.sustain()
-    }
+}
+
+/// Frame counts of one note's region.
+#[derive(Default)]
+struct Tally {
+    /// Frames that arrived, plus the ones expected after the last frame received.
+    frames: u32,
+    p_sum: f64,
+    held: u32,
+    acc_voiced: u32,
+    acc_p_sum: f64,
 }
 
 /// Incremental scorer. Feed frames in time order with [`Scorer::push`]; call
@@ -172,8 +187,9 @@ pub struct Scorer {
     tol: (f64, f64),
     raw: Vec<VoiceFrame>,
     next: usize,
-    recent: VecDeque<(f64, f64, bool)>,
-    finalized: usize,
+    /// Live window: (time, octave-folded cents error of voiced frames).
+    recent: VecDeque<(f64, Option<f64>)>,
+    scored: usize,
     done_dur: f64,
     done_weighted: f64,
 }
@@ -197,27 +213,20 @@ impl Scorer {
                 let zone = TRANSITION_MS.min((end - start) / 4.0);
                 let tied_before = prev_end.is_some_and(|p| start - p < TIED_GAP_MS);
                 let tied_after = next_start.is_some_and(|n| n - end < TIED_GAP_MS);
-                let region = (
-                    start + if tied_before { zone } else { 0.0 },
-                    end - if tied_after { zone } else { 0.0 },
-                );
                 NoteState {
                     start,
                     end,
                     midi,
-                    region,
-                    // floor: a 10 ms grid always delivers at least this many frames in the region
-                    expected: ((region.1 - region.0) / HOP_MS).floor() as u32,
+                    region: (
+                        start + if tied_before { zone } else { 0.0 },
+                        end - if tied_after { zone } else { 0.0 },
+                    ),
                     onset_from: prev_end.map_or(start - ONSET_EARLY_MS, |p| {
                         (p + ONSET_GUARD_MS).min(start).max(start - ONSET_EARLY_MS)
                     }),
                     prev_midi: i.checked_sub(1).map(|j| spans[j].2),
-                    received: 0,
-                    voiced: 0,
-                    held: 0,
-                    p_sum: 0.0,
-                    onset: None,
                     skipped: false,
+                    score: None,
                 }
             })
             .collect();
@@ -227,7 +236,7 @@ impl Scorer {
             raw: Vec::new(),
             next: 0,
             recent: VecDeque::new(),
-            finalized: 0,
+            scored: 0,
             done_dur: 0.0,
             done_weighted: 0.0,
         }
@@ -236,9 +245,14 @@ impl Scorer {
     /// Returns feedback for the frame two positions back (centered median needs
     /// two frames of lookahead) when it falls inside a note.
     pub fn push(&mut self, frame: VoiceFrame) -> Option<LiveFeedback> {
+        // ponytail: a backward re-anchor repeats song time; the repeat is dropped.
+        if !frame.t_ms.is_finite() || self.raw.last().is_some_and(|l| frame.t_ms <= l.t_ms) {
+            return None;
+        }
         self.raw.push(frame);
+        self.score_until(frame.t_ms - SCORE_LAG_MS, None);
         if self.raw.len() > self.next + MEDIAN_HALF {
-            let fb = self.process(self.next);
+            let fb = self.feedback(self.next);
             self.next += 1;
             return fb;
         }
@@ -257,25 +271,25 @@ impl Scorer {
     }
 
     pub fn finish(mut self) -> ScoreResult {
-        while self.next < self.raw.len() {
-            self.process(self.next);
-            self.next += 1;
-        }
-        let notes: Vec<&NoteState> = self.notes.iter().filter(|n| !n.skipped).collect();
-        let total: f64 = notes.iter().map(|n| n.dur()).sum();
-        let avg = |f: fn(&NoteState) -> f64| {
+        // Frames after the last one received were not sung (the run ended).
+        let last = self.raw.last().map_or(f64::NEG_INFINITY, |f| f.t_ms);
+        self.score_until(f64::INFINITY, Some(last));
+        let notes: Vec<(f64, NoteScore)> = self
+            .notes
+            .iter()
+            .filter(|n| !n.skipped)
+            .filter_map(|n| n.score.flatten().map(|s| (n.dur(), s)))
+            .collect();
+        let total: f64 = notes.iter().map(|n| n.0).sum();
+        let avg = |f: fn(&NoteScore) -> f64| {
             if total > 0.0 {
-                notes.iter().map(|n| n.dur() * f(n)).sum::<f64>() / total
+                notes.iter().map(|(d, s)| d * f(s)).sum::<f64>() / total
             } else {
                 0.0
             }
         };
-        let (p, r, s) = (
-            avg(NoteState::pitch),
-            avg(NoteState::rhythm),
-            avg(NoteState::sustain),
-        );
-        let hit = notes.iter().filter(|n| n.pitch() >= 0.5).count() as u32;
+        let (p, r, s) = (avg(|s| s.pitch), avg(|s| s.rhythm), avg(|s| s.sustain));
+        let hit = notes.iter().filter(|n| n.1.pitch >= 0.5).count() as u32;
         let notes_total = notes.len() as u32;
         ScoreResult {
             score: round1(100.0 * (W_PITCH * p + W_RHYTHM * r + W_SUSTAIN * s)),
@@ -293,68 +307,171 @@ impl Scorer {
         }
     }
 
-    fn process(&mut self, i: usize) -> Option<LiveFeedback> {
-        let t = self.raw[i].t_ms;
-        let tol = self.tol;
-        let credit =
-            |sung: Option<f64>, midi: f64| sung.map_or(0.0, |s| pitch_credit(cents(s, midi), tol));
-        // Free median: onset detection and the live label outside notes.
-        let sung = self.smoothed_midi(i, f64::NEG_INFINITY, f64::INFINITY);
+    /// Scores every note ending at or before `t`. `last` (at finish) is the last
+    /// frame received; frames expected after it count as unsung.
+    fn score_until(&mut self, t: f64, last: Option<f64>) {
+        while self.scored < self.notes.len() && self.notes[self.scored].end <= t {
+            let j = self.scored;
+            if !self.notes[j].skipped {
+                let s = self.score_note(j, last);
+                self.notes[j].score = Some(s);
+                if let Some(s) = s {
+                    self.done_dur += self.notes[j].dur();
+                    self.done_weighted += self.notes[j].dur() * s.weighted();
+                }
+            }
+            self.scored += 1;
+        }
+    }
 
+    fn score_note(&self, j: usize, last: Option<f64>) -> Option<NoteScore> {
+        let n = &self.notes[j];
+        let onset = self.onset(j);
+        let timing = onset.map_or(0.0, |o| {
+            ramp((o - n.start).abs(), RHYTHM_FULL_MS, RHYTHM_ZERO_MS)
+        });
+        let acc_from = onset.unwrap_or(n.start + RHYTHM_FULL_MS);
+        // Mirror of N3: moving on early is charged by the next note's rhythm, not here.
+        let acc_to = (j + 1 < self.notes.len())
+            .then(|| self.onset(j + 1))
+            .flatten()
+            .filter(|&o| o > acc_from)
+            .unwrap_or(f64::INFINITY);
+        let acc = (acc_from, acc_to);
+        let steps = (short_reach(n.dur()) / HOP_MS).floor() as i32;
+        // Shifts 0, −1, +1, −2, … steps: ties keep the smallest shift.
+        let mut best: Option<NoteScore> = None;
+        for k in (0..=steps).flat_map(|k| [-k, k]).skip(1) {
+            let Some(c) = self.tally(j, k as f64 * HOP_MS, onset, acc, last) else {
+                continue;
+            };
+            let denom = c.frames as f64;
+            let pitch = c.p_sum / denom;
+            let accuracy = if c.acc_voiced == 0 {
+                0.0
+            } else {
+                c.acc_p_sum / c.acc_voiced as f64
+            };
+            let gate = (2.0 * accuracy - 1.0).clamp(0.0, 1.0) * (2.0 * pitch).min(1.0);
+            let s = NoteScore {
+                pitch,
+                rhythm: timing * gate,
+                sustain: c.held as f64 / denom * gate,
+            };
+            if best.is_none_or(|b| s.weighted() > b.weighted()) {
+                best = Some(s);
+            }
+        }
+        best
+    }
+
+    /// Frame counts of note `j` with its region shifted by `shift` ms; `None`
+    /// when no frame of the region arrived and none is owed after the last one.
+    fn tally(
+        &self,
+        j: usize,
+        shift: f64,
+        onset: Option<f64>,
+        (acc_from, acc_to): (f64, f64),
+        last: Option<f64>,
+    ) -> Option<Tally> {
+        let n = &self.notes[j];
+        let (a, b) = (n.start + shift, n.end + shift);
+        let (r0, r1) = (n.region.0 + shift, n.region.1 + shift);
+        let lo = self.raw.partition_point(|f| f.t_ms < r0);
+        let hi = self.raw.partition_point(|f| f.t_ms < r1);
+        let m: Vec<Option<f64>> = (lo..hi).map(|i| self.smoothed_midi(i, a, b)).collect();
+        // The contour never mixes frames from both sides of the onset (N3).
+        let split = onset
+            .filter(|&o| o > r0 && o < r1)
+            .map_or(0, |o| self.raw[lo..hi].partition_point(|f| f.t_ms < o));
+        let mut c = Tally {
+            frames: (hi - lo) as u32 + unreceived_after(r0, r1, last),
+            ..Tally::default()
+        };
+        if c.frames == 0 {
+            return None;
+        }
+        for (k, own) in m.iter().enumerate() {
+            let Some(own) = *own else { continue };
+            let (s0, s1) = if k < split {
+                (0, split)
+            } else {
+                (split, m.len())
+            };
+            let centre = contour(&m[s0..s1], k - s0, own);
+            let p = pitch_credit(cents(centre, n.midi), self.tol);
+            c.p_sum += p;
+            c.held += u32::from(p > 0.0);
+            if (acc_from..acc_to).contains(&self.raw[lo + k].t_ms) {
+                c.acc_voiced += 1;
+                c.acc_p_sum += p;
+            }
+        }
+        Some(c)
+    }
+
+    /// Onset of note `j`: first frame in `[onset_from, start + d/2 + reach]` on target
+    /// (p ≥ 0.5) and nearer this target than the previous one. If the singer
+    /// never gets nearer (e.g. constantly sharp towards the previous note), the
+    /// first frame on target. If the voice is already on target when the window
+    /// opens, the onset goes back to where that stretch began (A3), as long as
+    /// the frames are strictly nearer this target than the previous one.
+    fn onset(&self, j: usize) -> Option<f64> {
+        let n = &self.notes[j];
+        let tol = self.tol;
+        let on_target = |i: usize| {
+            self.smoothed_midi(i, f64::NEG_INFINITY, f64::INFINITY)
+                .filter(|&s| pitch_credit(cents(s, n.midi), tol) >= 0.5)
+        };
+        let nearer = |s: f64, strict: bool| {
+            n.prev_midi.is_none_or(|pm| {
+                let (this, prev) = (cents(s, n.midi).abs(), cents(s, pm).abs());
+                if strict { this < prev } else { this <= prev }
+            })
+        };
+        let lo = self.raw.partition_point(|f| f.t_ms < n.onset_from);
+        let until = n.start + n.dur() / 2.0 + short_reach(n.dur());
+        let hi = self.raw.partition_point(|f| f.t_ms <= until);
+        let mut first = None;
+        let mut found = None;
+        for i in lo..hi {
+            if let Some(s) = on_target(i) {
+                first.get_or_insert(i);
+                if nearer(s, false) {
+                    found = Some(i);
+                    break;
+                }
+            }
+        }
+        let mut i = found.or(first)?;
+        if i == lo {
+            while i > 0
+                && self.raw[i - 1].t_ms >= n.start - RHYTHM_ZERO_MS
+                && on_target(i - 1).is_some_and(|s| nearer(s, true))
+            {
+                i -= 1;
+            }
+        }
+        Some(self.raw[i].t_ms)
+    }
+
+    fn feedback(&mut self, i: usize) -> Option<LiveFeedback> {
+        let t = self.raw[i].t_ms;
         // First note starting after t; the note containing t (if any) is the one before.
         let k = self.notes.partition_point(|n| n.start <= t);
-        for n in &mut self.notes[k.saturating_sub(1)..] {
-            if n.onset_from > t {
-                break;
-            }
-            // Still nearer the previous target = has not moved to this note yet.
-            let moved_on = sung.is_some_and(|s| {
-                n.prev_midi
-                    .is_none_or(|pm| cents(s, n.midi).abs() <= cents(s, pm).abs())
-            });
-            if n.onset.is_none()
-                && t <= n.start + n.dur() / 2.0
-                && credit(sung, n.midi) >= 0.5
-                && moved_on
-            {
-                n.onset = Some(t);
-            }
-        }
-
-        let active = k.checked_sub(1).filter(|&j| t < self.notes[j].end);
-        let feedback = active.map(|j| {
-            // In-note median: neighbours' pitches never leak across a tied boundary.
-            let (start, end) = (self.notes[j].start, self.notes[j].end);
-            let sung_in = self.smoothed_midi(i, start, end);
-            let n = &mut self.notes[j];
-            let p = credit(sung_in, n.midi);
-            if t >= n.region.0 && t < n.region.1 {
-                n.received += 1;
-                n.p_sum += p;
-                n.voiced += u32::from(sung_in.is_some());
-                n.held += u32::from(p > 0.0);
-            }
-            let target = n.midi;
-            self.recent
-                .retain(|&(rt, _, _)| rt > t - LIVE_WINDOW_MS && rt <= t);
-            self.recent.push_back((t, p, sung_in.is_some()));
-            (target, sung_in)
-        });
-
-        while self.finalized < self.notes.len() && self.notes[self.finalized].end <= t {
-            let n = &self.notes[self.finalized];
-            if !n.skipped {
-                self.done_dur += n.dur();
-                self.done_weighted += n.dur() * n.weighted();
-            }
-            self.finalized += 1;
-        }
-
-        feedback.map(|(target, sung_in)| LiveFeedback {
+        let j = k.checked_sub(1).filter(|&j| t < self.notes[j].end)?;
+        let (start, end, target) = (self.notes[j].start, self.notes[j].end, self.notes[j].midi);
+        // In-note median: neighbours' pitches never leak across a tied boundary.
+        let sung = self.smoothed_midi(i, start, end);
+        let err = sung.map(|s| cents(s, target));
+        self.recent.retain(|&(rt, _)| rt > t - LIVE_WINDOW_MS);
+        self.recent.push_back((t, err));
+        Some(LiveFeedback {
             t_ms: t,
             target_midi: target as f32,
-            sung_midi: sung_in.map(|s| s as f32),
-            cents_error: sung_in.map(|s| cents(s, target) as f32),
+            sung_midi: sung.map(|s| s as f32),
+            cents_error: err.map(|e| e as f32),
             label: self.label(),
             running_score: if self.done_dur > 0.0 {
                 round1(100.0 * self.done_weighted / self.done_dur)
@@ -365,11 +482,12 @@ impl Scorer {
     }
 
     /// Median (in MIDI units) of the voiced f0 values in the centered 5-frame
-    /// window, using only frames with time in `[from, to)`; `None` if this frame
-    /// itself is not voiced.
+    /// window, using only frames with time in `[from, to)`, each folded to this
+    /// frame's octave first (pitch-detector octave jumps keep their pitch
+    /// class); `None` if this frame itself is not voiced.
     fn smoothed_midi(&self, i: usize, from: f64, to: f64) -> Option<f64> {
         let own = self.raw[i];
-        own.f0_hz.filter(|_| own.voiced)?;
+        let own = hz_to_midi(own.f0_hz.filter(|&hz| own.voiced && hz > 0.0)? as f64);
         let lo = i.saturating_sub(MEDIAN_HALF);
         let hi = (i + MEDIAN_HALF).min(self.raw.len() - 1);
         let mut v: Vec<f64> = self.raw[lo..=hi]
@@ -377,34 +495,76 @@ impl Scorer {
             .filter(|f| f.voiced && f.t_ms >= from && f.t_ms < to)
             .filter_map(|f| f.f0_hz)
             .filter(|&hz| hz > 0.0)
-            .map(|hz| hz_to_midi(hz as f64))
+            .map(|hz| fold_to(hz_to_midi(hz as f64), own))
             .collect();
-        if v.is_empty() {
-            return None;
-        }
-        v.sort_by(f64::total_cmp);
-        let m = v.len() / 2;
-        Some(if v.len() % 2 == 1 {
-            v[m]
-        } else {
-            (v[m - 1] + v[m]) / 2.0
-        })
+        median(&mut v)
     }
 
     fn label(&self) -> FeedbackLabel {
         let n = self.recent.len();
-        let voiced = self.recent.iter().filter(|r| r.2).count();
-        if n == 0 || voiced * 2 < n {
+        let mut errs: Vec<f64> = self.recent.iter().filter_map(|r| r.1).collect();
+        let voiced = errs.len();
+        let Some(e) = median(&mut errs).filter(|_| voiced * 2 >= n) else {
             return FeedbackLabel::NotDetected;
-        }
-        let avg = self.recent.iter().map(|r| r.1).sum::<f64>() / n as f64;
-        match avg {
+        };
+        match pitch_credit(e, self.tol) * voiced as f64 / n as f64 {
             a if a >= 0.9 => FeedbackLabel::Excellent,
             a if a >= 0.75 => FeedbackLabel::VeryGood,
             a if a >= 0.5 => FeedbackLabel::Good,
             _ => FeedbackLabel::NeedsWork,
         }
     }
+}
+
+/// Vibrato-free pitch at position `k` of a segment of in-note medians: mean of
+/// the voiced values in a 19-frame window kept inside the segment, each folded
+/// to the octave of `own` and only if within `CONTOUR_RANGE_ST` of it.
+fn contour(seg: &[Option<f64>], k: usize, own: f64) -> f64 {
+    let w = 2 * CONTOUR_HALF + 1;
+    let lo = k
+        .saturating_sub(CONTOUR_HALF)
+        .min(seg.len().saturating_sub(w));
+    let (sum, count) = seg[lo..(lo + w).min(seg.len())]
+        .iter()
+        .flatten()
+        .map(|&v| fold_to(v, own))
+        .filter(|v| (v - own).abs() <= CONTOUR_RANGE_ST)
+        .fold((0.0, 0u32), |(s, c), v| (s + v, c + 1));
+    sum / count as f64 // ≥ 1: `own` is in its own window
+}
+
+/// N4: how far a short note's region (and onset window) may shift.
+fn short_reach(dur: f64) -> f64 {
+    (SHORT_NOTE_MS - dur).clamp(0.0, SHORT_SHIFT_MS)
+}
+
+/// Frames that would have arrived in `[r0, r1)` after the last one received
+/// (10 ms grid continuing from `last`); 0 while the run is going on.
+fn unreceived_after(r0: f64, r1: f64, last: Option<f64>) -> u32 {
+    match last {
+        None => 0,
+        Some(l) if l >= r1 => 0,
+        Some(l) if l < r0 => ((r1 - r0) / HOP_MS).floor() as u32,
+        Some(l) => (((r1 - l) / HOP_MS).ceil() - 1.0).max(0.0) as u32,
+    }
+}
+
+fn median(v: &mut [f64]) -> Option<f64> {
+    if v.is_empty() {
+        return None;
+    }
+    v.sort_by(f64::total_cmp);
+    let m = v.len() / 2;
+    Some(if v.len() % 2 == 1 {
+        v[m]
+    } else {
+        (v[m - 1] + v[m]) / 2.0
+    })
+}
+
+/// `midi` moved by whole octaves to within ±6 semitones of `near`.
+fn fold_to(midi: f64, near: f64) -> f64 {
+    midi - 12.0 * ((midi - near) / 12.0).round()
 }
 
 fn hz_to_midi(hz: f64) -> f64 {
@@ -439,6 +599,7 @@ fn round1(x: f64) -> f32 {
 mod tests {
     use super::*;
     use crate::Note;
+    use std::f64::consts::TAU;
 
     fn reference(notes: &[(u32, u32, f32)]) -> MelodyReference {
         MelodyReference {
@@ -593,8 +754,9 @@ mod tests {
         assert!((shifted(-190.0) - 0.5).abs() < 1e-6); // early costs as much as late
         assert_eq!(shifted(-300.0), 0.0);
         // Previous note ends 200 ms before the next: the search starts 25 ms after
-        // its end (release guard). The singer enters note 2 at 750 ms, but its
-        // window opens at 825; first 10 ms frame there is 830 → err 170 → 1 − 90/220.
+        // its end (release guard). The singer enters note 2 at 750 ms; its window
+        // opens at 825 with the voice already on target, so the onset goes back to
+        // where the stretch began (v3 A3): 750 → err 250 → 50/220.
         let r2 = reference(&[(0, 800, 55.0), (1000, 1000, 60.0)]);
         let early = run(&r2, Difficulty::Normal, 2500, |t| {
             if t < 700.0 {
@@ -603,10 +765,9 @@ mod tests {
                 within(t, 750.0, 2000.0).then_some(60.0)
             }
         });
-        // Note 1 also hears the early entry (750–800 ms, 500 cents off): accuracy
-        // 70/75 → gate 2·70/75 − 1.
-        let gate1 = 2.0 * 70.0 / 75.0 - 1.0;
-        let expected = (800.0 * gate1 + 1000.0 * (1.0 - 90.0 / 220.0)) / 1800.0;
+        // Note 1 hears the early entry (750–800 ms, 500 cents off): it costs note 1
+        // pitch, but its gate stops at note 2's onset (mirror of N3) → rhythm 1.
+        let expected = (800.0 + 1000.0 * 50.0 / 220.0) / 1800.0;
         assert!((early.rhythm as f64 - expected).abs() < 1e-3, "{early:?}");
     }
 
@@ -660,26 +821,155 @@ mod tests {
         assert!(res.pitch > 0.99, "{res:?}");
     }
 
-    #[test]
-    fn missing_frames_count_as_zero() {
-        // A8: only the first 100 ms of a 1000 ms note arrive, sung perfectly.
-        let r = reference(&[(500, 1000, 60.0)]);
-        let mut s = Scorer::new(&r, 0, Difficulty::Normal);
-        for i in 0..200 {
-            let t = i as f64 * 10.0;
-            if t < 600.0 || t >= 1600.0 {
-                let m = within(t, 500.0, 600.0).then_some(60.0);
-                s.push(VoiceFrame {
-                    t_ms: t,
-                    f0_hz: m.map(midi_hz),
-                    confidence: 0.9,
-                    voiced: m.is_some(),
-                });
-            }
+    /// Pushes the frames of `[0, end_ms)` kept by `keep`, sung by `f`.
+    fn run_with_gaps(
+        r: &MelodyReference,
+        end_ms: u32,
+        keep: impl Fn(f64) -> bool,
+        f: impl Fn(f64) -> Option<f64>,
+    ) -> ScoreResult {
+        let mut s = Scorer::new(r, 0, Difficulty::Normal);
+        for t in (0..end_ms / 10)
+            .map(|i| i as f64 * 10.0)
+            .filter(|&t| keep(t))
+        {
+            let m = f(t);
+            s.push(VoiceFrame {
+                t_ms: t,
+                f0_hz: m.map(midi_hz),
+                confidence: 0.9,
+                voiced: m.is_some(),
+            });
         }
-        let res = s.finish();
-        assert!((res.pitch - 0.1).abs() < 0.01, "{res:?}");
-        assert!(res.score < 30.0, "{res:?}");
+        s.finish()
+    }
+
+    #[test]
+    fn missing_frames_are_left_out_but_silence_and_the_unsung_end_count() {
+        let r = reference(&[(500, 1000, 60.0), (2000, 1000, 62.0)]);
+        let sing = |t: f64| {
+            if within(t, 500.0, 1500.0) {
+                Some(60.0)
+            } else {
+                within(t, 2000.0, 3000.0).then_some(62.0)
+            }
+        };
+        // N2: every 3rd frame never arrives (driver deficit): still perfect.
+        let gappy = run_with_gaps(&r, 3500, |t| !((t / 10.0) as u32).is_multiple_of(3), sing);
+        assert_eq!(gappy.score, 100.0, "{gappy:?}");
+        // A whole note inside a capture gap is left out, like a skip.
+        let hole = run_with_gaps(&r, 3500, |t| !within(t, 1800.0, 3200.0), sing);
+        assert_eq!((hole.score, hole.notes_total), (100.0, 1), "{hole:?}");
+        // Frames that arrive unvoiced still count 0.
+        let half = run_with_gaps(&r, 3500, |_| true, |t| sing(t).filter(|_| t < 2500.0));
+        assert!((half.pitch - 0.75).abs() < 0.01, "{half:?}");
+        // The run stopping early is not "missing": the rest of the song is unsung.
+        let stopped = run_with_gaps(&r, 3500, |t| t < 2100.0, sing);
+        assert!((stopped.pitch - 0.55).abs() < 0.01, "{stopped:?}");
+        assert_eq!(stopped.notes_total, 2);
+    }
+
+    #[test]
+    fn early_entry_through_a_short_rest_goes_back_to_where_it_began() {
+        // A3: rests of 100 ms; entering 250 ms early costs the same as 250 ms late.
+        let r = reference(&[(500, 900, 55.0), (1500, 900, 60.0), (2500, 900, 64.0)]);
+        let shifted = |delay: f64| {
+            run(&r, Difficulty::Normal, 4000, |t| {
+                r.notes
+                    .iter()
+                    .find(|n| {
+                        let s = n.start_ms as f64 + delay;
+                        within(t, s, s + n.dur_ms as f64)
+                    })
+                    .map(|n| n.midi as f64)
+            })
+        };
+        let (early, late) = (shifted(-250.0), shifted(250.0));
+        assert!(
+            (early.rhythm - late.rhythm).abs() < 0.05,
+            "{early:?} vs {late:?}"
+        );
+        assert!(early.rhythm < 0.3, "{early:?}");
+    }
+
+    #[test]
+    fn holding_the_previous_note_is_charged_once() {
+        // N3: tied notes; the singer holds the previous pitch 150 ms into each note,
+        // versus staying silent for those 150 ms.
+        let r = reference(&[(500, 500, 60.0), (1000, 500, 62.0), (1500, 500, 64.0)]);
+        let target = |t: f64| {
+            r.notes
+                .iter()
+                .position(|n| within(t, n.start_ms as f64, (n.start_ms + n.dur_ms) as f64))
+        };
+        let late = |hold: bool| {
+            run(&r, Difficulty::Normal, 2500, |t| {
+                let i = target(t)?;
+                let start = r.notes[i].start_ms as f64;
+                if i > 0 && t < start + 150.0 {
+                    hold.then_some(r.notes[i - 1].midi as f64)
+                } else {
+                    Some(r.notes[i].midi as f64)
+                }
+            })
+        };
+        let (held, silent) = (late(true), late(false));
+        assert!(
+            (held.score - silent.score).abs() <= 1.0,
+            "{held:?} vs {silent:?}"
+        );
+    }
+
+    #[test]
+    fn vibrato_is_not_detune() {
+        // N1: ±100 cents at 5.5 Hz around the target scores like a straight tone;
+        // the same vibrato around +100 cents is still a semitone off.
+        let r = reference(&[(500, 1000, 60.0), (1700, 1000, 64.0), (2900, 1000, 67.0)]);
+        let sing = |bias: f64| {
+            run(&r, Difficulty::Normal, 4500, |t| {
+                r.notes
+                    .iter()
+                    .find(|n| within(t, n.start_ms as f64, (n.start_ms + n.dur_ms) as f64))
+                    .map(|n| n.midi as f64 + bias + (TAU * 5.5 * t / 1000.0).sin())
+            })
+        };
+        assert!(sing(0.0).score >= 98.0, "{:?}", sing(0.0));
+        assert!(sing(1.0).score <= 40.0, "{:?}", sing(1.0));
+    }
+
+    #[test]
+    fn short_notes_tolerate_a_small_timing_error() {
+        // N4: tied 50 ms notes sung 20 ms late.
+        let notes: Vec<(u32, u32, f32)> = (0..20)
+            .map(|i| (500 + i * 50, 50, if i % 2 == 0 { 60.0 } else { 64.0 }))
+            .collect();
+        let r = reference(&notes);
+        let res = run(&r, Difficulty::Normal, 2000, |t| {
+            let i = ((t - 520.0) / 50.0).floor();
+            (0.0..20.0)
+                .contains(&i)
+                .then_some(if (i as u32).is_multiple_of(2) {
+                    60.0
+                } else {
+                    64.0
+                })
+        });
+        assert!(res.score >= 90.0, "{res:?}");
+    }
+
+    #[test]
+    fn frames_must_advance_in_time() {
+        let r = reference(&[(0, 500, 60.0)]);
+        let mut s = Scorer::new(&r, 0, Difficulty::Normal);
+        for t in [0.0, 10.0, 10.0, 5.0, f64::NAN, 20.0] {
+            s.push(VoiceFrame {
+                t_ms: t,
+                f0_hz: Some(midi_hz(60.0)),
+                confidence: 0.9,
+                voiced: true,
+            });
+        }
+        assert_eq!(s.raw.len(), 3);
     }
 
     #[test]

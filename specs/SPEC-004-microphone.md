@@ -100,4 +100,4 @@ Critérios:
   - No fim, mostra `outcome.latency`: se passou, "Latência medida: X ms (variação ±Y ms, D de E palmas). Ajuste salvo." e recarrega as settings; se não, o `reason` do Rust e "O ajuste atual foi mantido." O ajuste manual continua.
   - Testes: `clickTrack.test.ts` (3: espaçamento, WAV válido, ataques exatos) e `LatencyProbe.test.tsx` (4).
   - ❓ Usa a 1ª música disponível como `songId` (o command exige uma). ⏳ Medida real com caixas e palmas não feita.
-
+- SPEC-006 v3 N2, limiar de áudio faltando (Agente 2, 2026-11-19): `CaptureStats.missing_ratio` = 1 − amostras do callback ÷ (tempo de vídeo tocado × taxa), contado só nos trechos tocando. Acima de 5%, a performance é treino com `reason` em pt-BR. **Evidência neste aparelho** (Realtek, WASAPI compartilhado, 48 kHz): em 3 corridas ao vivo de 1 min, faltaram 0,57%, 0,16% e 0,40%; nas medições do T-006-07 (5 min e 2 min), 0,3–1,1%. O limite fica cerca de 10× acima do déficit normal. Os 40–46 mil amostras/s do T-006-03 não se repetiram. ⏳ Outros aparelhos/drivers.

@@ -1556,7 +1556,7 @@ mod tests {
             "PERF live {wall:.0} s: process CPU {cpu:.2} s = {:.2}% of a core (includes the 0.5 ms polling loop); \
              private MB {:.1} -> mid {:.1} -> end {:.1}; WS MB {:.1} -> {:.1}; threads {} -> {}; ticks {} ({:.1}/s); \
              latency callback->on_tick ms p50 {:.1} p95 {:.1} p99 {:.1} max {:.1} (n {}, {uncertain} uncertain dropped); driver period ms p50 {:.2} p99 {:.2}; \
-             finish {finish_ms:.2} ms; err {err:?}; played {} ms",
+             finish {finish_ms:.2} ms; err {err:?}; played {} ms; missing audio {:.2}%",
             100.0 * cpu / wall,
             before.private_mb,
             mid.map_or(f64::NAN, |m| m.private_mb),
@@ -1575,6 +1575,7 @@ mod tests {
             percentile(&gaps, 0.5),
             percentile(&gaps, 0.99),
             sum.played_ms,
+            100.0 * sum.capture.missing_ratio,
         );
         assert!(err.is_none());
         assert!(!lat.is_empty());
