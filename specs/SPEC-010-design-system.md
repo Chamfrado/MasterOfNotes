@@ -18,6 +18,7 @@
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | done |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | done |
 | T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | done |
+| T-010-06 | Tela Detalhes da música (editar, arquivo, reprodução, referência, recordes, Cantar/Ranking) | Agente 3 | review |
 
 ## STATUS
 2026-11-19 (Agente 3):
@@ -37,3 +38,11 @@
   - ❓ Modo TV e "pergunta de atualização já feita" ficam no localStorage do WebView (`src/display.ts`, marcado `ponytail:`). Proposto ao coordenador como campos de `AppSettings`.
   - Testes: `Settings.test.tsx` (8: ajustes, aplicação imediata, reversão em erro, consentimento ×2, Atualizações ×3).
 - T-010-04 done (Agente 0, 2026-11-19): integrado em main @ b3ed719; vitest 173/173, Playwright 44/44. Modo TV e consentimento migram do localStorage para AppSettings (tvMode, updateConsentAsked), contrato em main.
+- T-010-06 em review (Agente 3, 2026-11-19): `src/screens/SongDetails.tsx`, rota `song`.
+  - Na Biblioteca, o título do card abre os Detalhes (nome acessível "Detalhes de {título} {artista}"). O "Cantar" virou botão visível e continua direto para o Player, com o mesmo nome acessível de antes ("Cantar {título} {artista ou arquivo}"), então o E2E segue valendo.
+  - Conteúdo: título e artista editáveis (`updateSong`, "Salvar" só com mudança válida); arquivo, formato, duração e tamanho; reprodução (compatível / não verificado / a mesma mensagem de codec do Player com a sugestão MP4 H.264/AAC, e "Cantar" bloqueado); referência com selo, explicação e atalho "Importar" ou "Abrir referência".
+  - Recordes na dificuldade atual (`getLeaderboard`): recorde da música, top 5 (`RankingTable`) e "Recorde pessoal de" (seletor de cantor; melhor linha dele no ranking, que é top 50). Erro nos recordes não derruba a tela.
+  - Botões "Cantar" (com foco inicial) e "Ranking completo".
+  - Testes: `SongDetails.test.tsx` (6) e `Library.test` atualizado.
+  - ❓ Não há "usuário atual" no app, então o recorde pessoal é por cantor escolhido e se limita ao top 50 do ranking.
+

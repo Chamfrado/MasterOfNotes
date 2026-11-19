@@ -16,6 +16,7 @@ import { Modes } from "./screens/Modes";
 import { NewSession } from "./screens/NewSession";
 import { Participants } from "./screens/Participants";
 import { Session } from "./screens/Session";
+import { SongDetails } from "./screens/SongDetails";
 import { Settings } from "./screens/Settings";
 import { Updates } from "./screens/Updates";
 import { Result } from "./screens/Result";
@@ -40,6 +41,8 @@ function Screen({ route }: { route: Route }) {
       return <Mic />;
     case "player":
       return <Player songId={route.songId} round={route.round} />;
+    case "song":
+      return <SongDetails songId={route.songId} />;
     case "reference":
       return <Reference songId={route.songId} />;
     case "result":

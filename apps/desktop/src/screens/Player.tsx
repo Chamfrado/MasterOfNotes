@@ -28,7 +28,7 @@ const COUNTDOWN_S = 3;
 const SEEK_STEP_S = 5;
 const VOLUME_STEP = 0.05;
 const CONTROLS_HIDE_MS = 3000;
-const CODEC_HINT =
+export const CODEC_HINT =
   "Este vídeo não pode ser reproduzido (formato ou codec não suportado). Converta para MP4 com vídeo H.264 e áudio AAC.";
 
 type Overlay = AppSettings["feedbackOverlay"];
