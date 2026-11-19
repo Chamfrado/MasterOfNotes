@@ -1,28 +1,8 @@
 // T-008-04: Party flow end to end (SPEC-008) against the stateful test-only fake (e2e/fake-backend.ts).
 import { expect, test, type Page } from "@playwright/test";
 import { installFakeBackend } from "./fake-backend";
-import { fullSpec, settings, song, songs } from "./fixtures";
+import { competitiveSettings, fullSpec, nav, partySongs, singCurrentRound } from "./fixtures";
 import { mockTauri, useSyntheticVideo } from "./tauri-mock";
-
-const partySongs = [
-  ...songs, // a1, b2: no reference; c3: validated; d4: unavailable
-  song("e5", "Estrela Cadente", "Banda Aurora", { referenceStatus: "validated" }),
-  song("f6", "Rua da Chuva", null, { referenceStatus: "validated" }),
-];
-// A passed leak check for this device/volume, so validated songs start as competitive ("Começar").
-const competitiveSettings = settings("C:/Karaoke", { leakCheck: { deviceId: null, videoVolume: 0.8, passed: true, atMs: 0 } });
-
-const nav = (page: Page, label: string) =>
-  page.getByRole("navigation", { name: "Principal" }).getByRole("button", { name: label }).click();
-
-/** Sings the current round of the open session; the fake scores it with the next queued score. */
-async function singCurrentRound(page: Page, who: string, title: string) {
-  await expect(page.getByRole("heading", { level: 2, name: `${who} canta ${title}` })).toBeVisible();
-  await page.getByRole("button", { name: "Cantar", exact: true }).click();
-  await page.getByRole("button", { name: "Começar", exact: true }).click();
-  await expect(page.getByRole("heading", { level: 1, name: "Resultado" })).toBeVisible({ timeout: 15_000 }); // 3 s countdown + video
-  await page.getByRole("button", { name: "Voltar para a partida" }).click();
-}
 
 const standingRow = (page: Page, name: string) =>
   page.getByRole("table", { name: "Ranking da festa" }).getByRole("row").filter({ has: page.getByRole("rowheader", { name: new RegExp(`^${name}`) }) });

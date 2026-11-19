@@ -14,11 +14,18 @@ interface Db {
   nextId: number;
 }
 
-export async function installFakeBackend(page: Page, scores: number[]) {
-  await page.addInitScript((scores) => {
+export interface FakeOptions {
+  /** Singers that already exist when the app opens. */
+  participants?: Participant[];
+  /** The two duel performances have different CompatKeys (e.g. the reference got a new revision in between). */
+  incompatibleDuel?: boolean;
+}
+
+export async function installFakeBackend(page: Page, scores: number[], opts: FakeOptions = {}) {
+  await page.addInitScript(({ scores, opts }) => {
     const KEY = "e2e-fake-db";
     const load = (): Db =>
-      JSON.parse(localStorage.getItem(KEY) ?? "null") ?? { participants: [], sessions: [], scores, active: null, nextId: 1 };
+      JSON.parse(localStorage.getItem(KEY) ?? "null") ?? { participants: opts.participants ?? [], sessions: [], scores, active: null, nextId: 100 };
     const fail = (message: string) => {
       throw { code: "TEST", message };
     };
@@ -28,6 +35,17 @@ export async function installFakeBackend(page: Page, scores: number[]) {
       const out = fn(db);
       localStorage.setItem(KEY, JSON.stringify(db));
       return out;
+    };
+    // Same verdict as game::duel_outcome (tenths; draw <=> margin 0), filled by get_session like sessions.rs.
+    const withDuel = (s: GameSession): GameSession => {
+      if (s.mode !== "duel") return s;
+      const done = s.rounds.filter((r) => r.status === "completed" && r.score != null);
+      if (done.length < 2) return { ...s, duel: null };
+      if (opts.incompatibleDuel)
+        return { ...s, duel: { kind: "incompatible", message: "as performances não são comparáveis (referência, revisão, algoritmo ou dificuldade diferentes)" } };
+      const [a, b] = done.map((r) => Math.round((r.score ?? 0) * 10));
+      const winner = a === b ? null : a > b ? done[0].participantId : done[1].participantId;
+      return { ...s, duel: { kind: "result", winner, margin: Math.abs(a - b) / 10 } };
     };
     const session = (db: Db, id: unknown) => db.sessions.find((s) => s.id === id) ?? fail("Partida não encontrada.");
 
@@ -56,11 +74,11 @@ export async function installFakeBackend(page: Page, scores: number[]) {
           db.participants.push(p);
           return p;
         }),
-      list_sessions: () => load().sessions,
-      get_session: ({ id }) => session(load(), id),
+      list_sessions: () => load().sessions.map(withDuel),
+      get_session: ({ id }) => withDuel(session(load(), id)),
       create_session: ({ args }) =>
         tx((db) => {
-          const a = args as { mode: GameSession["mode"]; name: string | null; participantIds: number[]; songIds: string[]; minRounds?: number };
+          const a = args as { mode: GameSession["mode"]; name: string | null; participantIds: number[]; songIds: string[]; minRounds?: number; targetScore?: number };
           // Manual order, as plan_rounds: max(P, S) rounds, round i = (p[i % P], s[i % S]).
           const n = Math.max(a.participantIds.length, a.songIds.length);
           const rounds: Round[] = Array.from({ length: n }, (_, i) => ({
@@ -77,7 +95,12 @@ export async function installFakeBackend(page: Page, scores: number[]) {
             mode: a.mode,
             name: a.name,
             status: "active",
-            config: { minRounds: a.mode === "party" ? (a.minRounds ?? Math.min(...perSinger)) : undefined, difficulty: "normal", seed: 42 },
+            config: {
+              minRounds: a.mode === "party" ? (a.minRounds ?? Math.min(...perSinger)) : undefined,
+              targetScore: a.mode === "challenge" ? a.targetScore : undefined,
+              difficulty: "normal",
+              seed: 42,
+            },
             startedMs: Date.UTC(2026, 10, 19, 20, 0),
             completedMs: null,
             rounds,
@@ -85,21 +108,21 @@ export async function installFakeBackend(page: Page, scores: number[]) {
           };
           s.standings = standings(s);
           db.sessions.push(s);
-          return s;
+          return withDuel(s);
         }),
       set_round_status: ({ roundId, status }) =>
         tx((db) => {
           const s = db.sessions.find((x) => x.rounds.some((r) => r.id === roundId)) ?? fail("Rodada não encontrada.");
           const r = s.rounds.find((x) => x.id === roundId);
           if (r) r.status = status as Round["status"];
-          return s;
+          return withDuel(s);
         }),
       complete_session: ({ id }) =>
         tx((db) => {
           const s = session(db, id);
           s.status = "completed";
           s.completedMs = Date.UTC(2026, 10, 19, 21, 0);
-          return s;
+          return withDuel(s);
         }),
       start_performance: ({ args }) =>
         tx((db) => {
@@ -131,5 +154,5 @@ export async function installFakeBackend(page: Page, scores: number[]) {
         }),
     };
     window.__E2E_HANDLERS__ = handlers;
-  }, scores);
+  }, { scores, opts });
 }
