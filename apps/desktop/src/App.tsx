@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { NavBar, ToastProvider, useToast } from "./components/ui";
 import { getSettings } from "./lib/ipc";
-import { applyReducedMotion, applyTvMode, getTvMode } from "./display";
+import { applyReducedMotion, applyTvMode, tvModeOf } from "./display";
 import { NavContext, type Nav, type Route } from "./nav";
 import { handleSpatialKey } from "./spatial";
 import { Home } from "./screens/Home";
@@ -94,9 +94,12 @@ export default function App() {
 
   // Display prefs: in-app reduced motion overrides the OS preference; Modo TV scales the rem grid.
   useEffect(() => {
-    applyTvMode(getTvMode());
+    applyTvMode(tvModeOf({})); // before settings arrive (legacy copy), then the persisted value
     getSettings().then(
-      (s) => applyReducedMotion(s.reducedMotion),
+      (s) => {
+        applyReducedMotion(s.reducedMotion);
+        applyTvMode(tvModeOf(s));
+      },
       () => {}, // screens surface settings errors themselves; the OS preference still applies
     );
   }, []);

@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Button, Card, ErrorState, LoadingState, Select, errorMessage, useToast } from "../components/ui";
 import { getSettings, updateSettings, type AppSettings } from "../lib/ipc";
-import { applyReducedMotion, getTvMode, setTvMode } from "../display";
+import { applyReducedMotion, setTvMode, tvModeOf } from "../display";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 
@@ -40,7 +40,7 @@ function Form({ initial }: { initial: AppSettings }) {
   const toast = useToast();
   const { navigate } = useNav();
   const [s, setS] = useState(initial);
-  const [tv, setTv] = useState(getTvMode);
+  const [tv, setTv] = useState(() => tvModeOf(initial));
 
   const patch = async (p: Partial<AppSettings>) => {
     const before = s;
@@ -89,7 +89,7 @@ function Form({ initial }: { initial: AppSettings }) {
           checked={tv}
           onChange={(v) => {
             setTv(v);
-            setTvMode(v);
+            void setTvMode(v);
           }}
         />
         <Select

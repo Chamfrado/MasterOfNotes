@@ -63,7 +63,8 @@ describe("Settings", () => {
     expect(document.documentElement.dataset.reducedMotion).toBeUndefined();
     await userEvent.click(screen.getByRole("switch", { name: /Modo TV/ }));
     expect(document.documentElement.dataset.tv).toBe("on");
-    expect(localStorage.getItem("mon.tvMode")).toBe("1");
+    expect(ipc.updateSettings).toHaveBeenCalledWith({ tvMode: true });
+    expect(localStorage.getItem("mon.tvMode")).toBe("1"); // temporary fallback until Rust stores tvMode
   });
 
   it("reverts and reports when Rust rejects a value", async () => {
@@ -89,10 +90,21 @@ describe("Home update consent", () => {
     expect(screen.queryByRole("region", { name: "Atualizações automáticas" })).not.toBeInTheDocument();
   });
   it("'Agora não' keeps it off and does not ask again", async () => {
+    vi.mocked(ipc.updateSettings).mockRejectedValue({ code: "invalid_setting", message: "campo desconhecido" }); // Rust not there yet
     wrap(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: "Agora não" }));
-    expect(ipc.updateSettings).not.toHaveBeenCalled();
+    expect(ipc.updateSettings).toHaveBeenCalledWith({ updateConsentAsked: true });
+    expect(ipc.updateSettings).not.toHaveBeenCalledWith(expect.objectContaining({ autoCheckUpdates: true }));
     expect(localStorage.getItem("mon.updateConsentAsked")).toBe("1");
+    expect(screen.queryByRole("region", { name: "Atualizações automáticas" })).not.toBeInTheDocument();
+  });
+  it("is not shown when settings say it was already asked, and TV mode follows settings", async () => {
+    vi.mocked(ipc.getSettings).mockResolvedValue({ ...base, updateConsentAsked: true, tvMode: true });
+    wrap(<Home />);
+    await screen.findByRole("heading", { name: "Preparação" });
+    expect(screen.queryByRole("region", { name: "Atualizações automáticas" })).not.toBeInTheDocument();
+    wrap(<Settings />);
+    expect(await screen.findByRole("switch", { name: /Modo TV/ })).toBeChecked();
   });
 });
 
