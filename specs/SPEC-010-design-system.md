@@ -13,10 +13,14 @@
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | todo |
-| T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | todo |
-| T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | todo |
+| T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | review |
+| T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | review |
+| T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | doing |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | todo |
 
 ## STATUS
-Pendente.
+2026-11-19 (Agente 3):
+- T-010-01 em review. Tokens no `@theme` (`src/styles.css`): grafite + destaque `#ff4f8b`, gradiente só em marca/placar, Inter + Bricolage Grotesque empacotadas (`@fontsource-variable`, saem no bundle, sem rede). Escala 10-foot: `font-size` raiz `clamp(16px, 0.55vw + 10px, 28px)`; alvos `min-h-12`; foco `3px` amarelo `--color-focus`. `prefers-reduced-motion` e `data-reduced-motion` (setting `reducedMotion`) zeram animações. Navegação: pilha de rotas em memória (`src/nav.ts`), Esc = voltar, foco vai para o `<main>` a cada tela.
+- T-010-02 em review. `components/ui.tsx` (Button, Input, Select, Slider, Card, Badge, Progress, Dialog, Toast, NavBar, Loading/ErrorState) e `components/game.tsx` (MicMeter, PitchIndicator, ScoreBadge, RankingTable). Nativos: `<dialog>`, `<select>`, `<progress>`, `<input type=range>`, `<table>`. Sem Radix/motion. Testes: `ui.test.tsx`, `game.test.tsx`.
+- T-010-03 em andamento: Início, Biblioteca, Microfone, Player, Resultado, Ranking navegáveis e ligados ao `ipc.ts` real; erros do backend aparecem como estado de erro com "Tentar de novo".
+- Pendente: componente `List` (não houve consumidor além da Biblioteca, que usa `<ul>`); navegação espacial por setas para controle remoto de TV; 60 FPS não medido; contraste verificado por cálculo dos tokens, não por ferramenta.

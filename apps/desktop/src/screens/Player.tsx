@@ -1,6 +1,7 @@
 // SPEC-003 skeleton: <video> is the music clock; the reducer owns UI state; scoring lives in Rust.
 // Full controls (seek/volume/practice mode, T-003-02) and sync hardening (T-003-03) build on this.
-import { useEffect, useReducer, useRef, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useEffect, useReducer, useRef, useState, type ReactNode } from "react";
 import { PitchIndicator, ScoreBadge } from "../components/game";
 import { Button, ErrorState, LoadingState, errorMessage, useToast } from "../components/ui";
 import {
@@ -26,18 +27,35 @@ const CODEC_HINT =
 
 export function Player({ songId }: { songId: string }) {
   const [songs, reload] = useAsync(listSongs, []);
-  if (songs.status === "loading") return <LoadingState label="Preparando o palco…" />;
-  if (songs.status === "error") return <ErrorState error={songs.error} onRetry={reload} />;
+  if (songs.status === "loading") return <Backstage><LoadingState label="Preparando o palco…" /></Backstage>;
+  if (songs.status === "error") return <Backstage><ErrorState error={songs.error} onRetry={reload} /></Backstage>;
   const song = songs.data.find((s) => s.id === songId);
-  if (!song) return <ErrorState title="Música não encontrada" error="Ela pode ter sido removida da pasta da biblioteca." />;
+  if (!song) return <Backstage><ErrorState title="Música não encontrada" error="Ela pode ter sido removida da pasta da biblioteca." /></Backstage>;
   return <Stage song={song} />;
 }
+
+/** The player hides the NavBar, so pre-stage states keep an explicit way out. */
+function Backstage({ children }: { children: ReactNode }) {
+  const { back } = useNav();
+  return (
+    <div className="mx-auto flex max-w-3xl flex-col gap-6 p-8">
+      <Button variant="ghost" className="self-start" onClick={back}>
+        ← Voltar (Esc)
+      </Button>
+      {children}
+    </div>
+  );
+}
+
+const toggleFullscreen = async () => {
+  const w = getCurrentWindow();
+  await w.setFullscreen(!(await w.isFullscreen()));
+};
 
 function Stage({ song }: { song: Song }) {
   const { navigate, back } = useNav();
   const toast = useToast();
   const video = useRef<HTMLVideoElement>(null);
-  const stage = useRef<HTMLDivElement>(null);
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
   const [perf, setPerf] = useState<PerformanceStarted | null>(null);
   const [tick, setTick] = useState<LiveTick | null>(null);
@@ -47,6 +65,8 @@ function Stage({ song }: { song: Song }) {
     dispatch({ type: "LOAD" });
     return () => {
       if (active.current) abortPerformance().catch((e: unknown) => console.warn("abort_performance:", errorMessage(e)));
+      // Leaving the stage always restores the windowed app.
+      getCurrentWindow().setFullscreen(false).catch((e: unknown) => console.warn("setFullscreen:", errorMessage(e)));
     };
   }, []);
 
@@ -121,8 +141,7 @@ function Stage({ song }: { song: Song }) {
         e.preventDefault();
         togglePause();
       } else if (e.key === "f" || e.key === "F") {
-        if (document.fullscreenElement) void document.exitFullscreen();
-        else void stage.current?.requestFullscreen();
+        toggleFullscreen().catch((err: unknown) => toast(errorMessage(err), "error"));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -130,7 +149,7 @@ function Stage({ song }: { song: Song }) {
   });
 
   return (
-    <div ref={stage} className="relative flex h-dvh items-center justify-center overflow-hidden bg-black">
+    <div className="relative flex h-dvh items-center justify-center overflow-hidden bg-black">
       <h1 className="sr-only">Tocando {song.title}</h1>
       <video
         ref={video}
