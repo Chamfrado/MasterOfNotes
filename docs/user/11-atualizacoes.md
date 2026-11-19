@@ -47,6 +47,8 @@ Cada atualização é **assinada digitalmente** pelo projeto. Se a assinatura n�
 
 *"Não foi possível verificar ou baixar a atualização. O app continua funcionando normalmente."* Isso costuma ser falta de internet. Clique em **Tentar de novo** mais tarde. O detalhe técnico aparece logo abaixo da mensagem.
 
+> **Versões de testes (pré-releases).** Durante as versões de testes, como a 0.1.1, a verificação automática pode mostrar que não foi possível verificar. Isso é esperado: confira as novidades na [página de releases](https://github.com/Chamfrado/MasterOfNotes/releases).
+
 Se aparecer *"Atualizações automáticas ainda não estão configuradas nesta versão. O app funciona normalmente."*, a sua versão não tem atualização automática. Baixe a versão nova pela página do projeto (veja [Instalação](01-instalacao.md#instalar)).
 
 ---

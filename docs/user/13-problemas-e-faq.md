@@ -100,6 +100,10 @@ Não. Sair (**Esc** ou **Sair**) descarta a apresentação. Numa partida, a roda
 
 ## Geral
 
+### "Não foi possível verificar ou baixar a atualização"
+
+Sem internet, essa mensagem é normal. Durante as versões de testes (pré-releases), como a 0.1.1, ela também pode aparecer com internet. Isso é esperado: confira as novidades na [página de releases](https://github.com/Chamfrado/MasterOfNotes/releases). O app continua funcionando normalmente. Veja [Atualizações](11-atualizacoes.md#se-der-erro).
+
 ### Funciona sem internet?
 
 Sim, tudo. A internet só é usada para procurar atualizações, se você permitir.
