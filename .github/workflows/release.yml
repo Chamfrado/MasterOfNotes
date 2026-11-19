@@ -1,13 +1,13 @@
 # Release (T-009-03, SPEC-009): builds the Master Of Notes NSIS installer + updater latest.json
 # and uploads them to a DRAFT GitHub release. Never publishes; publishing is a manual owner action (R6).
 #
-# BLOCKED until the owner acts (no keys are generated or stored in this repo):
-#   1. Generate the updater key pair locally: `pnpm --filter desktop tauri signer generate`
-#      (private key stays outside the repo).
-#   2. Add repo secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
-#   3. Put the public key in tauri.conf.json `plugins.updater.pubkey` and set
-#      `bundle.createUpdaterArtifacts: true` (Agent 1, T-009-01/T-009-02).
-# Without them the "Check signing secrets" step fails with an explicit message.
+# State (2026-11-19): repo secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD exist
+# (owner); the public key goes in tauri.conf.json `plugins.updater.pubkey` (Agent 1). Pushing a v* tag or
+# running this workflow is still the owner's decision. Without the secrets, "Check signing secrets" fails
+# with an explicit message.
+# Updater artifacts (.sig + latest.json) are enabled only here, through .github/tauri-updater.conf.json,
+# so local `tauri build` never needs the private key. A config FILE instead of inline JSON: on Windows the
+# runner (`pnpm`, a .cmd shim) goes through cmd.exe, where inline JSON quoting is fragile.
 
 name: Release
 
@@ -68,7 +68,8 @@ jobs:
         with:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
-          args: --bundles nsis
+          # Relative to projectPath (apps/desktop), as the Tauri CLI and tauri-action both resolve it.
+          args: --bundles nsis --config ../../.github/tauri-updater.conf.json
           tagName: v__VERSION__
           releaseName: Master Of Notes v__VERSION__
           releaseBody: Rascunho gerado pelo CI. Revise as notas antes de publicar.
