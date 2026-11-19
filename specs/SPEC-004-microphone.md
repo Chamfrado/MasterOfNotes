@@ -80,3 +80,14 @@ Critérios:
     - O acompanhamento sozinho também vaza quando a fundamental coincide com a melodia (89 pontos), então a checagem deve rodar com a música normal, com ou sem voz-guia.
   - Guarda rápido no CI: `leak_threshold_separates_a_silent_room_from_a_leak` e `leak_check_needs_8s_and_3_notes_and_no_seek`.
   - ❓ Com microfone físico e caixas reais ainda não foi medido. O gate depende da calibração de ruído: com o piso real mais alto, o vazamento precisa ser mais forte para passar do gate.
+- T-004-07, parte do Agente 2 `review` (2026-11-19): sonda de latência ponta a ponta (R7) pelo mesmo caminho da performance, com o desenho aprovado pelo coordenador.
+  - **audio-engine:** `detect_onsets` (envelope de 5 ms, subida ≥ 15 dB, ≥ piso + 20 dB, refratário de 150 ms, início com precisão de amostra), `latency_from` (pareamento em [−100, +600] ms, offset = mediana, jitter = desvio absoluto mediano) e `Capture::start_raw` (blocos mono numerados como o contador do callback).
+  - **performance.rs:** `PerformanceConfig.latency_probe: Option<Vec<f64>>` (cliques em tempo de vídeo; exclusivo com `leak_check`; exige `latency_offset_ms = 0`, senão `invalid_input`) e `PerformanceSummary.latency: Option<LatencyVerdict { offsetMs, jitterMs, detected, expected, passed, reason }>`.
+    - As amostras são guardadas a partir do 1º play, sem pré-roll.
+    - Cada onset é mapeado com a âncora vigente na sua amostra (o histórico de âncoras inclui os resyncs).
+    - Falha com motivo em pt-BR se houver seek, < 4 cliques tocados, detected < expected/2 ou |offset| > 500 ms.
+  - Testes ✅:
+    - puros: atraso constante de 87 ms medido com erro ≤ 1 ms; palmas com ±10 ms → jitter 10 ±1,5; palmas faltando; som contínuo não vira transiente; palma adiantada → offset negativo;
+    - sessão: atraso medido através da âncora com o pré-roll ignorado; resync de +100 ms aplicado só aos onsets posteriores; sem detecção, com seek e sonda curta reprovam; validação e JSON achatado;
+    - hardware (`--ignored`): `start_raw` com blocos contíguos no microfone Realtek; `live_probe_on_the_default_microphone` roda ponta a ponta (sem cliques tocados → detected 0 com motivo).
+  - ⏳ Medida real com cliques nas caixas e palmas não foi feita. O microfone desta máquina parece mudo (piso de −105 a −109 dBFS); depende do proprietário.
