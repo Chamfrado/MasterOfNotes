@@ -97,6 +97,8 @@ struct NoteState {
     p_sum: f64,
     sustained: u32,
     onset: Option<f64>,
+    /// Jumped over by a seek (training only): excluded from every aggregate.
+    skipped: bool,
 }
 
 impl NoteState {
@@ -155,6 +157,7 @@ impl Scorer {
                     p_sum: 0.0,
                     sustained: 0,
                     onset: None,
+                    skipped: false,
                 }
             })
             .collect();
@@ -182,15 +185,27 @@ impl Scorer {
         None
     }
 
+    /// Training only (a seek jumped from `from_ms` to `to_ms`, song time): notes
+    /// starting in `[from_ms, to_ms)` are excluded from the result instead of
+    /// counting as unsung. Runs without seeks are unaffected.
+    pub fn skip(&mut self, from_ms: f64, to_ms: f64) {
+        for n in &mut self.notes {
+            if n.start >= from_ms && n.start < to_ms {
+                n.skipped = true;
+            }
+        }
+    }
+
     pub fn finish(mut self) -> ScoreResult {
         while self.next < self.raw.len() {
             self.process(self.next);
             self.next += 1;
         }
-        let total: f64 = self.notes.iter().map(NoteState::dur).sum();
+        let notes: Vec<&NoteState> = self.notes.iter().filter(|n| !n.skipped).collect();
+        let total: f64 = notes.iter().map(|n| n.dur()).sum();
         let avg = |f: fn(&NoteState) -> f64| {
             if total > 0.0 {
-                self.notes.iter().map(|n| n.dur() * f(n)).sum::<f64>() / total
+                notes.iter().map(|n| n.dur() * f(n)).sum::<f64>() / total
             } else {
                 0.0
             }
@@ -200,8 +215,8 @@ impl Scorer {
             avg(NoteState::rhythm),
             avg(NoteState::sustain),
         );
-        let hit = self.notes.iter().filter(|n| n.pitch() >= 0.5).count() as u32;
-        let notes_total = self.notes.len() as u32;
+        let hit = notes.iter().filter(|n| n.pitch() >= 0.5).count() as u32;
+        let notes_total = notes.len() as u32;
         ScoreResult {
             score: round1(100.0 * (W_PITCH * p + W_RHYTHM * r + W_SUSTAIN * s)),
             pitch: p as f32,
@@ -253,8 +268,10 @@ impl Scorer {
 
         while self.finalized < self.notes.len() && self.notes[self.finalized].end <= t {
             let n = &self.notes[self.finalized];
-            self.done_dur += n.dur();
-            self.done_weighted += n.dur() * n.weighted();
+            if !n.skipped {
+                self.done_dur += n.dur();
+                self.done_weighted += n.dur() * n.weighted();
+            }
             self.finalized += 1;
         }
 
@@ -526,6 +543,31 @@ mod tests {
             });
         }
         assert_eq!(s.finish().score, 100.0);
+    }
+
+    #[test]
+    fn skipped_notes_are_excluded_not_zeroed() {
+        let r = reference(&[(0, 500, 60.0), (1000, 500, 62.0), (2000, 500, 64.0)]);
+        let mut s = Scorer::new(&r, 0, Difficulty::Normal);
+        s.skip(600.0, 2000.0); // seek from 0.6 s to 2.0 s jumps over the 2nd note only
+        for i in 0..300 {
+            let t = i as f64 * 10.0;
+            let m = if t < 500.0 {
+                Some(60.0)
+            } else if (2000.0..2500.0).contains(&t) {
+                Some(64.0)
+            } else {
+                None
+            };
+            s.push(VoiceFrame {
+                t_ms: t,
+                f0_hz: m.map(midi_hz),
+                confidence: 0.9,
+                voiced: m.is_some(),
+            });
+        }
+        let res = s.finish();
+        assert_eq!((res.score, res.notes_total, res.notes_hit), (100.0, 2, 2));
     }
 
     #[test]
