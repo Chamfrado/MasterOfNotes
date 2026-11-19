@@ -23,6 +23,10 @@ export interface AppSettings {
   reducedMotion: "system" | "on" | "off";
   feedbackOverlay: "full" | "compact" | "hidden";
   autoCheckUpdates: boolean;
+  /** Larger root scale for TVs (A11Y-03). Default false. */
+  tvMode: boolean;
+  /** The first-run "check for updates?" consent card was answered. Default false. */
+  updateConsentAsked: boolean;
   /** Last leak check (SPEC-004 R9 / T-004-06). Competitive play requires a passed check for the current device at <= this volume. Read-only via updateSettings. */
   leakCheck: LeakCheck | null;
 }
