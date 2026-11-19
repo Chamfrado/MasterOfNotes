@@ -6,7 +6,83 @@ Ambiente: Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1. Medido em
 Todos os números abaixo vêm de testes executados e reproduzíveis (áudio gerado em código, sem arquivos binários).
 Com microfone físico, só o caminho da captura foi exercitado (seção "Dispositivo real"). Pitch com voz real está pendente (⏳).
 
-## Algoritmo v2 (`ALGORITHM_VERSION = 2`, atual)
+## Algoritmo v3 (`ALGORITHM_VERSION = 3`, atual)
+
+Decisões: SPEC-006, seção "Algoritmo v3", a partir da [re-revisão do Agente 4](evidence/scoring-review-v2.md). Formulação: comentário de cabeçalho de `crates/scoring-engine/src/scorer.rs` e STATUS da SPEC-006.
+
+**Reproduzir:** `cargo test -p scoring-engine --test regression -- --nocapture --test-threads=1` (≈ 20 s).
+- O golden (`golden_results_are_exact`) fixa 12 fixtures. Às 7 do v2 somam-se vibrato ±75 em voz humana, segurar a nota anterior 150 ms, ligadas de 50 ms com 25 ms de atraso, 10% dos frames perdidos e entrada 400 ms antes.
+- A comparação v2 × v3 abaixo rodou o `scorer.rs` do v2 (main @ e9694d4) e o do v3 sobre **o mesmo áudio**, numa sonda local fora do repositório, como nas revisões de QA.
+
+**Voz humana:** vogal /a/ com formantes, jitter 1%, shimmer 10%, drift lento de 15 cents (o modelo do Agente 4). "Centrada" quer dizer drift 0. Dificuldade Normal, salvo indicação.
+
+### Metas do v3: v2 × v3 no mesmo áudio
+
+| Item | Caso | Meta v3 | v2 | v3 | ✅ |
+|---|---|---|---|---|---|
+| N1 | Centrada, vibrato ±50 c a 5,5 Hz (regressão / música de teste) | ≥ 95 | 91,4 / 91,1 | **100,0 / 100,0** | ✅ |
+| N1 | Centrada, vibrato ±75 c | ≥ 92 | 77,4 / 77,5 | **99,9 / 99,9** | ✅ |
+| N1 | Centrada, vibrato ±100 c | ≥ 88 | 63,3 / 63,9 | **99,7 / 99,7** | ✅ |
+| N2 | Canto perfeito, todos os frames | — | 99,7 | 100,0 | ✅ |
+| N2 | Canto perfeito, ~5 / 10 / 15% dos frames não chegam | sem perda (acima de 5% vira treino no `performance.rs`) | 95,6 / 90,6 / 88,1 | **100,0 / 100,0 / 100,0** | ✅ |
+| N2 | Só os 100 ms iniciais cantados, resto calado (frames chegam) | continua 0 por frame calado | 10,8 | 10,8 | ✅ |
+| N3 | Ligadas de 500 ms, segura a anterior 80 ms (calado 80 ms: v2 91,2 / v3 91,9) | ≈ calado | 82,6 | **89,2** | ✅ |
+| N3 | Segura a anterior 150 ms (calado 150 ms: 74,4 / 75,1) | ≈ calado | 61,0 | **72,4** | ✅ |
+| N4 | Ligadas de 50 ms, 25 ms atrasadas | ≥ 70 | 2,0 | **100,0** | ✅ |
+| N4 | Ligadas de 100 ms, 25 ms atrasadas | ≥ 85 | 84,4 | **99,5** | ✅ |
+| A3 | Pausas de 200 ms, atrasado / adiantado 300 ms | simétrico | 54,2 / 64,8 | 57,0 / 58,7 (R 0,00 / 0,01) | ✅ |
+| A3 | Pausas de 200 ms, atrasado / adiantado 200 ms | simétrico | 72,0 / 77,1 | 73,1 / 74,8 | ✅ |
+| A3 | Entra 190 / 400 ms antes e segura (cortando a anterior) | 400 pior que 190 | 91,8 / 71,9 | 90,8 / 66,6 (R 0,52 / 0,01) | ✅ |
+| A3 | Pausas de 100 ms, deslocado −200 / +200 ms | simétrico | 79,7 / 69,8 | 75,9 / 74,1 | ✅ |
+| A4 | +90 c constante | ≤ 40 | 38,8 | 39,1 | ✅ |
+| A4(b) | Maior queda em 10 c, curva 0–300 c de 1 em 1, melodia da regressão (frames ideais): Easy / Normal / Hard | ≤ 10 | 10,2 / **10,9** / 10,6 | 8,5 / **9,7** / 9,7 | ✅ |
+| A5 | Sirene de 1 oitava (voz humana) | ≤ 15 | 9,5 | 9,5 | ✅ |
+| A5 | Nota fixa, melhor classe (frames ideais) | ≤ 25 | 24,4 | 22,0 | ✅ |
+
+Os mesmos casos, com senoide e com voz humana, estão afirmados em `tests/regression.rs`: `n1_*`, `n2_*`, `n3_*`, `n4_*`, `a3_short_rests_*` e `a4_constant_detune_on_the_regression_song`.
+
+**Curva do amador** (sonda P9b do Agente 4; música de teste, drift ±20 c + vibrato ±50 c, Normal):
+
+| Desvio constante | 0 | +20 c | +30 c | −40 c |
+|---|---|---|---|---|
+| v2 | 90,4 | 85,6 | 80,8 | 79,2 |
+| v3 | 100,0 | 96,7 | 90,8 | 88,2 |
+
+O v3 tirou o custo do vibrato e deixou só o do desvio constante, que segue as tolerâncias do v2 sem mudança. Fica registrado o gatilho de calibração com voz real: o amador típico subiu de 85–90 para 91–100 no Normal. Com desvio de 30–40 c ainda cai para 88–91. ⏳ Confirmar com gravações reais antes de mexer nas tolerâncias.
+
+### O que mudou e por quê
+
+- **A4(b) 10,9 → 9,7:** a queda de 10,7–10,9 entre 50 e 60 c não vinha da curva de tolerância. Vinha da regra "mais perto deste alvo que do anterior": a +60 c, a nota E4 depois de F4 (semitom descendente) nunca ficava mais perto de E4, ficava sem onset e perdia todo o ritmo. No v3, se o cantor nunca chega mais perto, vale o primeiro frame no alvo.
+- **Mediana com oitava:** com voz de formantes, o YIN salta oitavas em trocas rápidas de nota (ligadas de 50 ms liam 48 e 76 no lugar de 60 e 64). A mediana em MIDI escolhia valores de oitavas diferentes: ligadas de 50 ms com 25 ms de atraso davam 46,0 com voz humana e 95,8 com senoide. Os valores agora são dobrados para a oitava do próprio frame antes da mediana; a pontuação já ignorava oitava. Resultado: 100,0.
+- **Contorno sem vibrato e ornamentos:** só entram na média valores a até 250 c do frame. Um ornamento curto e distante não contamina os vizinhos afinados, e o contorno não mistura os dois lados do onset (N3).
+- **Gate:** a acurácia começa no onset desta nota e termina no onset da próxima. É o espelho do N3: quem adianta a nota seguinte paga no ritmo dela, não de novo no gate desta.
+
+### Tabela v1 (continua valendo no v3)
+
+| Caso | Meta | Score | P | R | S | ✅ |
+|---|---|---|---|---|---|---|
+| Perfeito (senoide) | ≥ 98 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ |
+| Perfeito uma oitava abaixo | ≥ 98 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ |
+| +100 cents constante | P ∈ [0,45; 0,55] | 30,2 | 0,464 | 0,000 | 0,000 | ✅ |
+| +200 cents constante | P = 0, score ≤ 25 | 0,0 | 0,000 | 0,000 | 0,000 | ✅ |
+| Silêncio | 0 | 0,0 | | | | ✅ |
+| Ruído branco | ≤ 5 | 0,0 | | | | ✅ |
+| Atraso de 200 ms | R ∈ [0,3; 0,6], P ≥ 0,7 | 73,1 | 0,802 | 0,448 | 0,804 | ✅ |
+| Só 1 de 10 notas cantada | ≤ 15 | 10,0 | 0,100 | 0,100 | 0,100 | ✅ |
+| Perfeito com volume 4× | idêntico | 100,0 | | | | ✅ |
+| Vibrato ±50 cents a 6 Hz | ≥ 90 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ |
+| Voz + acompanhamento a −12 dB | ≥ 85 | 99,8 | 0,998 | 1,000 | 0,998 | ✅ |
+| Glissando de 80 ms entre notas | ≥ 92 | 97,7 | 0,965 | 1,000 | 1,000 | ✅ |
+
+Metas do v2 que continuam valendo, medidas no v3:
+- A1, notas ligadas repetidas, semitons e tons: 100,0.
+- A6, ligadas de 50, 100 e 250 ms: 100,0. As de 30 ms deram 36,1, abaixo da resolução, só informativo.
+- A9, voz humana em 3 registros, Normal e Hard, com e sem sopro: 99,7 a 100,0.
+- A2, voz-guia vazando a −20 dB: 100,0. O scorer não resolve isso; o vazamento é barrado pelo teste de vazamento (T-004-06).
+
+**Falta de áudio no aparelho (N2, `CaptureStats.missing_ratio`):** em 3 corridas ao vivo de 1 minuto no microfone Realtek desta máquina (`perf_live_5_minutes_*` com `PERF_MINUTES=1`, release), faltaram **0,57%, 0,16% e 0,40%** do áudio. No T-006-07, as contagens de frames ÷ tempo tocado davam 0,3–1,1%. O limite de 5% fica com margem de cerca de 10× sobre o déficit normal deste aparelho. O "40–46 mil amostras/s" registrado no T-006-03 não se repetiu.
+
+## Algoritmo v2 (`ALGORITHM_VERSION = 2`; histórico, vale para performances gravadas com `algorithmVersion = 2`)
 
 Reproduzir: `cargo test -p scoring-engine --test regression -- --nocapture --test-threads=1` (≈ 35 s).
 Pipeline completo, Normal salvo indicação. Os casos marcados "A*" vêm da revisão de QA do Agente 4 ([scoring-review.md](evidence/scoring-review.md)). O modelo de voz humana também vem das sondas dele.
