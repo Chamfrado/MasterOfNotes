@@ -163,7 +163,7 @@ describe("SongDetails", () => {
     ]);
     renderDetails();
     const list = within(await screen.findByRole("region", { name: "Suas apresentações" }));
-    expect(ipc.listPerformances).toHaveBeenCalledWith({ songId: "s1", limit: 10 });
+    await vi.waitFor(() => expect(ipc.listPerformances).toHaveBeenCalledWith({ songId: "s1", limit: 10 }));
     await vi.waitFor(() => expect(list.getAllByRole("listitem")).toHaveLength(3));
     const items = list.getAllByRole("listitem");
     expect(items[0]).toHaveTextContent("88,4");
