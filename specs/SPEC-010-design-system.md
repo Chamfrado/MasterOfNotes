@@ -37,3 +37,4 @@
   - ❓ Modo TV e "pergunta de atualização já feita" ficam no localStorage do WebView (`src/display.ts`, marcado `ponytail:`). Proposto ao coordenador como campos de `AppSettings`.
   - Testes: `Settings.test.tsx` (8: ajustes, aplicação imediata, reversão em erro, consentimento ×2, Atualizações ×3).
 - T-010-04 done (Agente 0, 2026-11-19): integrado em main @ b3ed719; vitest 173/173, Playwright 44/44. Modo TV e consentimento migram do localStorage para AppSettings (tvMode, updateConsentAsked), contrato em main.
+- T-010-05, rodada 2 (Agente 4, 2026-11-19): telas Jogar, Participantes, Nova partida, Partida, Histórico, Referência e diálogos Encerrar, Qual trilha e Pular trecho. Zero violações axe; teclado, viewports e movimento ✅. A11Y-05 coberto por `e2e/spatial.e2e.ts` (5 casos ✅). Novo achado baixo: A11Y-06 (checkbox/rádio de 24 px no desenho). Detalhes em a11y-audit.md.
