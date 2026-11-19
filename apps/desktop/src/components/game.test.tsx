@@ -4,10 +4,14 @@ import { MicMeter, PitchIndicator, RankingTable, ScoreBadge, StandingsTable, hzT
 
 describe("midiToName", () => {
   it("maps MIDI numbers to note names", () => {
-    expect(midiToName(60)).toBe("C4");
-    expect(midiToName(69)).toBe("A4");
-    expect(midiToName(61.4)).toBe("C#4");
-    expect(midiToName(21)).toBe("A0");
+    expect(midiToName(60)).toBe("Dó4");
+    expect(midiToName(69)).toBe("Lá4");
+    expect(midiToName(61.4)).toBe("Dó#4");
+    expect(midiToName(62)).toBe("Ré4");
+    expect(midiToName(65)).toBe("Fá4");
+    expect(midiToName(71)).toBe("Si4");
+    expect(midiToName(72)).toBe("Dó5");
+    expect(midiToName(21)).toBe("Lá0");
   });
   it("converts Hz to MIDI", () => {
     expect(hzToMidi(440)).toBe(69);
@@ -22,7 +26,7 @@ describe("MicMeter", () => {
     expect(meter).toHaveAttribute("aria-valuenow", "-12");
     expect(meter).toHaveAttribute("aria-valuetext", "-12 dBFS, saturando");
     expect(screen.getByText(/Saturando/)).toBeInTheDocument();
-    expect(screen.getByText("Nota A3 · 220 Hz")).toBeInTheDocument();
+    expect(screen.getByText("Nota Lá3 · 220 Hz")).toBeInTheDocument();
   });
   it("clamps and reports no signal", () => {
     render(<MicMeter frame={null} />);
@@ -39,7 +43,7 @@ describe("PitchIndicator", () => {
         feedback={{ tMs: 1000, targetMidi: 69, sungMidi: 69.3, centsError: 30, label: "good", runningScore: 50 }}
       />,
     );
-    expect(screen.getByRole("group", { name: "Alvo A4, acima 30 cents" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Alvo Lá4, acima 30 cents" })).toBeInTheDocument();
     expect(screen.getByText("Bom")).toBeInTheDocument();
   });
   it("handles undetected voice and no active note", () => {
@@ -48,7 +52,7 @@ describe("PitchIndicator", () => {
         feedback={{ tMs: 0, targetMidi: 60, sungMidi: null, centsError: null, label: "notDetected", runningScore: 0 }}
       />,
     );
-    expect(screen.getByRole("group", { name: "Alvo C4, voz não detectada" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Alvo Dó4, voz não detectada" })).toBeInTheDocument();
     rerender(<PitchIndicator feedback={null} />);
     expect(screen.getByText(/Aguardando/)).toBeInTheDocument();
   });

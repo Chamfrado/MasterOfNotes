@@ -201,8 +201,10 @@ function PartyBoard({ s, names }: { s: GameSession; names: Map<number, string> }
         {s.status === "active" ? "Ranking parcial" : "Classificação final"}
       </h2>
       <p className="text-sm text-muted">
-        Classificação pela média. Para entrar, são necessárias pelo menos {s.config.minRounds ?? 1}{" "}
-        {(s.config.minRounds ?? 1) === 1 ? "rodada" : "rodadas"}.
+        Classificação pela média.{" "}
+        {(s.config.minRounds ?? 1) === 1
+          ? "Para entrar, é preciso pelo menos 1 rodada."
+          : `Para entrar, são necessárias pelo menos ${s.config.minRounds} rodadas.`}
       </p>
       <StandingsTable caption="Ranking da festa" standings={s.standings} names={names} minRounds={s.config.minRounds} />
     </section>

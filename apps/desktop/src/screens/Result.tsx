@@ -30,7 +30,7 @@ export function Result({ songId, outcome, round }: { songId: string; outcome: Pe
             ).map(([label, v]) => (
               <Card key={label} className="flex flex-col gap-1 p-4">
                 <dt className="text-sm text-muted">{label}</dt>
-                <dd className="font-display text-3xl font-bold tabular-nums">{formatScore(v)}</dd>
+                <dd className="font-display text-3xl font-bold tabular-nums">{percent.format(v)}</dd>{/* components are 0..1 (scorer.rs) */}
               </Card>
             ))}
           </dl>

@@ -10,6 +10,8 @@ import {
   listSongs,
   updateSong,
   type Difficulty,
+  type Participant,
+  type PerformanceRow,
   type Song,
 } from "../lib/ipc";
 import { useNav } from "../nav";
@@ -132,7 +134,7 @@ function Details({ initial, difficulty }: { initial: Song; difficulty: Difficult
   );
 }
 
-/** Top 5 and records for the current difficulty. Personal best = that singer's best row in the leaderboard (top 50). */
+/** Top 5 and records for the current difficulty. */
 function Records({ song, difficulty }: { song: Song; difficulty: Difficulty }) {
   const [load, reload] = useAsync(() => Promise.all([getLeaderboard(song.id, difficulty), listParticipants()]), [song.id, difficulty]);
   const [who, setWho] = useState("");
@@ -146,7 +148,6 @@ function Records({ song, difficulty }: { song: Song; difficulty: Difficulty }) {
       {load.status === "ready" &&
         (() => {
           const [rows, people] = load.data;
-          const best = rows.find((r) => r.participantName === who);
           return (
             <>
               {rows[0] && (
@@ -164,21 +165,41 @@ function Records({ song, difficulty }: { song: Song; difficulty: Difficulty }) {
                     label="Recorde pessoal de"
                     value={who}
                     onChange={(e) => setWho(e.currentTarget.value)}
-                    options={[{ value: "", label: "Escolha um cantor" }, ...people.map((p) => ({ value: p.name, label: p.name }))]}
+                    options={[{ value: "", label: "Escolha um cantor" }, ...people.map((p) => ({ value: String(p.id), label: p.name }))]}
                   />
-                  {who && (
-                    <p aria-live="polite">
-                      {best
-                        ? `${who}: ${formatScore(best.score)} pontos (${best.rank}º lugar).`
-                        : `${who} ainda não tem pontuação no ranking desta música.`}
-                    </p>
-                  )}
+                  {who && <PersonalBest song={song} difficulty={difficulty} singer={people.find((p) => String(p.id) === who)!} />}
                 </div>
               )}
             </>
           );
         })()}
     </Card>
+  );
+}
+
+/** Best ranked score: competitive, same CompatKey as today, at the screen's difficulty. null = none yet. */
+export function personalBest(rows: PerformanceRow[], difficulty: Difficulty): number | null {
+  let best: number | null = null;
+  for (const r of rows) if (r.competitive && r.isCurrentKey && r.difficulty === difficulty && (best == null || r.score > best)) best = r.score;
+  return best;
+}
+
+const PERSONAL_LIMIT = 500; // listPerformances max
+
+function PersonalBest({ song, difficulty, singer }: { song: Song; difficulty: Difficulty; singer: Participant }) {
+  const [load] = useAsync(
+    () => listPerformances({ songId: song.id, participantId: singer.id, limit: PERSONAL_LIMIT }),
+    [song.id, singer.id],
+  );
+  if (load.status === "loading") return <p className="text-muted">Procurando…</p>;
+  if (load.status === "error") return <p className="text-sm text-danger">{errorMessage(load.error)}</p>;
+  const best = personalBest(load.data, difficulty);
+  return (
+    <p aria-live="polite">
+      {best == null
+        ? `${singer.name} ainda não tem pontuação valendo ranking nesta música (${difficultyText[difficulty]}).`
+        : `${singer.name}: ${formatScore(best)} pontos.`}
+    </p>
   );
 }
 
