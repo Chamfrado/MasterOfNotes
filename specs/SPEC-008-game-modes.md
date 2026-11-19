@@ -20,14 +20,15 @@ Critérios:
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
 | T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | done |
 | T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | done |
-| T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | doing |
+| T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | review |
 
 ## TEST
 `game` testes: média vs total, elegibilidade, desempate, shuffle determinístico, duelo incompatível, desafio.
 
 ## STATUS
 - T-008-01 em review (Agente 4, 2026-11-19): `crates/game` implementado; `cargo test -p game` 15/15 ✅ (média vs total, elegibilidade, desempate total→id, anônimos ignorados, shuffle determinístico, cobertura do plano, duelo incompatível, empate por arredondamento a 0,1, desafio).
-- T-008-04 em andamento (Agente 4, 2026-11-19): infraestrutura E2E pronta: `apps/desktop/playwright.config.ts` (Vite na porta 1440), `e2e/tauri-mock.ts` (mock de `__TAURI_INTERNALS__` só em teste, respostas por comando, `setReply`, registro de chamadas), `e2e/smoke.e2e.ts` com 6 fluxos verdes, E2E no CI. Fluxo Festa ⏳ aguarda as telas do Agente 3.
+- T-008-04 em review (Agente 4, 2026-11-19): `apps/desktop/e2e/party.e2e.ts` com um backend falso **com estado, só de teste** (`e2e/fake-backend.ts`, que persiste em `localStorage` para simular fechar e reabrir o app). O teste percorre: cadastro de 2 cantores (nome duplicado recusado com a mensagem do backend) → Nova Festa (as 2 músicas sem referência validada não são oferecidas, com a explicação; erros de formulário) → ordem manual, 3 músicas → canto pelo Player com vídeo sintético → ranking parcial com **média, total e rodadas** (Bruno 90/90/1 à frente de Ana 75/150/2: a média vence o total) → recarregar a página → Jogar → "Continuar de onde parou" (faltam 2 rodadas) → Retomar → vencedor ao Encerrar. ✅ 1/1, cerca de 20 s.
+- ❌ **Lacuna (não testável):** Duelo com CompatKey incompatível. Ninguém chama `game::duel_outcome`: `sessions.rs` não usa, e o `DuelBoard` da UI (`duelResult`) compara só as notas das rodadas. `GameSession`/`Round` também não têm campo para o erro. Exemplo concreto: se a referência ganha uma revisão entre as duas apresentações, as notas são comparadas sem erro, o que contradiz a SPEC-008. Precisa de decisão de contrato (Agente 0) e implementação (Agentes 1 e 3); o E2E entra depois.
 - T-008-01 done (Agente 0, 2026-11-19): integrado em main, `cargo test -p game` 15/15 ✅ e clippy limpo após merge. Nota para T-008-02: `party_standings` só lista quem tem performance; o glue deve acrescentar participantes da festa com 0 rodadas (inelegíveis) para exibição. `challenge_progress` exige `rounds ≥ 1` (validar no command).
 - E2E smoke (Agente 0, 2026-11-19): 6/6 Playwright verdes em main @ a04004d. T-008-04 segue em doing (fluxo Festa).
 - T-008-02 `review` (Agente 1, 2026-11-19): `src-tauri/src/sessions.rs`.

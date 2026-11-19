@@ -44,7 +44,7 @@ A **fonte da verdade** é `apps/desktop/e2e/tools/test-song.mon-melody.json`. O 
 ### Verificação automatizada
 
 - **`crates/game/tests/test_song.rs`** (`cargo test -p game`): a referência passa pelo `scoring_engine::parse_reference_json` real sem perder nem fundir notas, e tem introdução, par repetido ligado, nota curta, pausa e fim antes de 31 s.
-- **`apps/desktop/e2e/test-song.e2e.ts`** (`E2E_PORT=14N5 pnpm --filter desktop exec playwright test e2e/test-song.e2e.ts`): gera os três arquivos e confere, no Chromium:
+- **`apps/desktop/e2e/test-song.e2e.ts`** (`E2E_PORT=14N5 pnpm --filter desktop exec playwright test e2e/test-song.e2e.ts --no-deps`): gera os três arquivos e confere, no Chromium:
   - os dois vídeos carregam, têm duração de 31 s (o Duration é injetado no cabeçalho WebM) e tocam;
   - após um seek para 21 s, o quadro exibido é o daquele tempo (pixel da barra de progresso);
   - a referência servida é idêntica à fonte;
@@ -64,6 +64,7 @@ Medido em 2026-11-19 (Chromium headless 1.65.1):
 ### Limitações ❓
 
 - Alinhamento de notas **ligadas** não é medido automaticamente (a janela de 10 ms não separa notas vizinhas). Elas usam o mesmo relógio de áudio das notas medidas.
+- **Gere com a máquina ociosa.** A gravação é em tempo real. Sob carga de CPU ela perde quadros de vídeo (medido: 16 em vez de ~27 por segundo, e quadro velho após o seek). No CI, `test-song.e2e.ts` roda sozinho, depois dos outros testes, num projeto Playwright próprio; para rodá-lo isolado, use `--no-deps`.
 - O WebM não tem índice de seek (Cues). O seek funciona porque há um keyframe por segundo; o seek pode ser menos preciso que num MP4 fechado.
 - Gerado e verificado no Chromium headless. A reprodução no **WebView2** real (mesmo motor Blink) entra no roteiro manual / `codecs.md`.
 

@@ -43,3 +43,29 @@ Medidas de fonte. A raiz é `clamp(16px, 0.55vw + 10px, 28px)`, o que dá 16 / 1
 - Contraste de cor: o axe verificou o texto renderizado e não achou violação. Estados de hover e de foco não foram verificados.
 - Medido no Chromium headless, não no WebView2 real (os dois usam o mesmo motor Blink; renderização de fontes e escala de DPI do Windows podem diferir).
 - Não auditados (as telas ainda não existem): Detalhes da música, Referência, Seleção de modo, Participantes, Festa, Histórico, Configurações, Atualizações. Também não foi auditado o diálogo "Pular trecho?" do Player. Recomendo uma nova rodada na T-010-04.
+
+## Rodada 2: telas novas e navegação por setas (2026-11-19, `main` @ 559a1ae+)
+
+Mesmas quatro checagens (axe, teclado, 4 viewports, movimento reduzido nos dois modos) em:
+- Jogar, Participantes, Nova partida (Festa), Partida (Festa em andamento), Histórico e Referência;
+- diálogos **Encerrar a partida?**, **Qual trilha é a voz?** e **Pular trecho?**;
+- Microfone, que agora inclui o Teste de vazamento no estado inicial.
+
+| Critério | Resultado |
+|---|---|
+| axe: serious/critical | ✅ **zero violações de qualquer gravidade** em todas as telas e diálogos novos |
+| Tab: todos os alvos, foco visível, sem armadilha; Esc | ✅ em todas. Nos diálogos, o Tab percorre só o diálogo e o Esc o fecha sem sair da tela. |
+| Viewports: overflow, alvos ≥ 48 px, texto ≥ 14 px | ✅ em todas (menor texto 14 px em 960×600) |
+| Movimento reduzido (sistema e ajuste do app) | ✅ em todas |
+| A11Y-05, setas (`e2e/spatial.e2e.ts`, 1366×768) | ✅ → na grade vai para a direita na mesma linha e ← volta. ↓ da NavBar entra no `<main>`. O campo de busca fica com as setas. Com diálogo aberto o foco não sai dele. No Player, ↑ sobe o volume (80% → 85%) sem mover o foco. Enter ativa o botão focado. |
+| A11Y-01, 02, 04 (corrigidos pelo Agente 3) | ✅ `test.fail` removidos; seletores ajustados |
+
+Ajustes de medição (o critério não mudou):
+- **Grupo de rádios = 1 parada de Tab.** É o comportamento nativo: as setas trocam dentro do grupo. A contagem antiga esperava 2 e acusava "armadilha" na Nova partida.
+- **Checkbox ou rádio dentro do próprio `<label>`:** o alvo é o label inteiro (≥ 48 px), que também o aciona (WCAG 2.5.8, "equivalente"). O desenho do controle tem 24 px a 960×600; registro como A11Y-06 (baixa, modo TV).
+- **Diálogo modal:** só os elementos dentro do diálogo contam, porque o resto da página fica inerte sem atributo `inert`.
+
+| ID | Severidade | Achado |
+|---|---|---|
+| A11Y-06 | Baixa (10-foot) | Checkboxes e rádios da Nova partida desenhados com 24–42 px (de 960 a 4K). A linha inteira é clicável e focável, mas o indicador visual é pequeno para TV. Sugestão: no Modo TV, `size-8`. |
+
