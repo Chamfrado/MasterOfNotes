@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { LiveTick } from "../lib/ipc";
 import { createLeakMonitor } from "./leak";

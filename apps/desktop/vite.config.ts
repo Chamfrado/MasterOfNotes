@@ -9,7 +9,16 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vite.dev/config/
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
-  test: { environment: "jsdom", include: ["src/**/*.test.{ts,tsx}"], setupFiles: ["src/test/setup.ts"], testTimeout: 15_000 },
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/test/setup.ts"],
+    // Deterministic under load (other agents compiling Rust): vitest's worker start timeout is a fixed 60 s,
+    // so cap concurrent jsdom workers instead of one per core. A failed worker still exits non-zero.
+    pool: "threads",
+    maxWorkers: 2,
+    testTimeout: 15_000,
+  },
 
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //
