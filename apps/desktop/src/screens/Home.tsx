@@ -1,6 +1,6 @@
 import { Button, Card, ErrorState, LoadingState, errorMessage, useToast } from "../components/ui";
 import { useState } from "react";
-import { markUpdateConsentAsked, updateConsentAsked } from "../display";
+import { consentAskedOf, markUpdateConsentAsked } from "../display";
 import { getSettings, updateSettings } from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
@@ -36,7 +36,7 @@ export function Home() {
         {settings.status === "error" && (
           <ErrorState title="Não foi possível ler as configurações" error={settings.error} onRetry={reload} />
         )}
-        {settings.status === "ready" && !settings.data.autoCheckUpdates && <UpdateConsent />}
+        {settings.status === "ready" && !settings.data.autoCheckUpdates && !consentAskedOf(settings.data) && <UpdateConsent />}
         {settings.status === "ready" && (
           <div className="grid gap-4 md:grid-cols-2">
             <SetupStep
@@ -65,7 +65,7 @@ export function Home() {
 /** SPEC-001 R2 / Law 10: autoCheckUpdates starts off; ask once. */
 function UpdateConsent() {
   const toast = useToast();
-  const [asked, setAsked] = useState(updateConsentAsked);
+  const [asked, setAsked] = useState(false);
   if (asked) return null;
   const answer = async (yes: boolean) => {
     if (yes) {
@@ -77,7 +77,7 @@ function UpdateConsent() {
         return;
       }
     }
-    markUpdateConsentAsked();
+    void markUpdateConsentAsked();
     setAsked(true);
   };
   return (
