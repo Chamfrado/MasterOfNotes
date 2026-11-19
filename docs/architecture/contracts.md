@@ -70,15 +70,26 @@ pub struct ScoreResult { pub score: f32 /*0..100*/, pub pitch: f32, pub rhythm: 
 ### 2.3 `game` (Agente 4) — puro, sem I/O
 
 ```rust
+// Tipos com #[serde(rename_all = "camelCase")]. Erros: thiserror.
 pub enum GameMode { Solo, Party, Duel, Challenge }
-pub struct PerformanceRecord { pub participant_id: i64, pub song_id: String, pub score: f32, pub compat: CompatKey }
+pub enum RoundOrder { Manual, Shuffled }
+pub struct PerformanceRecord { pub participant_id: Option<i64> /* None = Anônimo (Solo) */, pub song_id: String, pub score: f32, pub compat: CompatKey, pub created_ms: i64 }
 pub struct CompatKey { pub reference_id: i64, pub reference_revision: i64, pub algorithm_version: u32, pub difficulty: String }
 pub struct Standing { pub participant_id: i64, pub total: f32, pub average: f32, pub rounds: u32, pub eligible: bool, pub rank: u32 }
-pub fn party_standings(records: &[PerformanceRecord], min_rounds: u32) -> Vec<Standing>; // ordena por média; desempate: total, depois id
-pub fn plan_rounds(participants: &[i64], songs: &[String], order: RoundOrder, seed: u64) -> Vec<(i64, String)>; // shuffle determinístico por seed
+pub struct DuelOutcome { pub winner: Option<i64> /* None = empate */, pub margin: f32 }
+pub enum ChallengeStatus { InProgress, Succeeded, Failed }
+pub struct ChallengeProgress { pub completed: u32, pub remaining: u32, pub average: f32, pub status: ChallengeStatus }
+pub struct LeaderboardRow { pub position: u32, pub participant_id: Option<i64>, pub score: f32, pub created_ms: i64 }
+pub enum GameError { IncompatibleRecords }
+
+/// Ordena por média entre elegíveis; desempate: total, depois id. Ignora registros sem participante.
+pub fn party_standings(records: &[PerformanceRecord], min_rounds: u32) -> Vec<Standing>;
+/// max(nP, nS) rodadas; rodada i = (part[i % nP], song[i % nS]). Shuffled: Fisher-Yates + splitmix64 por seed nas duas listas.
+pub fn plan_rounds(participants: &[i64], songs: &[String], order: RoundOrder, seed: u64) -> Vec<(i64, String)>;
 pub fn duel_outcome(a: &PerformanceRecord, b: &PerformanceRecord) -> Result<DuelOutcome, GameError>; // erro se CompatKey difere
 pub fn challenge_progress(scores: &[f32], target: f32, rounds: u32) -> ChallengeProgress;
-pub fn leaderboard(records: &[PerformanceRecord], compat: &CompatKey) -> Vec<LeaderboardRow>; // só registros com a mesma CompatKey
+/// Filtra pela CompatKey; o chamador já filtrou competitive=1. Empate: mais antigo primeiro. Top 50.
+pub fn leaderboard(records: &[PerformanceRecord], compat: &CompatKey) -> Vec<LeaderboardRow>;
 ```
 
 ## 3. Esquema SQLite (migração 001)
