@@ -1,0 +1,11 @@
+{
+  "format": "mon-melody",
+  "version": 1,
+  "notes": [
+    { "startMs": 1000, "durMs": 400, "midi": 60, "lyric": "Dó" },
+    { "startMs": 1500, "durMs": 400, "midi": 62, "lyric": "ré" },
+    { "startMs": 2000, "durMs": 400, "midi": 64, "lyric": "mi" },
+    { "startMs": 2500, "durMs": 800, "midi": 65.5 },
+    { "startMs": 3500, "durMs": 900, "midi": 67, "lyric": "sol" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "format": "mon-melody",
+  "version": 1,
+  "notes": [
+    { "startMs": 2000, "durMs": 500, "midi": 60 },
+    { "startMs": 0, "durMs": 500, "midi": 60 },
+    { "startMs": 0, "durMs": 500, "midi": 67 },
+    { "startMs": 0, "durMs": 500, "midi": 64 },
+    { "startMs": 1000, "durMs": 520, "midi": 62 },
+    { "startMs": 1500, "durMs": 300, "midi": 60 },
+    { "startMs": 2100, "durMs": 100, "midi": 72 }
+  ]
+}
