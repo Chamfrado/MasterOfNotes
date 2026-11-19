@@ -14,10 +14,15 @@ Guia minucioso para quem nunca usou o app, em pt-BR, com **imagens, GIFs e víde
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-011-01 | Estrutura, índice e plano de mídia (lista de capturas por página) | Agente 5 | todo |
-| T-011-02 | Script de captura (screenshots + GIF + vídeo) reprodutível | Agente 5 | todo |
-| T-011-03 | Páginas do guia (R2) com mídia | Agente 5 | todo |
-| T-011-04 | Revisão de exatidão contra a UI + revisão do coordenador | Agente 5 / Agente 0 | todo |
+| T-011-01 | Estrutura, índice e plano de mídia (lista de capturas por página) | Agente 5 | done |
+| T-011-02 | Script de captura (screenshots + GIF + vídeo) reprodutível | Agente 5 | done |
+| T-011-03 | Páginas do guia (R2) com mídia | Agente 5 | done |
+| T-011-04 | Revisão de exatidão contra a UI + revisão do coordenador | Agente 5 / Agente 0 | done |
 
 ## STATUS
 Criada em 2026-11-19 a pedido do proprietário.
+- T-011-01 `review` (Agente 5, 2026-11-19): índice e sumário detalhado em `docs/user/README.md` (14 páginas, rótulos conferidos contra `apps/desktop/src/screens/*`); plano de capturas por página em `apps/desktop/e2e/docs/PLANO-DE-MIDIA.md` (~33 PNG, ~9 GIF, 2 vídeos, ~20 MB estimados). Proposta de GIF: screenshots + `gifenc` (devDependency, via Agente 3). Páginas ainda não escritas (T-011-03).
+- T-011-02 `review` (Agente 5, 2026-11-19): `apps/desktop/e2e/docs/` (config própria na porta 1450, `capture.docs.ts`, `media.ts`). Importa tauri-mock/fixtures/fake-backend sem alterar; vídeo = música de teste; feedback ao vivo e medidor injetados nos Channels (ilustrativos). GIF via gifenc (960×600, 128 cores, pixels inalterados transparentes). Regeneração completa ✅ 13/13 em 4,4 min; 47 arquivos, 9,8–10,9 MB, todos dentro do R4. Mídia ainda não commitada (só depois da regeneração final, para não gravar versões intermediárias no histórico).
+- T-011-03 `review` (Agente 5, 2026-11-19): 14 páginas em `docs/user/` cobrindo o R2; rótulos e mensagens conferidos no código (telas, `live.rs`, `performance.rs`, `scorer.rs`, `reference.rs`, `plan_rounds`). Links, âncoras, mídias e textos alternativos verificados por script ✅. Já escrito com as mudanças anunciadas (solfejo, Resultado em %, reprovação do vazamento só com a mensagem do Rust). ⏳ Regenerar imagens após o merge de agent-3 (c58174c, solfejo) e agent-4 (c8235d5, targetScore). ⏳ Screenshots do instalador após o release v0.1.0 (placeholders comentados em 01-instalacao.md).
+- 2026-11-19 (Agente 5): guia alinhado ao main 7caa1c9 (solfejo, Resultado em % com o motivo do treino, duelo com margem, algoritmo v3: vibrato, notas curtas, áudio perdido). Mídia regenerada uma única vez e commitada: 48 arquivos (38 PNG, 9 GIF, 1 WebM), 10,0 MB. Regeneração ✅ 13/13 (4,0 min); verificador de links ✅. ⏳ Screenshots do instalador quando o v0.1.0 for publicado.
+- T-011-01..04 done (Agente 0, 2026-11-19): guia integrado em main @ deccdeb. 14 páginas, 48 arquivos de mídia (10,0 MB, dentro do R4), gerados por script reprodutível. Revisão de exatidão do coordenador: fórmula, pesos e tolerâncias v3, regras (oitava, volume, vibrato, áudio perdido), rótulos de feedback e 10 botões citados conferidos contra o código; capturas de Resultado (treino) e Player conferidas. ⏳ Screenshots do instalador quando o v0.1.0 for publicado.

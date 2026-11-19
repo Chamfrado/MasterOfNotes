@@ -1,42 +1,29 @@
 # Roadmap
 
-Atualizado pelo coordenador. Última atualização: 2026-11-19 (fim da onda 1).
+Atualizado pelo coordenador. Última atualização: 2026-11-19 (fim da onda 2; MVP com código completo).
 
-## Fase atual: 1–3 concluindo → 4 (karaokê completo)
+## Fase atual: 6–7 (distribuição e estabilização)
 
-| Fase | Saída | Estado |
-|---|---|---|
-| 0 Discovery | Repo, leis, specs, contratos, equipe | ✅ |
-| 1 Fundação | App roda, persiste configurações, CI | ✅ código + testes; CI nunca rodou no GitHub (sem push) |
-| 2 Catálogo e reprodução | Pasta → lista → vídeo toca | 🔄 backend + Biblioteca prontos; player completo e validação no app real pendentes |
-| 3 Motor musical | Casos conhecidos avaliados corretamente | ✅ 12/12 critérios da SPEC-006 (sintético); ⏳ voz real |
-| 4 Karaokê completo | Primeira partida completa salva e no ranking | 🔄 onda 2 |
-| 5 Modos sociais | Festa completa | 🔄 regras prontas (`crates/game`); commands e telas na onda 2/3 |
-| 6 Distribuição | Instalador + update assinado testado | 🔄 workflow de release pronto; bloqueado pela chave |
-| 7 Estabilização | Release candidate | ⏳ |
-
-## Onda 1: concluída (23 tarefas done)
-db/migrações/backup, settings, scanner + watcher + commands da biblioteca, YIN/VAD, captura cpal, calibração, referência JSON/MIDI, scorer v1 + regressão, métricas exploratórias, regras de jogo, CI, workflow de release (draft), design system, máquina do player, Biblioteca e telas do fluxo ligadas ao IPC real.
-Testes em `main`: Rust 13 suítes verdes (≈ 88 testes + 3 de hardware ignorados no CI), Vitest 105/105.
-
-## Em andamento (onda 2)
-
-| Agente | Tarefas |
+| Fase | Estado |
 |---|---|
-| 1 | T-004-04 (commands de mic), T-005-03 (commands de referência), glue do performance + T-006-05, T-008-02/T-007-02, escopo de asset por extensão, T-009-01 (NSIS) |
-| 2 | T-006-03 `performance.rs` (§2.4) + `Scorer::skip` |
-| 3 | T-003-02/03 (player completo), T-004-05 (tela de microfone), T-005-04 (tela de referência) |
-| 4 | Revisão QA independente do scoring → E2E Playwright (smoke, depois Festa T-008-04) |
+| 0–5 | ✅ Código completo: catálogo, player, captura, referência, pontuação **v3**, Solo/Festa/Duelo/Desafio, rankings, histórico, as 13 telas |
+| 6 Distribuição | ✅ instalador NSIS, update assinado testado (chave de teste), **rascunho do release v0.1.0** com a chave de produção (assinatura conferida) |
+| 7 Estabilização | 🔄 QA da pontuação v3 (3ª rodada); guia do usuário ✅; ⏳ roteiro manual com microfone real |
 
-## Próximo marco
-**Fluxo vertical completo no app real**: pasta → vídeo → microfone → calibração → canto → pontuação contra referência → salvar → ranking. Validação manual com evidência em `docs/testing/evidence/`.
+Testes em `main`: `pnpm check` (Rust ≈ 160, Vitest 198) + Playwright 99, todos verdes; CI do GitHub verde.
+Desempenho: todas as metas cumpridas (`docs/testing/performance.md`, `performance-desktop.md`).
+
+## Próximos passos
+1. **Proprietário:** roteiro manual (`docs/testing/evidence/vertical-flow.md`), com o microfone liberado na privacidade do Windows.
+2. QA v3 (Agente 4) → ajustes, se houver → release **0.1.1** com o v3, publicado como release **normal** (auto-update).
+3. Calibração das tolerâncias com voz real (depende do item 1).
 
 ## Bloqueios (ação do proprietário)
 | Item | Impacto | Ação necessária |
 |---|---|---|
 | Licença do produto | `LICENSE` provisório "todos os direitos reservados" | Decidir a licença definitiva |
-| Chave de assinatura do updater + secrets GitHub | AC-015, release | Gerar a chave (`pnpm --filter desktop tauri signer generate`, fora do repo) e criar os secrets `TAURI_SIGNING_PRIVATE_KEY(_PASSWORD)` |
-| Push para `origin` | CI/release nunca rodaram no GitHub | Autorizar o push |
+| Publicar o release v0.1.0 (rascunho pronto) | distribuição | Clicar em Publish no GitHub |
+| Certificado Authenticode (opcional) | aviso do SmartScreen na instalação | Decidir se compra um certificado de assinatura de código |
 | Microfone: Realtek padrão mediu −104,8 dBFS | AC-005/006 | Conferir mudo/privacidade do Windows; fazer o teste com voz |
 | ffmpeg ausente | Fixtures do checklist de codecs (AC-004) | Instalar ffmpeg ou fornecer vídeos de teste próprios |
 
