@@ -511,9 +511,13 @@ pub async fn finish_performance(app: AppHandle) -> AppResult<PerformanceOutcome>
 }
 
 #[tauri::command]
-pub async fn abort_performance(live: State<'_, LiveState>) -> AppResult<()> {
-    running(&live).take();
-    Ok(())
+pub async fn abort_performance(app: AppHandle) -> AppResult<()> {
+    // Dropping the capture joins the audio thread (43–500 ms): keep it off the async workers.
+    blocking(move || {
+        running(&app.state::<LiveState>()).take();
+        Ok(())
+    })
+    .await
 }
 
 fn not_running() -> AppError {
