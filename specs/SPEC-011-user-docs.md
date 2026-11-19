@@ -14,10 +14,11 @@ Guia minucioso para quem nunca usou o app, em pt-BR, com **imagens, GIFs e víde
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-011-01 | Estrutura, índice e plano de mídia (lista de capturas por página) | Agente 5 | todo |
+| T-011-01 | Estrutura, índice e plano de mídia (lista de capturas por página) | Agente 5 | review |
 | T-011-02 | Script de captura (screenshots + GIF + vídeo) reprodutível | Agente 5 | todo |
 | T-011-03 | Páginas do guia (R2) com mídia | Agente 5 | todo |
 | T-011-04 | Revisão de exatidão contra a UI + revisão do coordenador | Agente 5 / Agente 0 | todo |
 
 ## STATUS
 Criada em 2026-11-19 a pedido do proprietário.
+- T-011-01 `review` (Agente 5, 2026-11-19): índice e sumário detalhado em `docs/user/README.md` (14 páginas, rótulos conferidos contra `apps/desktop/src/screens/*`); plano de capturas por página em `apps/desktop/e2e/docs/PLANO-DE-MIDIA.md` (~33 PNG, ~9 GIF, 2 vídeos, ~20 MB estimados). Proposta de GIF: screenshots + `gifenc` (devDependency, via Agente 3). Páginas ainda não escritas (T-011-03).
