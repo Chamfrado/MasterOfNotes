@@ -16,7 +16,7 @@ export default defineConfig(() => ({
     // Deterministic under load (other agents compiling Rust): vitest's worker start timeout is a fixed 60 s,
     // so cap concurrent jsdom workers instead of one per core. A failed worker still exits non-zero.
     pool: "threads",
-    maxWorkers: 2,
+    maxWorkers: 1,
     testTimeout: 15_000,
   },
 

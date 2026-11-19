@@ -2,6 +2,7 @@
 // Measurements are logged (`--reporter=list` shows them); findings go to docs/testing/evidence/a11y-audit.md.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import type { GameSession, MelodyReference } from "../src/lib/ipc";
 import { fullSpec, settings } from "./fixtures";
 import { mockTauri, useSyntheticVideo, type MockSpec } from "./tauri-mock";
 
@@ -25,6 +26,78 @@ interface ScreenDef {
 
 const homeVisible = (page: Page) => expect(page.getByRole("heading", { name: "Preparação" })).toBeVisible();
 const libraryVisible = (page: Page) => expect(page.getByRole("heading", { level: 1, name: "Biblioteca" })).toBeVisible();
+
+// Data for the game and reference screens (static: this file audits screens, the flows live in party.e2e.ts).
+const party: GameSession = {
+  id: 10,
+  mode: "party",
+  name: "Festa de Sábado",
+  status: "active",
+  config: { minRounds: 1, difficulty: "normal", seed: 7 },
+  startedMs: Date.UTC(2026, 10, 15, 21, 0),
+  completedMs: null,
+  rounds: [
+    { id: 1, position: 1, songId: "c3", participantId: 1, status: "completed", score: 80 },
+    { id: 2, position: 2, songId: "c3", participantId: 2, status: "pending", score: null },
+    { id: 3, position: 3, songId: "c3", participantId: 1, status: "pending", score: null },
+  ],
+  standings: [
+    { participantId: 1, total: 80, average: 80, rounds: 1, eligible: true, rank: 1 },
+    { participantId: 2, total: 0, average: 0, rounds: 0, eligible: false, rank: 2 },
+  ],
+};
+const duel: GameSession = {
+  ...party,
+  id: 11,
+  mode: "duel",
+  name: null,
+  status: "completed",
+  completedMs: Date.UTC(2026, 10, 14, 22, 0),
+  startedMs: Date.UTC(2026, 10, 14, 21, 0),
+  rounds: [
+    { id: 4, position: 1, songId: "c3", participantId: 1, status: "completed", score: 77.5 },
+    { id: 5, position: 2, songId: "c3", participantId: 2, status: "completed", score: 81 },
+  ],
+  standings: [],
+};
+const reference: MelodyReference = {
+  id: 3,
+  songId: "c3",
+  source: "json",
+  status: "validated",
+  revision: 2,
+  offsetMs: 0,
+  notes: [
+    { startMs: 2000, durMs: 600, midi: 60, lyric: "Mas" },
+    { startMs: 2600, durMs: 600, midi: 62, lyric: "ter" },
+  ],
+};
+const gameSpec: MockSpec = {
+  list_participants: { ok: [{ id: 1, name: "Ana" }, { id: 2, name: "Bruno" }] },
+  list_sessions: { ok: [party, duel] },
+  get_session: { ok: party },
+  get_reference: { ok: reference },
+  list_midi_tracks: {
+    ok: [
+      { index: 0, name: "Piano", noteCount: 120 },
+      { index: 1, name: "Voz", noteCount: 85 },
+    ],
+  },
+  "plugin:dialog|open": { ok: "C:/Karaoke/c3.mid" },
+};
+
+const playVisible = (page: Page) => expect(page.getByRole("heading", { level: 1, name: "Jogar" })).toBeVisible();
+const dialogClosed = (page: Page) => expect(page.locator("dialog[open]")).toHaveCount(0);
+const openPlay = async (page: Page, button?: string | RegExp) => {
+  await nav(page, "Jogar");
+  await playVisible(page);
+  if (button) await page.getByRole("button", { name: button }).click();
+};
+const openReference = async (page: Page) => {
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: "Referência de Pôr do Sol em Óculos" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Pôr do Sol em Óculos" })).toBeVisible();
+};
 
 const screens: ScreenDef[] = [
   { name: "Início", reach: homeVisible, backTo: null },
@@ -74,10 +147,81 @@ const screens: ScreenDef[] = [
     },
     backTo: homeVisible,
   },
+  {
+    name: "Jogar",
+    reach: async (p) => {
+      await openPlay(p);
+      await expect(p.getByRole("heading", { name: "Continuar de onde parou" })).toBeVisible();
+    },
+    backTo: homeVisible,
+  },
+  {
+    name: "Participantes",
+    reach: async (p) => {
+      await openPlay(p, "Participantes");
+      await expect(p.getByRole("list", { name: "Cantores" })).toBeVisible();
+    },
+    backTo: playVisible,
+  },
+  {
+    name: "Nova partida",
+    reach: async (p) => {
+      await openPlay(p, /^Festa/);
+      await expect(p.getByRole("heading", { level: 1, name: "Nova partida: Festa" })).toBeVisible();
+    },
+    backTo: playVisible,
+  },
+  {
+    name: "Partida",
+    reach: async (p) => {
+      await openPlay(p, "Retomar");
+      await expect(p.getByRole("heading", { name: "Ranking parcial" })).toBeVisible();
+    },
+    backTo: playVisible,
+  },
+  {
+    name: "Diálogo Encerrar a partida",
+    reach: async (p) => {
+      await openPlay(p, "Retomar");
+      await p.getByRole("button", { name: "Encerrar" }).click();
+      await expect(p.getByRole("dialog", { name: "Encerrar a partida?" })).toBeVisible();
+    },
+    backTo: dialogClosed,
+  },
+  {
+    name: "Histórico",
+    reach: async (p) => {
+      await openPlay(p, "Histórico");
+      await expect(p.getByRole("button", { name: /Festa de Sábado/ })).toBeVisible();
+    },
+    backTo: playVisible,
+  },
+  { name: "Referência", reach: openReference, backTo: libraryVisible },
+  {
+    name: "Diálogo Qual trilha é a voz",
+    reach: async (p) => {
+      await openReference(p);
+      await p.getByRole("button", { name: "Importar outra" }).click();
+      await expect(p.getByRole("dialog", { name: "Qual trilha é a voz?" })).toBeVisible();
+    },
+    backTo: dialogClosed,
+  },
+  {
+    name: "Diálogo Pular trecho",
+    videoMs: 6000,
+    reach: async (p) => {
+      await openPlayer(p);
+      await p.getByRole("button", { name: "Começar" }).click();
+      await p.getByRole("button", { name: "Pausar" }).click({ timeout: 10_000 });
+      await p.keyboard.press("ArrowRight"); // seek while competitive → asks first
+      await expect(p.getByRole("dialog", { name: "Pular trecho?" })).toBeVisible();
+    },
+    backTo: dialogClosed,
+  },
 ];
 
 async function open(page: Page, s: ScreenDef, spec: MockSpec = {}) {
-  const tracker = await mockTauri(page, fullSpec(spec));
+  const tracker = await mockTauri(page, fullSpec({ ...gameSpec, ...spec }));
   await page.goto("/");
   if (s.videoMs) await useSyntheticVideo(page, s.videoMs);
   await s.reach(page);
@@ -106,13 +250,20 @@ for (const s of screens) {
 const countTabbable = (page: Page) =>
   page.evaluate(
     () =>
-      [...document.querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")].filter(
+      // A modal dialog makes the rest of the page inert without marking it, so count only inside it.
+      [...(document.querySelector("dialog:modal") ?? document).querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")].filter(
         (el) =>
           el.tabIndex >= 0 &&
           !(el as HTMLButtonElement).disabled &&
           el.getClientRects().length > 0 &&
           getComputedStyle(el).visibility !== "hidden" &&
-          !el.closest("[inert], dialog:not([open])"),
+          !el.closest("[inert], dialog:not([open])") &&
+          // A radio group is one Tab stop (the checked radio, else the first); arrows move inside it.
+          !(
+            el instanceof HTMLInputElement &&
+            el.type === "radio" &&
+            [...document.querySelectorAll<HTMLInputElement>(`input[type=radio][name="${el.name}"]`)].find((r) => r.checked || !r.form?.querySelector(`input[name="${el.name}"]:checked`)) !== el
+          ),
       ).length,
   );
 
@@ -212,7 +363,8 @@ const measureLayout = (page: Page, minTarget: number) =>
       ...document.querySelectorAll("a[href], button, input:not([type=hidden]), select, textarea, [role=button], [tabindex]:not([tabindex='-1'])"),
     ]
       .filter(visible)
-      .map((el) => ({ el, r: el.getBoundingClientRect() }))
+      // A checkbox/radio wrapped in its <label> is clicked through the whole label (WCAG 2.5.8 "equivalent").
+      .map((el) => ({ el, r: (el.matches("input[type=checkbox], input[type=radio]") ? (el.closest("label") ?? el) : el).getBoundingClientRect() }))
       .filter(({ r }) => r.width < minTarget || r.height < minTarget)
       .map(({ el, r }) => `${describe(el)} ${Math.round(r.width)}×${Math.round(r.height)}`);
     let minFont = Infinity;

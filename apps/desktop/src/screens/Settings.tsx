@@ -1,8 +1,8 @@
 // SPEC-010 T-010-04: settings. Each change is persisted by Rust (update_settings validates ranges/enums).
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, Card, ErrorState, LoadingState, Select, errorMessage, useToast } from "../components/ui";
 import { getSettings, updateSettings, type AppSettings } from "../lib/ipc";
-import { applyReducedMotion, setTvMode, tvModeOf } from "../display";
+import { applyReducedMotion, applyTvMode } from "../display";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 
@@ -40,7 +40,10 @@ function Form({ initial }: { initial: AppSettings }) {
   const toast = useToast();
   const { navigate } = useNav();
   const [s, setS] = useState(initial);
-  const [tv, setTv] = useState(() => tvModeOf(initial));
+
+  // <html> follows the saved state, so a value Rust rejects is undone on screen too.
+  useEffect(() => applyTvMode(s.tvMode), [s.tvMode]);
+  useEffect(() => applyReducedMotion(s.reducedMotion), [s.reducedMotion]);
 
   const patch = async (p: Partial<AppSettings>) => {
     const before = s;
@@ -86,20 +89,13 @@ function Form({ initial }: { initial: AppSettings }) {
         <Toggle
           label="Modo TV"
           hint="Textos e botões maiores, para ver de longe."
-          checked={tv}
-          onChange={(v) => {
-            setTv(v);
-            void setTvMode(v);
-          }}
+          checked={s.tvMode}
+          onChange={(v) => patch({ tvMode: v })}
         />
         <Select
           label="Reduzir movimento"
           value={s.reducedMotion}
-          onChange={(e) => {
-            const v = e.currentTarget.value as AppSettings["reducedMotion"];
-            applyReducedMotion(v);
-            void patch({ reducedMotion: v });
-          }}
+          onChange={(e) => patch({ reducedMotion: e.currentTarget.value as AppSettings["reducedMotion"] })}
           options={[
             { value: "system", label: "Seguir o sistema" },
             { value: "on", label: "Sempre reduzir" },

@@ -25,6 +25,8 @@ const base = {
   feedbackOverlay: "full",
   autoCheckUpdates: false,
   leakCheck: null,
+  tvMode: false,
+  updateConsentAsked: false,
 } as ipc.AppSettings;
 const nav = { route: { name: "settings" as const }, navigate: vi.fn(), replace: vi.fn(), back: vi.fn() };
 const wrap = (ui: React.ReactNode) =>
@@ -36,7 +38,6 @@ const wrap = (ui: React.ReactNode) =>
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorage.clear();
   delete document.documentElement.dataset.tv;
   delete document.documentElement.dataset.reducedMotion;
   vi.mocked(ipc.getSettings).mockResolvedValue(base);
@@ -64,7 +65,15 @@ describe("Settings", () => {
     await userEvent.click(screen.getByRole("switch", { name: /Modo TV/ }));
     expect(document.documentElement.dataset.tv).toBe("on");
     expect(ipc.updateSettings).toHaveBeenCalledWith({ tvMode: true });
-    expect(localStorage.getItem("mon.tvMode")).toBe("1"); // temporary fallback until Rust stores tvMode
+  });
+
+  it("undoes TV mode on screen when Rust rejects it", async () => {
+    vi.mocked(ipc.updateSettings).mockRejectedValue({ code: "invalid_setting", message: "Valor inválido." });
+    wrap(<Settings />);
+    await userEvent.click(await screen.findByRole("switch", { name: /Modo TV/ }));
+    expect(await screen.findByText("Valor inválido.")).toBeInTheDocument();
+    expect(screen.getByRole("switch", { name: /Modo TV/ })).not.toBeChecked();
+    expect(document.documentElement.dataset.tv).toBeUndefined();
   });
 
   it("reverts and reports when Rust rejects a value", async () => {
@@ -79,23 +88,22 @@ describe("Settings", () => {
 
 describe("Home update consent", () => {
   it("asks once; yes turns on autoCheckUpdates", async () => {
-    vi.mocked(ipc.updateSettings).mockResolvedValue({ ...base, autoCheckUpdates: true });
+    vi.mocked(ipc.updateSettings).mockResolvedValue({ ...base, autoCheckUpdates: true, updateConsentAsked: true });
     const { unmount } = wrap(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: "Sim, verificar" }));
-    expect(ipc.updateSettings).toHaveBeenCalledWith({ autoCheckUpdates: true });
+    expect(ipc.updateSettings).toHaveBeenCalledWith({ autoCheckUpdates: true, updateConsentAsked: true });
     expect(screen.queryByRole("region", { name: "Atualizações automáticas" })).not.toBeInTheDocument();
     unmount();
+    vi.mocked(ipc.getSettings).mockResolvedValue({ ...base, updateConsentAsked: true });
     wrap(<Home />);
     await screen.findByRole("heading", { name: "Preparação" });
     expect(screen.queryByRole("region", { name: "Atualizações automáticas" })).not.toBeInTheDocument();
   });
   it("'Agora não' keeps it off and does not ask again", async () => {
-    vi.mocked(ipc.updateSettings).mockRejectedValue({ code: "invalid_setting", message: "campo desconhecido" }); // Rust not there yet
+    vi.mocked(ipc.updateSettings).mockResolvedValue({ ...base, updateConsentAsked: true });
     wrap(<Home />);
     await userEvent.click(await screen.findByRole("button", { name: "Agora não" }));
     expect(ipc.updateSettings).toHaveBeenCalledWith({ updateConsentAsked: true });
-    expect(ipc.updateSettings).not.toHaveBeenCalledWith(expect.objectContaining({ autoCheckUpdates: true }));
-    expect(localStorage.getItem("mon.updateConsentAsked")).toBe("1");
     expect(screen.queryByRole("region", { name: "Atualizações automáticas" })).not.toBeInTheDocument();
   });
   it("is not shown when settings say it was already asked, and TV mode follows settings", async () => {
@@ -141,7 +149,14 @@ describe("Updates", () => {
     expect(update.install).toHaveBeenCalled();
   });
 
-  it("explains failures (no key / network) and keeps the app usable", async () => {
+  it("says updates are not configured when the build has no updater (no pubkey)", async () => {
+    vi.mocked(check).mockRejectedValue("plugin updater not found");
+    wrap(<Updates />);
+    expect(await screen.findByText(/Atualizações automáticas ainda não estão configuradas nesta versão/)).toBeInTheDocument();
+    expect(screen.queryByText(/plugin updater not found/)).not.toBeInTheDocument();
+  });
+
+  it("explains failures (network / signature) and keeps the app usable", async () => {
     vi.mocked(check).mockRejectedValue("Could not fetch a valid release JSON from the remote");
     wrap(<Updates />);
     expect(await screen.findByText(/O app continua funcionando normalmente\./)).toBeInTheDocument();

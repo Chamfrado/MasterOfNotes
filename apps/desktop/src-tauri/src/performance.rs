@@ -1215,4 +1215,348 @@ mod tests {
         assert!(v.passed || v.reason.is_some());
         assert_eq!(*ticks.lock().unwrap(), 0);
     }
+
+    // ---------- Performance measurement (T-006-07, docs/testing/performance.md) ----------
+    // Manual, `--ignored`: they take minutes and the live ones need a microphone.
+    // Process stats come from the OS (Get-Process), the same numbers Task Manager shows.
+
+    #[derive(Debug, Clone, Copy)]
+    struct ProcStats {
+        cpu_s: f64,
+        working_set_mb: f64,
+        private_mb: f64,
+        threads: u32,
+    }
+
+    fn proc_stats() -> ProcStats {
+        let script = format!(
+            "$p=Get-Process -Id {}; [string]::Format([cultureinfo]::InvariantCulture,'{{0}} {{1}} {{2}} {{3}}',$p.TotalProcessorTime.TotalSeconds,$p.WorkingSet64,$p.PrivateMemorySize64,$p.Threads.Count)",
+            std::process::id()
+        );
+        let out = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &script])
+            .output()
+            .expect("powershell runs");
+        let text = String::from_utf8_lossy(&out.stdout);
+        let v: Vec<f64> = text
+            .split_whitespace()
+            .filter_map(|x| x.parse().ok())
+            .collect();
+        assert_eq!(v.len(), 4, "unexpected Get-Process output: {text}");
+        ProcStats {
+            cpu_s: v[0],
+            working_set_mb: v[1] / 1_048_576.0,
+            private_mb: v[2] / 1_048_576.0,
+            threads: v[3] as u32,
+        }
+    }
+
+    /// 5-minute reference: 500 notes of 500 ms with 100 ms rests.
+    fn five_minute_song() -> Vec<(u32, u32, f32)> {
+        (0..500)
+            .map(|i| (500 + i * 600, 500, 60.0 + (i % 12) as f32))
+            .collect()
+    }
+
+    fn song_config(probe: bool) -> PerformanceConfig {
+        let notes = five_minute_song();
+        PerformanceConfig {
+            reference: Some((
+                MelodyReference {
+                    format_version: 1,
+                    notes: notes
+                        .iter()
+                        .map(|&(s, d, m)| Note {
+                            start_ms: s,
+                            dur_ms: d,
+                            midi: m,
+                            lyric: None,
+                        })
+                        .collect(),
+                },
+                0,
+            )),
+            competitive: true,
+            difficulty: Difficulty::Normal,
+            latency_offset_ms: 0.0,
+            device_id: None,
+            capture: CaptureConfig::default(),
+            leak_check: false,
+            latency_probe: probe.then(Vec::new),
+        }
+    }
+
+    fn percentile(sorted: &[f64], p: f64) -> f64 {
+        if sorted.is_empty() {
+            return f64::NAN;
+        }
+        sorted[((sorted.len() - 1) as f64 * p).round() as usize]
+    }
+
+    /// (a) compute cost and (d) finish cost, offline: 5 min of a sung melody
+    /// (4-harmonic tone on the reference) through the real analysis and session.
+    #[test]
+    #[ignore = "measurement (T-006-07), ~10-60 s"]
+    fn perf_offline_5_minutes() {
+        use std::time::Instant;
+        let notes = five_minute_song();
+        let secs = 300.5;
+        let n = (secs * SR as f64) as usize;
+        let mut phase = 0.0f64;
+        let audio: Vec<f32> = (0..n)
+            .map(|i| {
+                let t = i as f64 * 1000.0 / SR as f64;
+                match notes
+                    .iter()
+                    .find(|x| t >= x.0 as f64 && t < (x.0 + x.1) as f64)
+                {
+                    Some(x) => {
+                        let hz = 440.0 * 2f64.powf((x.2 as f64 - 69.0) / 12.0);
+                        phase = (phase + std::f64::consts::TAU * hz / SR as f64)
+                            % std::f64::consts::TAU;
+                        (0.2 * (1..=4)
+                            .map(|k| (phase * k as f64).sin() / k as f64)
+                            .sum::<f64>()) as f32
+                    }
+                    None => 0.0,
+                }
+            })
+            .collect();
+        let before = proc_stats();
+        let t0 = Instant::now();
+        let frames = audio_engine::analyze_buffer(&audio, SR, &CaptureConfig::default());
+        let t_analysis = t0.elapsed().as_secs_f64();
+        let mut s = Session::new(&song_config(false));
+        s.set_sample_rate(SR);
+        s.sync(0.0, true, false, 0);
+        let t1 = Instant::now();
+        for f in &frames {
+            s.on_frame(f);
+        }
+        let t_session = t1.elapsed().as_secs_f64();
+        let t2 = Instant::now();
+        let sum = s.summary(n as u64);
+        let t_finish = t2.elapsed().as_secs_f64();
+        let after = proc_stats();
+        let r = sum.result.unwrap();
+        eprintln!(
+            "PERF offline {secs} s audio, {} frames: analysis {:.2} s ({:.2}% of a core), session+scorer {:.3} s ({:.3}%), finish {:.3} ms; score {} ({}/{} notes); private MB {:.0} -> {:.0}",
+            frames.len(),
+            t_analysis,
+            100.0 * t_analysis / secs,
+            t_session,
+            100.0 * t_session / secs,
+            1000.0 * t_finish,
+            r.score,
+            r.notes_hit,
+            r.notes_total,
+            before.private_mb,
+            after.private_mb
+        );
+        assert_eq!(r.notes_total, 500);
+        assert!(r.score >= 95.0, "{r:?}");
+    }
+
+    /// (a) live CPU/memory over 5 min and (b) latency from the audio callback
+    /// to on_tick, on the default microphone, in real time.
+    #[test]
+    #[ignore = "measurement (T-006-07), 5 min, needs a microphone"]
+    fn perf_live_5_minutes_cpu_memory_and_tick_latency() {
+        use std::time::{Duration, Instant};
+        let minutes: f64 = std::env::var("PERF_MINUTES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5.0);
+        if std::env::var("PERF_HIGH_PRIORITY").is_ok() {
+            // Profiling experiment: is the latency tail OS scheduling under load?
+            let script = format!(
+                "(Get-Process -Id {}).PriorityClass='High'",
+                std::process::id()
+            );
+            let _ = std::process::Command::new("powershell")
+                .args(["-NoProfile", "-Command", &script])
+                .status();
+        }
+        let session = Arc::new(Mutex::new(Session::new(&song_config(false))));
+        let ticks = Arc::new(Mutex::new(Vec::<(Instant, u64)>::with_capacity(40_000)));
+        let (s2, t2) = (session.clone(), ticks.clone());
+        let before = proc_stats();
+        let half = window_len(SR) as u64 / 2;
+        let cap = Capture::start(None, CaptureConfig::default(), move |f| {
+            let tick = lock(&s2).on_frame(&f);
+            if tick.is_some() {
+                // The newest audio this tick depends on: the frame's last sample.
+                let end = f.sample_index + 2 * half;
+                t2.lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push((Instant::now(), end));
+            }
+        })
+        .expect("default microphone opens");
+        lock(&session).set_sample_rate(cap.sample_rate());
+        std::thread::sleep(Duration::from_millis(500));
+        let start = Instant::now();
+        lock(&session).sync(0.0, true, false, cap.captured_samples());
+        // Mid-run process stats on another thread: never stall the polling loop.
+        let mid_stats = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs_f64(minutes * 30.0));
+            proc_stats()
+        });
+        // Poll the callback counter. Each change is stored with the last poll that
+        // still saw the old value and the first that sees the new one: the callback
+        // delivered those samples in between. ~1 change per 10 ms driver period.
+        let mut arrivals: Vec<(Instant, Instant, u64)> = Vec::with_capacity(40_000);
+        let mut next_sync = Duration::from_millis(250);
+        let (mut last_poll, mut last_n) = (Instant::now(), cap.captured_samples());
+        while start.elapsed().as_secs_f64() < minutes * 60.0 {
+            let now = Instant::now();
+            let n = cap.captured_samples();
+            if n != last_n {
+                arrivals.push((last_poll, now, n));
+                last_n = n;
+            }
+            last_poll = now;
+            if start.elapsed() >= next_sync {
+                // UI-like sync every 250 ms with the "video" time = wall time.
+                lock(&session).sync(start.elapsed().as_secs_f64(), true, false, n);
+                next_sync += Duration::from_millis(250);
+            }
+            std::thread::sleep(Duration::from_micros(500));
+        }
+        let mid = mid_stats.join().ok();
+        let end_stats = proc_stats();
+        let err = cap.take_error();
+        let captured_end = cap.captured_samples();
+        drop(cap);
+        let t_fin = Instant::now();
+        let sum = lock(&session).summary(captured_end);
+        let finish_ms = t_fin.elapsed().as_secs_f64() * 1000.0;
+        let ticks = ticks.lock().unwrap_or_else(|e| e.into_inner());
+        // Callback arrival of sample `end`: midpoint of the poll bracket of the
+        // first counter change reaching it. Brackets > 5 ms (polling stalled) are
+        // too uncertain and are counted apart, not used.
+        let mut lat: Vec<f64> = Vec::with_capacity(ticks.len());
+        let mut worst: Vec<(f64, f64)> = Vec::new();
+        let (mut j, mut uncertain) = (0, 0u32);
+        for &(t_tick, end) in ticks.iter() {
+            while j < arrivals.len() && arrivals[j].2 < end {
+                j += 1;
+            }
+            if j == 0 || j >= arrivals.len() {
+                continue;
+            }
+            let (t0, t1, _) = arrivals[j];
+            if t1 - t0 > Duration::from_millis(5) {
+                uncertain += 1;
+                continue;
+            }
+            let t_cb = t0 + (t1 - t0) / 2;
+            if t_tick >= t_cb {
+                let ms = (t_tick - t_cb).as_secs_f64() * 1000.0;
+                lat.push(ms);
+                worst.push((ms, (t_tick - start).as_secs_f64()));
+            }
+        }
+        lat.sort_by(f64::total_cmp);
+        worst.sort_by(|a, b| b.0.total_cmp(&a.0));
+        eprintln!(
+            "PERF worst (ms, s since start): {:?}",
+            &worst[..worst.len().min(6)]
+        );
+        // Driver delivery period: time between consecutive counter changes.
+        let mut gaps: Vec<f64> = arrivals
+            .windows(2)
+            .map(|w| (w[1].1 - w[0].1).as_secs_f64() * 1000.0)
+            .collect();
+        gaps.sort_by(f64::total_cmp);
+        let wall = start.elapsed().as_secs_f64();
+        let cpu = end_stats.cpu_s - before.cpu_s;
+        eprintln!(
+            "PERF live {wall:.0} s: process CPU {cpu:.2} s = {:.2}% of a core (includes the 0.5 ms polling loop); \
+             private MB {:.1} -> mid {:.1} -> end {:.1}; WS MB {:.1} -> {:.1}; threads {} -> {}; ticks {} ({:.1}/s); \
+             latency callback->on_tick ms p50 {:.1} p95 {:.1} p99 {:.1} max {:.1} (n {}, {uncertain} uncertain dropped); driver period ms p50 {:.2} p99 {:.2}; \
+             finish {finish_ms:.2} ms; err {err:?}; played {} ms",
+            100.0 * cpu / wall,
+            before.private_mb,
+            mid.map_or(f64::NAN, |m| m.private_mb),
+            end_stats.private_mb,
+            before.working_set_mb,
+            end_stats.working_set_mb,
+            before.threads,
+            end_stats.threads,
+            ticks.len(),
+            ticks.len() as f64 / wall,
+            percentile(&lat, 0.5),
+            percentile(&lat, 0.95),
+            percentile(&lat, 0.99),
+            lat.last().copied().unwrap_or(f64::NAN),
+            lat.len(),
+            percentile(&gaps, 0.5),
+            percentile(&gaps, 0.99),
+            sum.played_ms,
+        );
+        assert!(err.is_none());
+        assert!(!lat.is_empty());
+    }
+
+    /// (c) stability: 10 performances in a row in the same process; threads and
+    /// memory must return to the same level.
+    #[test]
+    #[ignore = "measurement (T-006-07), ~10 × 30 s, needs a microphone"]
+    fn perf_stability_10_runs() {
+        use std::time::{Duration, Instant};
+        let secs: u64 = std::env::var("PERF_RUN_SECONDS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(30);
+        let baseline = proc_stats();
+        let mut rows = Vec::new();
+        for run in 1..=10 {
+            let p = LivePerformance::start(song_config(false), |_| {}).expect("mic opens");
+            let start = Instant::now();
+            p.sync(0.0, true, false);
+            while start.elapsed() < Duration::from_secs(secs) {
+                std::thread::sleep(Duration::from_millis(250));
+                p.sync(start.elapsed().as_secs_f64(), true, false);
+            }
+            // End of the song (pause), as the UI does before finishing; the
+            // stats call below must not count as played time.
+            p.sync(start.elapsed().as_secs_f64(), false, false);
+            let during = proc_stats();
+            // finish() step by step (same code path) to attribute its cost.
+            let t = Instant::now();
+            let now = p.capture.captured_samples();
+            let LivePerformance { capture, session } = p;
+            drop(capture);
+            let teardown_ms = t.elapsed().as_secs_f64() * 1000.0;
+            let t = Instant::now();
+            let sum = lock(&session).summary(now);
+            let summary_ms = t.elapsed().as_secs_f64() * 1000.0;
+            let after = proc_stats();
+            eprintln!(
+                "PERF run {run}: threads during {} after {}; private MB during {:.1} after {:.1}; finish = device teardown {teardown_ms:.1} ms + summary {summary_ms:.2} ms; played {} ms",
+                during.threads, after.threads, during.private_mb, after.private_mb, sum.played_ms
+            );
+            rows.push((during, after));
+        }
+        let first = rows[0].1;
+        let last = rows[9].1;
+        eprintln!(
+            "PERF stability: baseline threads {} private {:.1} MB; after run 1 {} / {:.1}; after run 10 {} / {:.1}",
+            baseline.threads,
+            baseline.private_mb,
+            first.threads,
+            first.private_mb,
+            last.threads,
+            last.private_mb
+        );
+        // Our analysis thread and cpal's stream thread are joined on drop. What
+        // remains varies with the Windows thread pool used by WASAPI (measured:
+        // plateaus of 7 to 10). A per-run leak would add one thread per run.
+        assert!(
+            rows[1..].iter().all(|r| r.1.threads <= first.threads + 5),
+            "threads leaked"
+        );
+        assert!(last.private_mb - first.private_mb < 5.0, "memory grew");
+    }
 }

@@ -85,12 +85,14 @@ describe("Library", () => {
     expect(screen.getByText(/Nada encontrado/)).toBeInTheDocument();
   });
 
-  it("opens the player for a playable song", async () => {
+  it("opens details from the title and the player from Cantar", async () => {
     vi.mocked(ipc.listSongs).mockResolvedValue([song({ id: "1", title: "Aquarela" })]);
     vi.mocked(ipc.getSettings).mockResolvedValue(settings("C:/k"));
     renderLibrary();
     await userEvent.click(await screen.findByRole("button", { name: "Cantar Aquarela x.mp4" }));
     expect(navigate).toHaveBeenCalledWith({ name: "player", songId: "1" });
+    await userEvent.click(screen.getByRole("button", { name: "Detalhes de Aquarela x.mp4" }));
+    expect(navigate).toHaveBeenCalledWith({ name: "song", songId: "1" });
   });
 
   it("shows the first-run empty state and scans the chosen folder", async () => {

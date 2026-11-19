@@ -11,6 +11,7 @@
 | 2 — Áudio/pontuação | `masterofnotes-c3` | `.worktrees/agent-2` | `agent-2/work` |
 | 3 — UX/UI | `masterofnotes-47` | `.worktrees/agent-3` | `agent-3/work` |
 | 4 — Modos/QA | `masterofnotes-d4` | `.worktrees/agent-4` | `agent-4/work` |
+| 5 — Documentação do usuário | `masterofnotes-cc` | `.worktrees/agent-5` | `agent-5/work` |
 
 Se uma sessão for perdida: abra uma nova sessão Claude Code na raiz do repositório, leia `AGENTS.md`, este arquivo e o roadmap, e avise o coordenador do novo nome de sessão.
 
@@ -22,7 +23,7 @@ Se uma sessão for perdida: abra uma nova sessão Claude Code na raiz do reposit
 4. Agente marca a tarefa como `review` na spec e envia o **relatório de entrega** ao coordenador.
 5. Coordenador revisa, roda os testes, faz merge em `main` (`--no-ff`), marca `done` e avisa todos para sincronizarem (`git merge main`).
 6. Mudança de contrato: o agente propõe; o coordenador altera `contracts.md`/`ipc.ts` em `main`, roda `pnpm check` (inclui o tsc do e2e) e avisa todos.
-7. **Worktree terminada é excluída** (regra do proprietário). Quando o agente conclui todas as tarefas atribuídas àquela worktree, ele avisa no relatório: "worktree livre". Depois do merge, o coordenador roda `git worktree remove .worktrees/agent-N` e `git branch -d agent-N/work`. A próxima atribuição recria a worktree a partir de `main`. Nunca remover enquanto houver trabalho não integrado.
+7. **Worktree terminada é excluída** (regra do proprietário). Quando o agente conclui todas as tarefas atribuídas àquela worktree, ele avisa no relatório: "worktree livre". Depois do merge, o coordenador roda `git worktree remove .worktrees/agent-N` e `git branch -d agent-N/work`. A próxima atribuição recria a worktree a partir de `main`. Nunca remover enquanto houver trabalho não integrado. No Windows: o agente deve sair da pasta (`cd` para a raiz do repo) ao dizer "worktree livre", porque um shell com cwd dentro dela trava a remoção; se `git worktree remove` falhar por caminhos longos (`node_modules`), o coordenador confere `git log main..branch` vazio e `status` limpo e apaga a pasta.
 
 ## Relatório de entrega (agente → coordenador)
 

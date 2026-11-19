@@ -1,6 +1,5 @@
 import { Button, Card, ErrorState, LoadingState, errorMessage, useToast } from "../components/ui";
 import { useState } from "react";
-import { consentAskedOf, markUpdateConsentAsked } from "../display";
 import { getSettings, updateSettings } from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
@@ -36,7 +35,7 @@ export function Home() {
         {settings.status === "error" && (
           <ErrorState title="Não foi possível ler as configurações" error={settings.error} onRetry={reload} />
         )}
-        {settings.status === "ready" && !settings.data.autoCheckUpdates && !consentAskedOf(settings.data) && <UpdateConsent />}
+        {settings.status === "ready" && !settings.data.autoCheckUpdates && !settings.data.updateConsentAsked && <UpdateConsent />}
         {settings.status === "ready" && (
           <div className="grid gap-4 md:grid-cols-2">
             <SetupStep
@@ -68,17 +67,13 @@ function UpdateConsent() {
   const [asked, setAsked] = useState(false);
   if (asked) return null;
   const answer = async (yes: boolean) => {
-    if (yes) {
-      try {
-        await updateSettings({ autoCheckUpdates: true });
-        toast("Combinado: vamos verificar atualizações ao abrir.", "success");
-      } catch (e) {
-        toast(errorMessage(e), "error");
-        return;
-      }
+    try {
+      await updateSettings(yes ? { autoCheckUpdates: true, updateConsentAsked: true } : { updateConsentAsked: true });
+      if (yes) toast("Combinado: vamos verificar atualizações ao abrir.", "success");
+      setAsked(true);
+    } catch (e) {
+      toast(errorMessage(e), "error");
     }
-    void markUpdateConsentAsked();
-    setAsked(true);
   };
   return (
     <Card role="region" aria-label="Atualizações automáticas" className="flex flex-wrap items-center gap-4">

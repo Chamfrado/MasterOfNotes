@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { NavBar, ToastProvider, useToast } from "./components/ui";
 import { getSettings } from "./lib/ipc";
-import { applyReducedMotion, applyTvMode, tvModeOf } from "./display";
+import { applyReducedMotion, applyTvMode } from "./display";
 import { NavContext, type Nav, type Route } from "./nav";
 import { handleSpatialKey } from "./spatial";
 import { Home } from "./screens/Home";
@@ -16,6 +16,7 @@ import { Modes } from "./screens/Modes";
 import { NewSession } from "./screens/NewSession";
 import { Participants } from "./screens/Participants";
 import { Session } from "./screens/Session";
+import { SongDetails } from "./screens/SongDetails";
 import { Settings } from "./screens/Settings";
 import { Updates } from "./screens/Updates";
 import { Result } from "./screens/Result";
@@ -40,6 +41,8 @@ function Screen({ route }: { route: Route }) {
       return <Mic />;
     case "player":
       return <Player songId={route.songId} round={route.round} />;
+    case "song":
+      return <SongDetails songId={route.songId} />;
     case "reference":
       return <Reference songId={route.songId} />;
     case "result":
@@ -94,11 +97,10 @@ export default function App() {
 
   // Display prefs: in-app reduced motion overrides the OS preference; Modo TV scales the rem grid.
   useEffect(() => {
-    applyTvMode(tvModeOf({})); // before settings arrive (legacy copy), then the persisted value
     getSettings().then(
       (s) => {
         applyReducedMotion(s.reducedMotion);
-        applyTvMode(tvModeOf(s));
+        applyTvMode(s.tvMode);
       },
       () => {}, // screens surface settings errors themselves; the OS preference still applies
     );
