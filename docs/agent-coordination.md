@@ -42,3 +42,9 @@ Próximo: <o que pretende fazer>
 - Dependências novas: Rust → no `Cargo.toml` do seu crate. JS → peça ao Agente 3 (dono de `apps/desktop/package.json`).
 - Ninguém faz `push --force`, `reset --hard` em branch alheia, nem commit em `main` exceto o coordenador.
 - Remoto (`origin`): push só com autorização do proprietário.
+
+## Orçamento de disco (C: tem pouco espaço livre)
+- Só **Agente 1** (na sua worktree) e o **coordenador** (em `main`) compilam o app Tauri / `--workspace`.
+- Agentes 2 e 4 compilam só os próprios crates: `cargo test -p <crate>`, `cargo clippy -p <crate> --all-targets`. Agente 3 não usa cargo.
+- O perfil dev usa `debug = "line-tables-only"` (raiz `Cargo.toml`).
+- Antes de builds grandes, confira o espaço livre com `df -h /c`. Se ficar abaixo de 2 GB, avise o coordenador.

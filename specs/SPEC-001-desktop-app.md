@@ -23,6 +23,7 @@ Critérios:
 | T-001-03 | `get_settings`/`update_settings` + validação | Agente 1 | todo |
 | T-001-04 | `AppError` serializável + tauri-plugin-log | Agente 1 | todo |
 | T-001-05 | Janela, ícone, CSP, capabilities mínimas | Agente 1 | todo |
+| T-001-06 | CI (`.github/workflows/ci.yml`) + verificação da Lei 03 | Agente 4 | doing |
 
 ## TEST
 `db::tests::{migrates_fresh, reopen_preserves_data, backup_before_migration}`, `settings::tests::{roundtrip, rejects_invalid}`.
