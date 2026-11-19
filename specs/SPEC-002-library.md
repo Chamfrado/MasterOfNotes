@@ -27,7 +27,7 @@ Critérios:
 | T-002-01 | Scanner + content id + upsert + testes com tempdir | Agente 1 | done |
 | T-002-02 | Commands `set_library_folder`, `rescan_library`, `list_songs`, `update_song` | Agente 1 | done |
 | T-002-03 | Watcher + evento `library://changed` | Agente 1 | done |
-| T-002-04 | Tela Biblioteca: grade/lista, busca, estados vazio/loading/erro | Agente 3 | review |
+| T-002-04 | Tela Biblioteca: grade/lista, busca, estados vazio/loading/erro | Agente 3 | done |
 
 ## TEST
 `library::tests::{indexes_supported_only, stable_id_on_rename, skips_unchanged, marks_removed}`; `Library.test.tsx` (busca sem acento, estado vazio).
@@ -37,3 +37,4 @@ Critérios:
 - Tarefas done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes). Ressalvas ⏳: watcher, asset protocol e CSP só verificados por compilação, falta validar com a UI real. Onda 2: restringir o escopo do asset protocol às extensões de vídeo (Lei 09).
 
 2026-11-19 (Agente 3): T-002-04 em review. `src/screens/Library.tsx`: diálogo nativo de pasta → `setLibraryFolder` (usa `recursiveScan` das configurações), Atualizar (`rescanLibrary`), recarga em `library://changed`, grade/lista, busca local sem caixa/acento (título, artista, arquivo; R10), oculta `available=false` (R6), badges de `referenceStatus`, `playable='no'` desabilita "Cantar", edição de título/artista (`updateSong`). Estados: carregando, primeira execução sem pasta, pasta sem vídeos, busca vazia, erro com "Tentar de novo". Testes: `Library.test.tsx` (6). Não validado contra o backend real em `tauri dev` ⏳.
+- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
