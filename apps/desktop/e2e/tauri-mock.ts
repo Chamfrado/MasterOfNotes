@@ -17,6 +17,8 @@ declare global {
     __E2E_CALLS__?: IpcCall[];
     __E2E_SPEC__?: MockSpec;
     __E2E_VIDEO_URL__?: string;
+    /** Stateful handlers (e2e/fake-backend.ts); they win over the static spec. Throw an AppError to reject. */
+    __E2E_HANDLERS__?: Record<string, (args: Record<string, unknown>) => unknown>;
   }
 }
 
@@ -43,7 +45,15 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
         "plugin:window|is_fullscreen": false,
       };
 
-      const reply = (cmd: string): Promise<unknown> => {
+      const reply = (cmd: string, args: unknown): Promise<unknown> => {
+        const handler = window.__E2E_HANDLERS__?.[cmd];
+        if (handler) {
+          try {
+            return Promise.resolve(structuredClone(handler((args ?? {}) as Record<string, unknown>)));
+          } catch (e) {
+            return Promise.reject(e);
+          }
+        }
         const r = window.__E2E_SPEC__?.[cmd];
         if (r === undefined) {
           if (cmd in builtins) return Promise.resolve(builtins[cmd]);
@@ -60,7 +70,7 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
           metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
           invoke: (cmd: string, args: unknown) => {
             calls.push({ cmd, args });
-            return reply(cmd);
+            return reply(cmd, args);
           },
           transformCallback: (cb: (data: unknown) => void, once = false) => {
             const id = nextId++;
