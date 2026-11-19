@@ -13,6 +13,12 @@ Atualizado pelo coordenador. Última atualização: 2026-11-19 (fim da onda 2; M
 Testes em `main`: `pnpm check` (Rust ≈ 160, Vitest 198) + Playwright 99, todos verdes; CI do GitHub verde.
 Desempenho: todas as metas cumpridas (`docs/testing/performance.md`, `performance-desktop.md`).
 
+## Backlog 0.1.2
+- **Publicar como release NORMAL** (não pré-release): sem nenhuma release normal, `releases/latest/download/latest.json` dá 404, e a verificação de atualização da 0.1.1 mostra erro. A primeira release normal resolve isso para quem está na 0.1.1.
+- UI de Atualizações: tratar 404 do endpoint como "nenhuma versão nova pelo canal automático" + link para a página de releases (Agente 3).
+- UI da sonda de latência: exibir o jitter e recomendar repetir se > 10 ms (SPEC-006 v3 N4) (Agente 3).
+- Achados do roteiro manual do proprietário e calibração com voz real (SPEC-006, backlog M1/M2/B1).
+
 ## Próximos passos
 1. **Proprietário:** roteiro manual (`docs/testing/evidence/vertical-flow.md`), com o microfone liberado na privacidade do Windows.
 2. QA v3 (Agente 4) → ajustes, se houver → release **0.1.1** com o v3, publicado como release **normal** (auto-update).
