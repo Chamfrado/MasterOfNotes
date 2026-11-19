@@ -26,8 +26,8 @@ Critérios:
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-004-01 | YIN + VAD + `analyze_buffer` + testes sintéticos | Agente 2 | done |
-| T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | todo |
-| T-004-03 | Calibração de ruído | Agente 2 | todo |
+| T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | review |
+| T-004-03 | Calibração de ruído | Agente 2 | review |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | todo |
 | T-004-05 | Tela de microfone e calibração | Agente 3 | todo |
 
@@ -38,5 +38,15 @@ Critérios:
 - T-004-01 `review` (Agente 2, 2026-11-19): YIN + gate + clipping + `analyze_buffer` em `crates/audio-engine`. 15 testes sintéticos verdes. Todos os critérios acima medidos em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md). CPU ≈ 2,7% de um núcleo.
 - Detalhes de implementação: `clipped` olha só o hop do frame (cada amostra conta uma vez para o % de clipping). `f0_hz = None` quando confiança < 0,6, então `voiced = gate && f0.is_some()`. O tempo do frame é o centro da janela: `sample_index + window_len/2` (`audio_engine::window_len`).
 - Limitação conhecida: tom acima de 1100 Hz é lido como o subharmônico dentro da faixa (2 kHz → 1 kHz). Não afeta a pontuação (dobra de oitava).
-- T-004-02/03: pendentes.
-- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
+- T-004-02/03 `review` (Agente 2, 2026-11-19):
+  - `Capture`: cpal 0.15 (WASAPI) → ring SPSC `rtrb` (2 s) → thread `mic-analysis`, que também é dona do stream (por isso `Capture: Send`). O callback só faz downmix e `push`: não aloca nem bloqueia; ring cheio descarta amostras;
+  - `list_input_devices`: o id é o nome do dispositivo (cpal 0.15 não tem id estável);
+  - `take_error` informa erro do driver;
+  - `calibrate_noise`/`check_voice` são puras (p90 do RMS; Noisy > −40 dBFS; Clipping > 1%; TooQuiet abaixo do gate).
+- Dispositivo real (2026-11-19, `cargo test -p audio-engine --test device -- --ignored`):
+  - ✅ 3 entradas listadas: "Grupo de microfones (Realtek(R) Audio)" (padrão, 48 kHz, 2 canais), Steam Streaming Microphone e Oculus Virtual Audio Device;
+  - ✅ captura de 2 s do padrão: 173 frames, `sample_index` monotônico, sem erro;
+  - ✅ dispositivo inexistente dá erro claro;
+  - ❓ o piso medido foi −104,8 dBFS, baixo demais para um microfone de notebook (provável microfone mudo ou bloqueado pela privacidade do Windows);
+  - ⏳ validação com voz real (pitch, gate, clipping) depende do proprietário e entra no checklist manual.
+- T-004-01 review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
