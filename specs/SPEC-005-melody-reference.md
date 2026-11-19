@@ -22,7 +22,7 @@ Critérios:
 | T-005-01 | Tipos, parser JSON, import MIDI (`midly`, tempo map) + testes | Agente 2 | done |
 | T-005-02 | Fixtures `tests/fixtures/references/` (sintéticas, autoria própria) | Agente 2 | done |
 | T-005-03 | Commands de referência + persistência | Agente 1 | done |
-| T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | review |
+| T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | done |
 
 ## TEST
 `scoring-engine` testes de referência: JSON válido/inválido, MIDI com tempo map, sobreposição, trilhas.
@@ -45,3 +45,4 @@ Critérios:
   - Convenção conferida em `scorer.rs`: offset positivo atrasa as notas (`start + offset`).
   - Testes: `Reference.test.tsx` (9: `rollLayout` ×3, import JSON, escolha de trilha MIDI, MIDI de uma trilha, erro de import, salvar offset → validar, limites ±10 s).
   - ⏳ Canvas e vídeo não vistos no WebView2 real (o jsdom não tem canvas; o desenho é ignorado nos testes).
+- T-005-04 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.

@@ -22,7 +22,7 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 | T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | review |
 | T-003-03 | Integração com `syncPerformance` | Agente 3 | review |
 | T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | doing |
-| T-003-05 | Gerador de música de teste (webm com/sem guia + referência exata) para validar o app real | Agente 4 | review |
+| T-003-05 | Gerador de música de teste (webm com/sem guia + referência exata) para validar o app real | Agente 4 | done |
 
 ## TEST
 `playerMachine.test.ts` (todas as transições válidas e inválidas); checklist em `docs/testing/evidence/codecs.md`.
@@ -40,3 +40,4 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
   - ⏳ Não executado no WebView2 real: `requestVideoFrameCallback`, tela cheia, codecs (T-003-04 do Agente 4 pode rodar agora).
 - Demais pendentes.
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
+- T-003-05 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
