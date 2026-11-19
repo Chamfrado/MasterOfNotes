@@ -213,7 +213,7 @@ function SongItem({ song, compact, onEdit }: { song: Song; compact: boolean; onE
           <Badge>{song.extension.toUpperCase()}</Badge>
           {duration && <Badge>{duration}</Badge>}
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           <Button variant="primary" disabled={unplayable} onClick={() => navigate({ name: "player", songId: song.id })}>
             Cantar{" "}
             <span className="sr-only">

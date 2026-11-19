@@ -15,6 +15,12 @@ type Phase =
   | { name: "installing" }
   | { name: "error"; error: unknown };
 
+/**
+ * The Rust updater plugin is only registered when the build has a signing pubkey. Without it Tauri rejects with
+ * "plugin updater not found" (tauri plugin.rs) or "updater.… not allowed. Plugin not found" (ipc/authority.rs).
+ */
+export const updaterUnavailable = (e: unknown) => /plugin updater not found|updater.*plugin not found/i.test(errorMessage(e));
+
 const mb = (bytes: number) => `${(bytes / 1_048_576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
 
 export function Updates() {
@@ -123,7 +129,10 @@ export function Updates() {
           </Button>
         )}
         {phase.name === "installing" && <p>Instalando… o Master Of Notes vai fechar e abrir de novo.</p>}
-        {phase.name === "error" && (
+        {phase.name === "error" && updaterUnavailable(phase.error) && (
+          <p>Atualizações automáticas ainda não estão configuradas nesta versão. O app funciona normalmente.</p>
+        )}
+        {phase.name === "error" && !updaterUnavailable(phase.error) && (
           <>
             <p role="alert" className="text-danger">
               Não foi possível verificar ou baixar a atualização. O app continua funcionando normalmente.
