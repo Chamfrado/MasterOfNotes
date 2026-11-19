@@ -20,7 +20,7 @@ use crate::error::{AppError, AppResult};
 use crate::library::{self, lock};
 use crate::mic::MicMonitor;
 use crate::performance::{
-    LeakVerdict, LivePerformance, LiveTick, PerformanceConfig, PerformanceSummary,
+    LatencyVerdict, LeakVerdict, LivePerformance, LiveTick, PerformanceConfig, PerformanceSummary,
 };
 use crate::reference;
 use crate::sessions::{self, difficulty_str};
@@ -30,6 +30,8 @@ use crate::settings::{self, Difficulty};
 const MIN_PLAYED_RATIO: f64 = 0.5;
 /// Device-error polling period (watchdog for `audio://error`).
 const WATCH_EVERY: Duration = Duration::from_millis(250);
+/// Upper bound on latency-probe clicks accepted from the UI (Law 09).
+const MAX_PROBE_CLICKS: usize = 500;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -40,6 +42,9 @@ pub struct StartPerformance {
     /// Leak check run (T-004-06): user silent, nothing stored in `performances`.
     #[serde(default)]
     pub leak_check: bool,
+    /// Latency probe (T-004-07): click times in video ms. Exclusive with `leak_check`.
+    #[serde(default)]
+    pub latency_probe: Option<Vec<f64>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -58,6 +63,8 @@ pub struct PerformanceOutcome {
     pub exploratory: Option<ExploratoryMetrics>,
     /// Only on leak check runs.
     pub leak: Option<LeakVerdict>,
+    /// Only on latency probe runs.
+    pub latency: Option<LatencyVerdict>,
     pub personal_best: Option<f32>,
     pub song_record: Option<f32>,
 }
@@ -73,6 +80,8 @@ pub struct RunContext {
     pub difficulty: Difficulty,
     /// Leak check run: (device id, video volume) at start, saved with the verdict.
     pub leak_check: Option<(Option<String>, f64)>,
+    /// Latency probe run (T-004-07).
+    pub latency_probe: bool,
 }
 
 struct Running {
@@ -192,7 +201,24 @@ pub fn prepare(
             ));
         }
     }
+    if let Some(clicks) = &args.latency_probe {
+        if args.leak_check || args.round_id.is_some() || args.participant_id.is_some() {
+            return Err(AppError::invalid_input(
+                "A sonda de latência roda sozinha: sem teste de vazamento, rodada ou participante.",
+            ));
+        }
+        if clicks.is_empty() || clicks.len() > MAX_PROBE_CLICKS {
+            return Err(AppError::invalid_input(
+                "A sonda de latência precisa de 1 a 500 cliques.",
+            ));
+        }
+    }
+    let probe = args.latency_probe.is_some();
     let (competitive, reason) = match active.as_ref().map(|r| r.status.as_str()) {
+        _ if probe => (
+            false,
+            Some("Sonda de latência: bata palmas junto com os cliques."),
+        ),
         _ if args.leak_check => (
             false,
             Some("Teste de vazamento: fique em silêncio enquanto a música toca."),
@@ -221,6 +247,7 @@ pub fn prepare(
         ),
     };
     let reference = match &active {
+        Some(_) if probe => None, // the probe only listens for clicks
         Some(r) => {
             let notes_json: String = conn.query_row(
                 "SELECT notes_json FROM melody_references WHERE id = ?1",
@@ -239,10 +266,16 @@ pub fn prepare(
         reference,
         competitive,
         difficulty: scoring_difficulty(s.difficulty),
-        latency_offset_ms: s.latency_offset_ms as f64,
+        // The probe measures the raw latency, so it runs without the current correction.
+        latency_offset_ms: if probe {
+            0.0
+        } else {
+            s.latency_offset_ms as f64
+        },
         device_id: s.input_device_id.clone(),
         capture,
         leak_check: args.leak_check,
+        latency_probe: args.latency_probe.clone(),
     };
     let ctx = RunContext {
         song_id: args.song_id.clone(),
@@ -253,6 +286,7 @@ pub fn prepare(
         leak_check: args
             .leak_check
             .then(|| (s.input_device_id.clone(), s.video_volume)),
+        latency_probe: probe,
     };
     Ok((
         cfg,
@@ -276,9 +310,39 @@ pub fn persist(
         result: None,
         exploratory: None,
         leak: None,
+        latency: None,
         personal_best: None,
         song_record: None,
     };
+    // Latency probe (T-004-07): a passed measurement becomes the latency setting.
+    if ctx.latency_probe {
+        let Some(verdict) = summary.latency else {
+            return Err(AppError::new(
+                "internal",
+                "A sonda de latência não produziu resultado.",
+            ));
+        };
+        if verdict.passed {
+            let mut patch = serde_json::Map::new();
+            patch.insert(
+                "latencyOffsetMs".into(),
+                serde_json::json!(verdict.result.offset_ms.round() as i64),
+            );
+            settings::write(conn, patch)?;
+        }
+        log::info!(
+            "latency probe: passed {} (offset {:.1} ms, jitter {:.1} ms, {}/{})",
+            verdict.passed,
+            verdict.result.offset_ms,
+            verdict.result.jitter_ms,
+            verdict.result.detected,
+            verdict.result.expected
+        );
+        return Ok(PerformanceOutcome {
+            latency: Some(verdict),
+            ..not_stored
+        });
+    }
     // Leak check run: only the verdict is kept, in settings (T-004-06). Any non-passed
     // verdict replaces an older pass: competitive play needs the latest check to pass.
     if let Some((device_id, video_volume)) = &ctx.leak_check {
@@ -371,6 +435,7 @@ pub fn persist(
         result: Some(result),
         exploratory: None,
         leak: None,
+        latency: None,
         personal_best: ctx.participant_id.and_then(|p| best(&|q| q == Some(p))),
         song_record: best(&|_| true),
     })
@@ -581,6 +646,75 @@ mod tests {
     }
 
     #[test]
+    fn latency_probe_saves_offset_only_when_passed() {
+        let (_d, mut conn) = env(None, Some(10_000));
+        set(&mut conn, serde_json::json!({"latencyOffsetMs": 120}));
+        let probe = StartPerformance {
+            latency_probe: Some(vec![1000.0, 2000.0, 3000.0]),
+            ..args()
+        };
+        let (cfg, ctx, started) = prepare(&conn, &probe).unwrap();
+        assert_eq!(cfg.latency_offset_ms, 0.0, "probe measures raw latency");
+        assert_eq!(
+            cfg.latency_probe.as_deref(),
+            Some(&[1000.0, 2000.0, 3000.0][..])
+        );
+        assert!(!cfg.leak_check && !started.competitive && ctx.latency_probe);
+
+        let verdict = |passed: bool, offset_ms: f32| {
+            let mut s = summary(false, 3_000, None);
+            s.exploratory = None;
+            s.latency = Some(LatencyVerdict {
+                result: audio_engine::LatencyResult {
+                    offset_ms,
+                    jitter_ms: 4.0,
+                    detected: 3,
+                    expected: 3,
+                },
+                passed,
+                reason: (!passed).then(|| "palmas fora do tempo".to_owned()),
+            });
+            s
+        };
+        let out = persist(&mut conn, &ctx, verdict(false, 300.0)).unwrap();
+        assert!(out.latency.is_some_and(|l| !l.passed));
+        assert_eq!(
+            settings::load(&conn).unwrap().latency_offset_ms,
+            120,
+            "failed probe keeps the setting"
+        );
+        let out = persist(&mut conn, &ctx, verdict(true, 187.6)).unwrap();
+        assert_eq!((out.performance_id, out.competitive), (None, false));
+        assert_eq!(settings::load(&conn).unwrap().latency_offset_ms, 188);
+        let json = serde_json::to_value(&out).unwrap();
+        assert_eq!(
+            json["latency"]["offsetMs"], 187.6_f32 as f64,
+            "flattened as in ipc.ts"
+        );
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM performances", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0);
+
+        for bad in [
+            StartPerformance {
+                leak_check: true,
+                ..probe.clone()
+            },
+            StartPerformance {
+                latency_probe: Some(vec![]),
+                ..args()
+            },
+            StartPerformance {
+                latency_probe: Some(vec![1.0; 501]),
+                ..args()
+            },
+        ] {
+            assert_eq!(prepare_err(&conn, &bad), "invalid_input");
+        }
+    }
+
+    #[test]
     fn leak_check_is_read_only_for_update_settings() {
         let (_d, mut conn) = env(None, None);
         let patch = check(None, 1.0, true).as_object().cloned().unwrap();
@@ -603,6 +737,7 @@ mod tests {
             round_id: None,
             participant_id: None,
             leak_check: false,
+            latency_probe: None,
         }
     }
 
@@ -625,6 +760,7 @@ mod tests {
                 pitch_stability: 0.8,
             }),
             leak: None,
+            latency: None,
             capture: CaptureStats {
                 device_id: None,
                 sample_rate: 48_000,
@@ -741,6 +877,7 @@ mod tests {
             round_id: Some(ra.id),
             participant_id: Some(b),
             leak_check: false,
+            latency_probe: None,
         };
         assert_eq!(prepare_err(&conn, &wrong), "invalid_input");
 
@@ -749,6 +886,7 @@ mod tests {
             round_id: Some(round.id),
             participant_id: round.participant_id,
             leak_check: false,
+            latency_probe: None,
         };
         let (_, ctx_a, _) = prepare(&conn, &start(ra)).unwrap();
         // Training run: round stays pending.
