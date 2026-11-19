@@ -111,7 +111,7 @@ Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md).
 | T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | done |
 | T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | done |
 | T-006-12 | 4ª rodada de QA (curta, v3 × v4) → `docs/testing/evidence/scoring-review-v4.md` | Agente 4 | done |
-| T-006-13 | Algoritmo v5 (movimento só como oscilação) + regressão com fall/bend/scoop lento/vibrato irregular, `ALGORITHM_VERSION = 5` | Agente 2 | review |
+| T-006-13 | Algoritmo v5 (movimento só como oscilação) + regressão com fall/bend/scoop lento/vibrato irregular, `ALGORITHM_VERSION = 5` | Agente 2 | done |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -224,3 +224,4 @@ Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md).
   - Na regressão: `v5_expressive_gestures_are_style_not_error`. Golden com 14 fixtures.
   - A janela de oscilação (1,2 s) ficou um pouco acima dos "~0,5–1 s" da spec. Com 1 s, a aleatória ±150 em notas de 1 s quase nunca mostra 2 inversões, e o E1 não fecha.
   - **Fim do ciclo sintético:** mudanças de pontuação a partir daqui só com evidência de voz real.
+- T-006-13 done (Agente 0, 2026-11-19): algoritmo v5 integrado (`ALGORITHM_VERSION = 5`); `pnpm check` exit 0 (regressão 32, golden de 14); os gestos expressivos voltaram aos valores do v3; E1 ≤ 44,2. Desvio aceito: janela de oscilação de ±600 ms (justificada). Corrigida também uma corrida pré-existente no SongDetails.test. ⏳ Rodada 5 de QA (final do ciclo sintético).
