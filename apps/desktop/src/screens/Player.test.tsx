@@ -5,6 +5,7 @@ import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
 import { Player, clock } from "./Player";
 
+const replace = vi.fn();
 vi.mock("../lib/ipc", () => ({
   listSongs: vi.fn(),
   getSettings: vi.fn(),
@@ -61,7 +62,7 @@ afterEach(() => vi.useRealTimers());
 
 async function renderToPlaying() {
   const { container, unmount } = render(
-    <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, back: vi.fn() }}>
+    <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, replace, back: vi.fn() }}>
       <ToastProvider>
         <Player songId="s1" />
       </ToastProvider>
@@ -144,7 +145,7 @@ describe("Player", () => {
     const video = await renderToPlaying();
     fireEvent.ended(video);
     await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(navigate).toHaveBeenCalledWith({ name: "result", songId: "s1", outcome });
+    expect(replace).toHaveBeenCalledWith({ name: "result", songId: "s1", outcome, round: undefined });
   });
 
   it("warns when the mic picks up the music outside notes (R9)", async () => {
@@ -160,7 +161,7 @@ describe("Player", () => {
   it("offers the leak test shortcut when the check is pending (T-004-06)", async () => {
     vi.mocked(ipc.getSettings).mockResolvedValue({ ...settings, leakCheck: null });
     const { container } = render(
-      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, back: vi.fn() }}>
+      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, replace, back: vi.fn() }}>
         <ToastProvider>
           <Player songId="s1" />
         </ToastProvider>
@@ -177,7 +178,7 @@ describe("Player", () => {
 
   it("shows the codec hint and marks the song unplayable on media error", async () => {
     const { container } = render(
-      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, back: vi.fn() }}>
+      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, replace, back: vi.fn() }}>
         <ToastProvider>
           <Player songId="s1" />
         </ToastProvider>

@@ -6,6 +6,7 @@ import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
 import { Reference, rollLayout } from "./Reference";
 
+const replace = vi.fn();
 vi.mock("../lib/ipc", () => ({
   listSongs: vi.fn(),
   getReference: vi.fn(),
@@ -32,7 +33,7 @@ const ref = (over: Partial<ipc.MelodyReference> = {}): ipc.MelodyReference => ({
 
 const renderRef = () =>
   render(
-    <NavContext.Provider value={{ route: { name: "reference", songId: "s1" }, navigate: vi.fn(), back: vi.fn() }}>
+    <NavContext.Provider value={{ route: { name: "reference", songId: "s1" }, navigate: vi.fn(), replace, back: vi.fn() }}>
       <ToastProvider>
         <Reference songId="s1" />
       </ToastProvider>

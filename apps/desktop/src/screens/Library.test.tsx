@@ -6,6 +6,7 @@ import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
 import { Library, searchKey } from "./Library";
 
+const replace = vi.fn();
 vi.mock("../lib/ipc", () => ({
   listSongs: vi.fn(),
   getSettings: vi.fn(),
@@ -36,7 +37,7 @@ const settings = (libraryFolder: string | null) => ({ libraryFolder, recursiveSc
 const navigate = vi.fn();
 function renderLibrary() {
   return render(
-    <NavContext.Provider value={{ route: { name: "library" }, navigate, back: vi.fn() }}>
+    <NavContext.Provider value={{ route: { name: "library" }, navigate, replace, back: vi.fn() }}>
       <ToastProvider>
         <Library />
       </ToastProvider>

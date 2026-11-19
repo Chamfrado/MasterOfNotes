@@ -8,11 +8,17 @@ import { Mic } from "./screens/Mic";
 import { Player } from "./screens/Player";
 import { Ranking } from "./screens/Ranking";
 import { Reference } from "./screens/Reference";
+import { History } from "./screens/History";
+import { Modes } from "./screens/Modes";
+import { NewSession } from "./screens/NewSession";
+import { Participants } from "./screens/Participants";
+import { Session } from "./screens/Session";
 import { Result } from "./screens/Result";
 
-type TopLevel = "home" | "library" | "mic" | "ranking";
+type TopLevel = "home" | "modes" | "library" | "mic" | "ranking";
 const navItems: { key: TopLevel; label: string }[] = [
   { key: "home", label: "Início" },
+  { key: "modes", label: "Jogar" },
   { key: "library", label: "Biblioteca" },
   { key: "mic", label: "Microfone" },
   { key: "ranking", label: "Ranking" },
@@ -27,13 +33,23 @@ function Screen({ route }: { route: Route }) {
     case "mic":
       return <Mic />;
     case "player":
-      return <Player songId={route.songId} />;
+      return <Player songId={route.songId} round={route.round} />;
     case "reference":
       return <Reference songId={route.songId} />;
     case "result":
-      return <Result songId={route.songId} outcome={route.outcome} />;
+      return <Result songId={route.songId} outcome={route.outcome} round={route.round} />;
     case "ranking":
       return <Ranking songId={route.songId} />;
+    case "modes":
+      return <Modes />;
+    case "new-session":
+      return <NewSession mode={route.mode} />;
+    case "session":
+      return <Session id={route.id} />;
+    case "participants":
+      return <Participants />;
+    case "history":
+      return <History />;
   }
 }
 
@@ -43,8 +59,9 @@ export default function App() {
   const main = useRef<HTMLElement>(null);
 
   const navigate = useCallback((to: Route) => setStack((s) => [...s, to]), []);
+  const replace = useCallback((to: Route) => setStack((s) => [...s.slice(0, -1), to]), []);
   const back = useCallback(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), []);
-  const nav = useMemo<Nav>(() => ({ route, navigate, back }), [route, navigate, back]);
+  const nav = useMemo<Nav>(() => ({ route, navigate, replace, back }), [route, navigate, replace, back]);
 
   // In-app reduced-motion setting overrides the OS preference (styles.css reads data-reduced-motion).
   useEffect(() => {

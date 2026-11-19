@@ -18,7 +18,7 @@ import {
   type PerformanceStarted,
   type Song,
 } from "../lib/ipc";
-import { useNav } from "../nav";
+import { useNav, type RoundContext } from "../nav";
 import { createLeakMonitor, leakCheckState } from "../player/leak";
 import { initialPlayerState, playerReducer } from "../player/playerMachine";
 import { startVideoSync, warn } from "../player/sync";
@@ -42,7 +42,7 @@ export const clock = (s: number) => {
 };
 
 
-export function Player({ songId }: { songId: string }) {
+export function Player({ songId, round }: { songId: string; round?: RoundContext }) {
   const [load, reload] = useAsync(() => Promise.all([listSongs(), getSettings()]), []);
   if (load.status === "loading")
     return (
@@ -64,7 +64,7 @@ export function Player({ songId }: { songId: string }) {
         <ErrorState title="Música não encontrada" error="Ela pode ter sido removida da pasta da biblioteca." />
       </Backstage>
     );
-  return <Stage song={song} settings={settings} />;
+  return <Stage song={song} settings={settings} round={round} />;
 }
 
 /** The player hides the NavBar, so pre-stage states keep an explicit way out. */
@@ -85,8 +85,8 @@ const toggleFullscreen = async () => {
   await w.setFullscreen(!(await w.isFullscreen()));
 };
 
-function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
-  const { navigate, back } = useNav();
+function Stage({ song, settings, round }: { song: Song; settings: AppSettings; round?: RoundContext }) {
+  const { navigate, replace, back } = useNav();
   const toast = useToast();
   const video = useRef<HTMLVideoElement>(null);
   const [state, dispatch] = useReducer(playerReducer, initialPlayerState);
@@ -159,7 +159,7 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
         setTick(t);
         setLeak(leakMonitor.current(t)); // same value = no re-render
       };
-      setPerf(await startPerformance({ songId: song.id, roundId: null, participantId: null }, onTick));
+      setPerf(await startPerformance({ songId: song.id, roundId: round?.roundId ?? null, participantId: round?.participantId ?? null }, onTick));
       active.current = true;
       dispatch({ type: "START", countdown: COUNTDOWN_S });
     } catch (e) {
@@ -172,7 +172,7 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
     if (!active.current) return;
     active.current = false;
     try {
-      navigate({ name: "result", songId: song.id, outcome: await finishPerformance() });
+      replace({ name: "result", songId: song.id, outcome: await finishPerformance(), round });
     } catch (e) {
       dispatch({ type: "FAIL", message: errorMessage(e) });
     }

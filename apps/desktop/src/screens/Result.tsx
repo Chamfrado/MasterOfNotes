@@ -1,12 +1,12 @@
 import { ScoreBadge, formatScore } from "../components/game";
 import { Button, Card } from "../components/ui";
 import type { PerformanceOutcome } from "../lib/ipc";
-import { useNav } from "../nav";
+import { useNav, type RoundContext } from "../nav";
 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 0 });
 
-export function Result({ songId, outcome }: { songId: string; outcome: PerformanceOutcome }) {
-  const { navigate } = useNav();
+export function Result({ songId, outcome, round }: { songId: string; outcome: PerformanceOutcome; round?: RoundContext }) {
+  const { navigate, replace, back } = useNav();
   const r = outcome.result;
   return (
     <div className="flex flex-col items-center gap-10 pt-8 text-center">
@@ -68,9 +68,17 @@ export function Result({ songId, outcome }: { songId: string; outcome: Performan
         </Card>
       )}
       <div className="flex flex-wrap justify-center gap-4">
-        <Button variant="primary" size="lg" onClick={() => navigate({ name: "player", songId })}>
-          Cantar de novo
-        </Button>
+        {round ? (
+          // The round is settled by Rust (completed only if competitive). Player was replaced by
+          // this screen, so the previous one is the session; it reloads on mount.
+          <Button variant="primary" size="lg" autoFocus onClick={back}>
+            Voltar para a partida
+          </Button>
+        ) : (
+          <Button variant="primary" size="lg" onClick={() => replace({ name: "player", songId })}>
+            Cantar de novo
+          </Button>
+        )}
         <Button size="lg" onClick={() => navigate({ name: "ranking", songId })}>
           Ver ranking
         </Button>
