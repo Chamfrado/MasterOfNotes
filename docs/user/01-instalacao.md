@@ -20,12 +20,16 @@ Não precisa de internet para usar o app nem de conta ou cadastro.
 2. Em **Assets**, baixe o arquivo **`Master.Of.Notes_0.1.1_x64-setup.exe`** (cerca de 4 MB). Em versões futuras, o número muda, mas o nome continua terminando em **`_x64-setup.exe`**. Os outros arquivos da lista (`.sig`, `latest.json` e o código-fonte) servem para as atualizações automáticas e para desenvolvedores; você não precisa deles.
 3. Dê dois cliques no arquivo baixado.
 4. O Windows deve mostrar o aviso **"O Windows protegeu o computador"**. Clique em **Mais informações** e depois em **Executar assim mesmo**.
-5. Siga o instalador (em português) até o fim.
+5. O instalador abre em português, na tela **Bem-vindo ao Instalador do Master Of Notes**. Clique em **Próximo >** e siga as telas até o fim.
+6. Quando aparecer **Instalação Completa — A instalação foi completada com sucesso**, clique em **Próximo >** para ir à última tela e concluir. Ao terminar, o instalador pode abrir o app.
 
 > **Por que aparece esse aviso?** O Windows avisa sempre que um instalador não tem um certificado comercial de assinatura de código, que é pago. O Master Of Notes não tem esse certificado, então o aviso é esperado. Para instalar com segurança, **baixe o instalador só da página oficial de versões** (o endereço acima), nunca de outros sites ou de arquivos repassados por outras pessoas. Depois de instalado, as [atualizações](11-atualizacoes.md) do próprio app são conferidas por uma assinatura digital do projeto, e uma atualização adulterada é recusada.
 
-<!-- Captura manual pendente (release v0.1.1, com permissão do proprietário): media/instalador-boas-vindas.png — primeira tela do instalador, em pt-BR. -->
-<!-- Captura manual pendente (release v0.1.1, com permissão do proprietário): media/instalador-concluido.png — tela final do instalador. -->
+<!-- A capturar (próxima versão ou captura do proprietário): media/instalador-boas-vindas.png — primeira tela do instalador, em pt-BR. -->
+
+![Janela "Instalação do Master Of Notes" na etapa Instalação Completa: "A instalação foi completada com sucesso", a barra de progresso cheia com "Completado" e os botões Voltar, Próximo e Cancelar.](media/instalador-concluido.png)
+
+*Captura real do instalador da versão 0.1.1.*
 
 A instalação é **só para o seu usuário do Windows**: não pede senha de administrador. Ao terminar, aparecem atalhos do **Master Of Notes** no menu Iniciar e na Área de Trabalho.
 
@@ -48,7 +52,7 @@ Quando sair uma versão nova, o próprio app pode instalá-la. Veja [Atualizaç�
 1. Abra **Configurações do Windows → Aplicativos → Aplicativos instalados**.
 2. Procure **Master Of Notes**, clique em **⋯** e em **Desinstalar**.
 
-<!-- Captura manual pendente (release v0.1.1, com permissão do proprietário): media/desinstalar-windows.png — "Aplicativos instalados" com o Master Of Notes. -->
+<!-- A capturar (só a tela "Aplicativos instalados" filtrada, sem desinstalar e com novo OK do coordenador): media/desinstalar-windows.png. -->
 
 O desinstalador remove o programa e os atalhos. **Seus dados ficam guardados** em `%APPDATA%\com.masterofnotes.karaoke\`, para o caso de você instalar de novo. Se quiser apagar tudo, apague essa pasta depois de desinstalar. Isso remove seus rankings, cantores e ajustes de forma definitiva. Seus vídeos não são tocados.
 
