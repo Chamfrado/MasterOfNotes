@@ -4,6 +4,7 @@ import { NavBar, ToastProvider, useToast } from "./components/ui";
 import { getSettings } from "./lib/ipc";
 import { applyReducedMotion, applyTvMode, getTvMode } from "./display";
 import { NavContext, type Nav, type Route } from "./nav";
+import { handleSpatialKey } from "./spatial";
 import { Home } from "./screens/Home";
 import { Library } from "./screens/Library";
 import { Mic } from "./screens/Mic";
@@ -107,13 +108,16 @@ export default function App() {
   }, [route]);
 
   // Esc = back, unless a native dialog is open (it consumes Esc itself).
+  // Arrows = spatial focus navigation (A11Y-05), except in the Player, where they are seek/volume.
+  const inPlayer = route.name === "player";
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("dialog[open]")) back();
+      else if (!inPlayer) handleSpatialKey(e);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [back]);
+  }, [back, inPlayer]);
 
   const fullscreen = route.name === "player";
   return (
