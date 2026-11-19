@@ -133,6 +133,7 @@ pub struct PerformanceSummary { pub competitive: bool, pub played_ms: u64, pub r
 ```
 
 Os commands (Agente 1) carregam a referência ativa e as configurações, criam `PerformanceConfig`, guardam `Mutex<Option<LivePerformance>>` no `AppState`, repassam `LiveTick` ao `Channel` e, no `finish`, decidem a persistência: `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (SPEC-007 R2). Também calculam os recordes.
+**Checagem de vazamento (T-004-06, SPEC-006 A2):** `start_performance` com `leakCheck: true` roda uma performance curta com o usuário calado. Nada é persistido em `performances`. `PerformanceConfig` ganha `leak_check: bool`, e `PerformanceSummary` ganha `leak: Option<LeakVerdict { passed, guide_score }>`, onde `guide_score` é a componente de pitch P medida nas notas tocadas. O limiar de `passed` é definido pelo Agente 2 com evidência e documentado na SPEC-004. O command grava `settings.leakCheck = { deviceId, videoVolume, passed, atMs }`. A partir daí, `competitive` também exige `leakCheck.passed && leakCheck.deviceId == inputDeviceId && videoVolume ≤ leakCheck.videoVolume + 0,05`; senão é treino, com `reason` em pt-BR sugerindo fones ou o teste.
 `scoring-engine` ganha `Scorer::skip(from_ms, to_ms)`: exclui da agregação as notas que começam no trecho pulado (só em treino; não altera `ALGORITHM_VERSION`).
 
 ## 3. Esquema SQLite (migração 001)

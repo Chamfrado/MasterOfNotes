@@ -23,6 +23,14 @@ export interface AppSettings {
   reducedMotion: "system" | "on" | "off";
   feedbackOverlay: "full" | "compact" | "hidden";
   autoCheckUpdates: boolean;
+  /** Last leak check (SPEC-004 R9 / T-004-06). Competitive play requires a passed check for the current device at <= this volume. Read-only via updateSettings. */
+  leakCheck: LeakCheck | null;
+}
+export interface LeakCheck {
+  deviceId: string | null;
+  videoVolume: number;
+  passed: boolean;
+  atMs: number;
 }
 export const getSettings = () => invoke<AppSettings>("get_settings");
 export const updateSettings = (patch: Partial<AppSettings>) =>
@@ -159,6 +167,8 @@ export interface StartPerformance {
   songId: string;
   roundId: number | null;
   participantId: number | null;
+  /** true = leak check run: user stays silent, nothing is persisted, outcome.leak is set and settings.leakCheck is saved. */
+  leakCheck?: boolean;
 }
 export interface PerformanceStarted {
   competitive: boolean; // false when no validated reference
@@ -184,6 +194,7 @@ export interface PerformanceOutcome {
   competitive: boolean;
   result: ScoreResult | null; // null when there was no reference
   exploratory: ExploratoryMetrics | null; // set when result is null
+  leak?: { passed: boolean; guideScore: number } | null; // only on leak check runs
   personalBest: number | null;
   songRecord: number | null;
 }

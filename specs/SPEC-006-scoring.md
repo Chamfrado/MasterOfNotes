@@ -74,7 +74,7 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 | T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | done |
 | T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | done |
-| T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | review |
+| T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | todo |
 
 ## TEST
@@ -112,3 +112,5 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
 - T-006-05 `review` (Agente 1, 2026-11-19): `src-tauri/src/live.rs` registra `performance.rs` e expõe `start_performance` (para o medidor, substitui uma execução esquecida, valida música, participante e rodada (sessão ativa, rodada não concluída, música/participante batem), monta `PerformanceConfig` com a referência ativa e as settings, explica em `reason` por que não é competitivo), `sync_performance`, `finish_performance` e `abort_performance`. Persistência: com referência sempre grava (competitiva ou treino); sem referência não grava nada e devolve as métricas exploratórias. `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (duração desconhecida = treino). Rodada vira `completed` só com performance competitiva e sessão ativa. `personalBest`/`songRecord` na CompatKey da execução (referência e revisão do início). `audio://error`: watchdog a cada 250 ms no medidor e na performance; ao falhar, o stream é parado (a performance é descartada) e o evento é emitido. Testes ✅ `live::tests::{prepare_reports_competitiveness, competitive_needs_half_the_song, unknown_duration_is_training_and_no_reference_stores_nothing, round_completes_and_records_per_participant}`; os 9 testes de `performance.rs` passam dentro do app; `performance::tests::live_run_on_the_default_microphone` (`--ignored`) passou no microfone padrão desta máquina.
 - T-006-03 e T-006-05 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware). ⏳ start→sync→finish via IPC real ainda não exercitado no app.
+
+- T-006-06 done (Agente 0, 2026-11-19): integrado em main @ 94fecbe; 70 testes de áudio/pontuação (golden incluído) + 40 do app verdes, clippy limpo. Emendas aceitas registradas na seção v2. ⏳ Re-revisão do Agente 4 e validação com voz real.
