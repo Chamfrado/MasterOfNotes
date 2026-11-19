@@ -16,7 +16,7 @@
 | T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | done |
 | T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | done |
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | done |
-| T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | review |
+| T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | done |
 | T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | done |
 
 ## STATUS
@@ -36,3 +36,4 @@
   - Consentimento (SPEC-001 R2): cartão no Início enquanto `autoCheckUpdates=false` e a pergunta ainda não foi feita.
   - ❓ Modo TV e "pergunta de atualização já feita" ficam no localStorage do WebView (`src/display.ts`, marcado `ponytail:`). Proposto ao coordenador como campos de `AppSettings`.
   - Testes: `Settings.test.tsx` (8: ajustes, aplicação imediata, reversão em erro, consentimento ×2, Atualizações ×3).
+- T-010-04 done (Agente 0, 2026-11-19): integrado em main @ b3ed719; vitest 173/173, Playwright 44/44. Modo TV e consentimento migram do localStorage para AppSettings (tvMode, updateConsentAsked), contrato em main.
