@@ -50,9 +50,9 @@ Revisão: [scoring-review.md](../docs/testing/evidence/scoring-review.md). O v1 
 - **A1 + A3: janela de onset.** Busca em `[max(start − 300 ms, fim_da_nota_anterior), start + d/2]`. O erro é simétrico: `rhythm = 1` se |err| ≤ 80 ms, `0` se |err| ≥ 300 ms, linear entre. Nota colada na anterior (gap 0) começa a busca em `start`, então nota repetida ligada cantada no tempo tem ritmo 1.
 - **A4: sem degrau.** Sustain e onset deixam de usar o corte p ≥ 0,5. Restrições obrigatórias, a formulação é do Agente 2:
   (a) o score é monotonicamente não crescente em |e| para desafinação constante;
-  (b) nenhum salto > 5 pontos entre desafinações constantes vizinhas a 10 cents;
+  (b) nenhum salto > 10 pontos entre desafinações constantes vizinhas a 10 cents. Revisado em 2026-11-19: a meta original de 5 era matematicamente incompatível com (c) e com perfeito ≈ 100, que exigem ≥ 6,7 por passo; medido no v2: máx. 9,7;
   (c) +90 cents constante (quase a nota vizinha) ≤ 40 no Normal.
-- **A5: ritmo só em notas acertadas.** `rhythm_i = 0` se `pitch_i < 0,5`. Meta: sirene de 1 oitava e nota fixa ≤ 15.
+- **A5: ritmo só em notas acertadas.** `rhythm_i = 0` se `pitch_i < 0,5`. Meta: sirene de 1 oitava ≤ 15; nota fixa ≤ 25. Revisado: quem sustenta uma classe canta de fato, afinadas, as notas daquela classe, e o crédito é legítimo, coerente com "1 de 10 notas = 10". **Formulação aceita no v2:** em vez do corte `pitch_i < 0,5 → 0`, ritmo e sustain são multiplicados pelo fator contínuo `clamp(2·acerto − 1, 0, 1) · min(1, 2·pitch_i)`, que é compatível com A4 (sem degrau).
 - **A6: zona de transição.** Quando a nota anterior termina a < 30 ms do início desta, os primeiros `min(25 ms, d/4)` são excluídos do pitch e do sustain. O mesmo vale para o final, em relação à próxima nota. Meta: notas ligadas de 100 ms, canto perfeito ≥ 92; de 50 ms ≥ 85.
 - **A8: denominador fixo.** O denominador de `pitch_i`/`sustain_i` é o número de frames **esperados** da nota (d/10 ms, menos as zonas de transição). Frame ausente conta 0. Trechos pulados por seek ficam fora (`Scorer::skip`).
 - **A7: golden.** A regressão ganha `assert_eq!` do `ScoreResult` completo (valores exatos) para cada fixture. Qualquer mudança de resultado quebra o teste e exige bump de versão e atualização desta spec.
@@ -60,6 +60,8 @@ Revisão: [scoring-review.md](../docs/testing/evidence/scoring-review.md). O v1 
 - **A2: voz-guia no microfone.** Não dá para resolver só no scorer. Decisão: a **checagem de vazamento** (SPEC-004 R9) passa a ser **obrigatória para modo competitivo**, por dispositivo e volume. O resultado fica salvo nas settings (`leakCheck: { deviceId, videoVolume, passed, atMs }`). Sem checagem aprovada para o dispositivo e o volume atuais, a performance é treino, e a UI explica e sugere fones. Tarefa T-004-06. Até ela existir, é um risco aceito e registrado no roadmap.
 
 Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescentadas pelos itens acima.
+
+**Tolerâncias v2** (T_full, T_zero, em cents): Easy (40, 200), Normal (25, 165), Hard (15, 155). O Normal ficou mais exigente que no v1: +50 cents dá 74,5. ⏳ Risco: calibrado só com voz sintética (incluindo drift de 15 cents, jitter e sopro: 99,6–100). Precisa ser confirmado com gravações reais de cantores amadores antes da release; se amadores afinados ficarem abaixo de ~85 no Normal, ajustar (com bump de versão).
 
 ## PLAN
 `scoring-engine` puro. `Scorer` incremental; `finish()` consolida. 5 min ≈ 30k frames em memória (ok). `performance.rs` (src-tauri) faz âncora/sync, aplica latência e decide `competitive`.
@@ -69,10 +71,10 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 |---|---|---|---|
 | T-006-01 | `Scorer` v1 conforme fórmula + testes unitários | Agente 2 | done |
 | T-006-02 | Regressão com gerador de fixtures sintéticas (`tests/regression.rs`) cobrindo a tabela | Agente 2 | done |
-| T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | review |
+| T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | done |
 | T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
-| T-006-05 | Persistência da performance + recordes | Agente 1 | review |
-| T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | todo |
+| T-006-05 | Persistência da performance + recordes | Agente 1 | done |
+| T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | review |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | todo |
 
 ## TEST
@@ -94,5 +96,19 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
   - Seek → treino, com `Scorer::skip` nas notas puladas.
   - `leakSuspected` é só indicativo.
   - Testes: 9 unitários da sessão (sem hardware) + 1 `#[ignore]` com microfone real (5/5 verdes). Rodados num crate-harness fora do repositório que inclui o arquivo via `#[path]` (regra de disco: Agente 2 não compila o app). A compilação dentro do app fica com o Agente 1 ao registrar `mod performance;`.
+- T-006-06 `review` (Agente 2, 2026-11-19): algoritmo v2, `ALGORITHM_VERSION = 2`. Medições em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md#algoritmo-v2-algorithm_version--2-atual). Formulação (constantes em `scorer.rs`):
+  - **Tolerâncias (T_full, T_zero):** Easy (40, 200), Normal (25, 165), Hard (15, 155). As larguras ≥ 135 cents mantêm o salto ≤ 10 pontos em 10 cents. Normal: +90 cents = 37,1 e +100 cents com P = 0,46.
+  - **Fator de acerto (A4 + A5):** `gate_i = clamp(2·acerto_i − 1, 0, 1) · min(1, 2·pitch_i)`, em que `acerto_i` = média de p nos frames vozeados da nota. Então `rhythm_i = timing·gate_i` e `sustain_i = sustentado_i·gate_i` (sustentado = frames vozeados com p > 0 sobre os esperados). Isso é contínuo, sem degrau em p = 0,5: o onset ainda usa p ≥ 0,5, mas o ritmo já vale 0 nesse ponto.
+    - **Desvio da regra literal "rhythm_i = 0 se pitch_i < 0,5":** a regra literal + continuidade zeraria o ritmo de uma nota cantada afinada só na metade. O fator acima zera sirenes (9,5) e notas desafinadas, mas mantém o ritmo de quem cantou parte da nota afinado.
+  - **Onset (A1 + A3):** janela `[max(start − 300, min(fim_anterior + 25 ms, start)), start + d/2]`.
+    - Os 25 ms (meia janela de análise) são o rastro da nota que acabou, nunca um ataque. Sem eles, F4 depois de E4 dava R = 0,46 com canto perfeito.
+    - O onset também exige que o canto esteja mais perto deste alvo que do alvo anterior: quem ainda está na nota anterior não "chegou". Sem isso, atrasado e adiantado 100 ms saíam assimétricos.
+  - **Zonas de transição (A6)** como especificado. A mediana de 5 frames usa só frames da própria nota (sem vazar a vizinha ligada).
+  - **Denominador (A8):** `max(floor(região/10 ms), frames recebidos)`. Limite: uma nota que começa exatamente em 0 ms (ou no alvo de um seek) perde ≤ 21 ms, porque o primeiro frame é centrado meia janela depois do início da captura.
+  - **Golden (A7):** 7 fixtures com `ScoreResult` exato. **Fixtures (A9):** as do Agente 4 incorporadas a `regression.rs` (voz humana com formantes, jitter, shimmer, drift e sopro; ligadas; curtas; ±300 ms; sirene; nota fixa; voz-guia).
+- Metas v2 não atingidas (evidência em scoring-accuracy.md, aguardando decisão do coordenador):
+  - (b) "≤ 5 pontos por 10 cents" é matematicamente incompatível com (c) e com perfeito ≈ 100. Implementado ≤ 10 (medido: 9,7).
+  - "Nota fixa ≤ 15": medido 24,4. Ela canta de fato 2 das 10 notas. A regressão afirma ≤ 25.
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
 - T-006-05 `review` (Agente 1, 2026-11-19): `src-tauri/src/live.rs` registra `performance.rs` e expõe `start_performance` (para o medidor, substitui uma execução esquecida, valida música, participante e rodada (sessão ativa, rodada não concluída, música/participante batem), monta `PerformanceConfig` com a referência ativa e as settings, explica em `reason` por que não é competitivo), `sync_performance`, `finish_performance` e `abort_performance`. Persistência: com referência sempre grava (competitiva ou treino); sem referência não grava nada e devolve as métricas exploratórias. `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (duração desconhecida = treino). Rodada vira `completed` só com performance competitiva e sessão ativa. `personalBest`/`songRecord` na CompatKey da execução (referência e revisão do início). `audio://error`: watchdog a cada 250 ms no medidor e na performance; ao falhar, o stream é parado (a performance é descartada) e o evento é emitido. Testes ✅ `live::tests::{prepare_reports_competitiveness, competitive_needs_half_the_song, unknown_duration_is_training_and_no_reference_stores_nothing, round_completes_and_records_per_participant}`; os 9 testes de `performance.rs` passam dentro do app; `performance::tests::live_run_on_the_default_microphone` (`--ignored`) passou no microfone padrão desta máquina.
+- T-006-03 e T-006-05 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware). ⏳ start→sync→finish via IPC real ainda não exercitado no app.

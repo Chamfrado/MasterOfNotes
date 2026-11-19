@@ -18,7 +18,7 @@ Critérios:
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
-| T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | review |
+| T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | done |
 | T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | todo |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | doing |
 
@@ -42,3 +42,4 @@ Critérios:
   - Rodadas: `game::plan_rounds` com seed < 2^53 salva em `config`. `minRounds` padrão = menor nº de rodadas de um participante.
   - Standings: `game::party_standings` sobre as rodadas concluídas, mais os participantes com 0 rodadas no fim, inelegíveis. Rodada `completed` só via performance competitiva (T-006-05).
   - Testes ✅ `sessions::tests::{participants_unique_case_insensitive, mode_rules, party_standings_average_and_zero_round_participants, shuffle_is_reproducible_from_saved_seed}`.
+- T-008-02 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware).

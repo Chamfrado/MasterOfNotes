@@ -17,6 +17,7 @@
 | T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | done |
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | doing |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | todo |
+| T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | review |
 
 ## STATUS
 2026-11-19 (Agente 3):
@@ -25,3 +26,6 @@
 - T-010-03 em andamento: Início, Biblioteca, Microfone, Player, Resultado, Ranking navegáveis e ligados ao `ipc.ts` real; erros do backend aparecem como estado de erro com "Tentar de novo".
 - Pendente: componente `List` (não houve consumidor além da Biblioteca, que usa `<ul>`); navegação espacial por setas para controle remoto de TV; 60 FPS não medido; contraste verificado por cálculo dos tokens, não por ferramenta.
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
+
+2026-11-19 (Agente 4):
+- T-010-05 em review: `apps/desktop/e2e/a11y.e2e.ts` (axe-core, teclado, 4 viewports, movimento reduzido) nas 7 telas/estados existentes. Relatório e achados A11Y-01..05 em [a11y-audit.md](../docs/testing/evidence/a11y-audit.md). Abertos para o Agente 3: A11Y-01 (badge 12 px) e A11Y-02 (axe serious `label-content-name-mismatch`), marcados com `test.fail` até serem corrigidos.
