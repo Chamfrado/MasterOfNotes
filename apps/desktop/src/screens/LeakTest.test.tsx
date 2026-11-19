@@ -65,7 +65,7 @@ describe("LeakTest", () => {
       competitive: false,
       result: null,
       exploratory: null,
-      leak: { passed: true, guideScore: 3 },
+      leak: { passed: true, guideScore: 3, reason: null },
       personalBest: null,
       songRecord: null,
     });

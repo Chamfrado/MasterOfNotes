@@ -54,7 +54,8 @@ describe("leakCheckState", () => {
   });
   it("is stale on another device or a louder volume", () => {
     expect(leakCheckState({ leakCheck: check, inputDeviceId: null, videoVolume: 0.6 })).toBe("stale");
-    expect(leakCheckState({ leakCheck: check, inputDeviceId: "usb", videoVolume: 0.65 })).toBe("stale");
+    expect(leakCheckState({ leakCheck: check, inputDeviceId: "usb", videoVolume: 0.65 })).toBe("passed"); // Rust slack +0.05
+    expect(leakCheckState({ leakCheck: check, inputDeviceId: "usb", videoVolume: 0.7 })).toBe("stale");
   });
   it("reports a failed check", () => {
     expect(leakCheckState({ leakCheck: { ...check, passed: false }, inputDeviceId: "usb", videoVolume: 0.6 })).toBe("failed");

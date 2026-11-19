@@ -9,4 +9,4 @@
 - **Coordenação**: as sessões da equipe se comunicam via `SendMessage` (nome da sessão do coordenador está em `docs/agent-coordination.md`). Relatório de entrega no formato de lá.
 - **Worktree**: se você é Agente 1–4, trabalhe dentro de `.worktrees/agent-N/` (sua branch). Nunca edite a árvore principal — ela é do coordenador.
 - Shell no Windows: Git Bash disponível; prefira caminhos com `/`.
-- `pnpm tauri dev` usa a porta 1420 (strict). Só um agente por vez; para validar UI sem Tauri, use `pnpm --filter desktop exec vite --port 14N0` (N = seu número).
+- `pnpm tauri dev` usa a porta 1420 (strict); só um agente por vez. Vite isolado: `pnpm --filter desktop exec vite --port 14N0`. E2E: `E2E_PORT=14N5 pnpm exec playwright test` (N = seu número; coordenador = 1405). Nunca reaproveitar servidor alheio.

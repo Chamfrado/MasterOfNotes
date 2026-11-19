@@ -11,7 +11,9 @@
 //! `anchor_video + (frame_centre_sample − anchor_sample) / sr − latency_offset`.
 
 use crate::error::AppError;
-use audio_engine::{AnalysisFrame, Capture, CaptureConfig, window_len};
+use audio_engine::{
+    AnalysisFrame, Capture, CaptureConfig, LatencyResult, detect_onsets, latency_from, window_len,
+};
 use scoring_engine::{
     Difficulty, ExploratoryMetrics, LiveFeedback, MelodyReference, ScoreResult, Scorer, VoiceFrame,
     exploratory_metrics,
@@ -28,6 +30,15 @@ const TICK_EVERY: u64 = 3;
 const LEAK_MARGIN_MS: f64 = 300.0;
 const LEAK_MIN_FRAMES: u32 = 100;
 const LEAK_RATIO: f32 = 0.2;
+/// Leak check (T-004-06, SPEC-004 R9): the user stays silent while the song
+/// plays; whatever pitch credit the scorer finds came from the speakers.
+/// Threshold and evidence: SPEC-004 R9 / `leak_threshold_evidence` below.
+const LEAK_MAX_GUIDE_SCORE: f32 = 0.05;
+const LEAK_MIN_PLAYED_MS: u64 = 8000;
+const LEAK_MIN_NOTES: u32 = 3;
+/// Latency probe (T-004-07, SPEC-004 R7): minimum clicks played and valid range.
+const PROBE_MIN_CLICKS: usize = 4;
+const PROBE_MAX_OFFSET_MS: f32 = 500.0;
 
 #[derive(Debug, Clone)]
 pub struct PerformanceConfig {
@@ -41,6 +52,35 @@ pub struct PerformanceConfig {
     pub latency_offset_ms: f64,
     pub device_id: Option<String>,
     pub capture: CaptureConfig,
+    /// Leak check run (user silent): never competitive, yields `PerformanceSummary::leak`.
+    pub leak_check: bool,
+    /// Latency probe: click times in VIDEO time (ms) of the click track the UI
+    /// plays. Exclusive with `leak_check`; requires `latency_offset_ms == 0`
+    /// (otherwise it would measure the residual). No analysis, no `LiveTick`.
+    pub latency_probe: Option<Vec<f64>>,
+}
+
+/// Outcome of a latency probe run.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LatencyVerdict {
+    /// `offsetMs` = median(onset song time − click time); goes to `latencyOffsetMs`.
+    #[serde(flatten)]
+    pub result: LatencyResult,
+    pub passed: bool,
+    /// pt-BR, why it did not pass; `None` when passed.
+    pub reason: Option<String>,
+}
+
+/// Outcome of a leak check run.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LeakVerdict {
+    pub passed: bool,
+    /// Pitch component P over the reference notes fully played (0..1).
+    pub guide_score: f32,
+    /// pt-BR, why it did not pass; `None` when passed.
+    pub reason: Option<String>,
 }
 
 /// Meter data for the UI; also used by the mic monitor command.
@@ -101,6 +141,10 @@ pub struct PerformanceSummary {
     /// Set when there is no reference.
     pub exploratory: Option<ExploratoryMetrics>,
     pub capture: CaptureStats,
+    /// Set for leak check runs only.
+    pub leak: Option<LeakVerdict>,
+    /// Set for latency probe runs only.
+    pub latency: Option<LatencyVerdict>,
 }
 
 /// Running performance: microphone capture + session state. Drop = abort.
@@ -122,14 +166,20 @@ impl LivePerformance {
         cfg: PerformanceConfig,
         mut on_tick: impl FnMut(LiveTick) + Send + 'static,
     ) -> Result<Self, AppError> {
+        validate(&cfg)?;
         let session = Arc::new(Mutex::new(Session::new(&cfg)));
         let shared = session.clone();
-        let capture = Capture::start(cfg.device_id.as_deref(), cfg.capture, move |f| {
-            let tick = lock(&shared).on_frame(&f);
-            if let Some(t) = tick {
-                on_tick(t);
-            }
-        })
+        let device = cfg.device_id.as_deref();
+        let capture = if cfg.latency_probe.is_some() {
+            Capture::start_raw(device, move |i, block| lock(&shared).on_samples(i, block))
+        } else {
+            Capture::start(device, cfg.capture, move |f| {
+                let tick = lock(&shared).on_frame(&f);
+                if let Some(t) = tick {
+                    on_tick(t);
+                }
+            })
+        }
         .map_err(|e| AppError::new("mic_unavailable", e.to_string()))?;
         lock(&session).set_sample_rate(capture.sample_rate());
         Ok(Self { capture, session })
@@ -157,7 +207,24 @@ impl LivePerformance {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+fn validate(cfg: &PerformanceConfig) -> Result<(), AppError> {
+    let Some(clicks) = &cfg.latency_probe else {
+        return Ok(());
+    };
+    let bad = |m: &str| Err(AppError::new("invalid_input", m));
+    if cfg.leak_check {
+        return bad("A sonda de latência e a checagem de vazamento não podem rodar juntas.");
+    }
+    if cfg.latency_offset_ms != 0.0 {
+        return bad("A sonda de latência precisa rodar com o ajuste de latência em 0.");
+    }
+    if clicks.iter().any(|t| !t.is_finite() || *t < 0.0) {
+        return bad("Os instantes dos cliques da sonda são inválidos.");
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct Anchor {
     video_ms: f64,
     sample: u64,
@@ -191,6 +258,16 @@ struct Session {
     outside_frames: u32,
     outside_voiced: u32,
     feedback: Option<LiveFeedback>,
+    leak_check: bool,
+    /// Video time where playback first started (leak check coverage).
+    play_from: Option<f64>,
+    seeked: bool,
+    /// Latency probe: click times (video ms), raw samples since the first play
+    /// and every anchor used, so each onset maps with the anchor of its time.
+    probe: Option<Vec<f64>>,
+    probe_samples: Vec<f32>,
+    probe_first: u64,
+    anchors: Vec<Anchor>,
 }
 
 impl Session {
@@ -209,7 +286,10 @@ impl Session {
             None => (None, Vec::new()),
         };
         Self {
-            competitive: cfg.competitive && scorer.is_some(),
+            competitive: cfg.competitive
+                && scorer.is_some()
+                && !cfg.leak_check
+                && cfg.latency_probe.is_none(),
             scorer,
             spans,
             voice: Vec::new(),
@@ -228,6 +308,16 @@ impl Session {
             outside_frames: 0,
             outside_voiced: 0,
             feedback: None,
+            leak_check: cfg.leak_check,
+            play_from: None,
+            seeked: false,
+            probe: cfg.latency_probe.clone().map(|mut c| {
+                c.sort_by(f64::total_cmp);
+                c
+            }),
+            probe_samples: Vec::new(),
+            probe_first: 0,
+            anchors: Vec::new(),
         }
     }
 
@@ -272,6 +362,7 @@ impl Session {
             // ponytail: a backward seek re-sings notes on top of their first pass;
             // fine for training, revisit if seeks ever count.
             self.competitive = false;
+            self.seeked = true;
             if video_ms > position
                 && let Some(s) = &mut self.scorer
             {
@@ -299,7 +390,88 @@ impl Session {
                     sample: now,
                 });
                 self.discard_before = now;
+                self.play_from.get_or_insert(video_ms);
             }
+        }
+        if let Some(a) = self.anchor
+            && self.anchors.last() != Some(&a)
+        {
+            self.anchors.push(a);
+        }
+    }
+
+    /// Latency probe: keeps raw samples from the first play on (no pre-roll).
+    fn on_samples(&mut self, first: u64, block: &[f32]) {
+        let Some(start) = self.anchors.first().map(|a| a.sample) else {
+            return;
+        };
+        if self.probe.is_none() {
+            return;
+        }
+        let skip = start.saturating_sub(first).min(block.len() as u64) as usize;
+        let block = &block[skip..];
+        if block.is_empty() {
+            return;
+        }
+        let first = first + skip as u64;
+        if self.probe_samples.is_empty() {
+            self.probe_first = first;
+        }
+        // A gap in the numbering (never expected) is filled with silence to keep
+        // sample positions exact.
+        let expected = self.probe_first + self.probe_samples.len() as u64;
+        if first > expected {
+            self.probe_samples
+                .resize(self.probe_samples.len() + (first - expected) as usize, 0.0);
+        }
+        self.probe_samples.extend_from_slice(block);
+    }
+
+    fn latency_verdict(&self, end_ms: f64) -> LatencyVerdict {
+        let from = self.play_from.unwrap_or(f64::INFINITY);
+        let clicks: Vec<f64> = self
+            .probe
+            .iter()
+            .flatten()
+            .copied()
+            .filter(|&c| c >= from && c <= end_ms)
+            .collect();
+        let sr = self.sample_rate as f64;
+        let mut onsets: Vec<f64> = if sr > 0.0 {
+            detect_onsets(
+                &self.probe_samples,
+                self.sample_rate,
+                self.capture_cfg.noise_floor_dbfs,
+            )
+            .into_iter()
+            .filter_map(|ms| {
+                let n = self.probe_first as f64 + ms * sr / 1000.0;
+                let a = self.anchors.iter().rev().find(|a| a.sample as f64 <= n)?;
+                Some(a.video_ms + (n - a.sample as f64) * 1000.0 / sr - self.latency_ms)
+            })
+            .collect()
+        } else {
+            Vec::new()
+        };
+        onsets.sort_by(f64::total_cmp);
+        let result = latency_from(&onsets, &clicks);
+        let reason = if self.seeked {
+            Some("A sonda foi interrompida: deixe os cliques tocarem sem avançar ou voltar.")
+        } else if clicks.len() < PROBE_MIN_CLICKS {
+            Some("Sonda curta demais: deixe todos os cliques tocarem.")
+        } else if result.detected * 2 < result.expected {
+            Some(
+                "Não detectamos os cliques ou as palmas. Aumente o volume ou bata palmas mais forte.",
+            )
+        } else if result.offset_ms.abs() > PROBE_MAX_OFFSET_MS {
+            Some("A latência medida ficou fora da faixa de −500 a +500 ms. Repita a sonda.")
+        } else {
+            None
+        };
+        LatencyVerdict {
+            result,
+            passed: reason.is_none(),
+            reason: reason.map(str::to_owned),
         }
     }
 
@@ -345,17 +517,40 @@ impl Session {
     }
 
     fn summary(&mut self, now: u64) -> PerformanceSummary {
-        if let Some(a) = self.anchor {
+        let end_ms = match self.anchor {
+            Some(a) => self.video_ms_at(a, now),
+            None => self.last_video_ms,
+        };
+        if self.anchor.is_some() {
             // Tail since the last sync, estimated on the mic clock (≤ one sync period).
-            self.played_ms += (self.video_ms_at(a, now) - self.last_video_ms).max(0.0);
+            self.played_ms += (end_ms - self.last_video_ms).max(0.0);
         }
         self.close_segment();
+        let mut covered = 0u32;
+        if self.leak_check
+            && let Some(scorer) = &mut self.scorer
+        {
+            // Judge only the notes that were played in full.
+            let from = self.play_from.unwrap_or(f64::INFINITY);
+            for &(s, e) in &self.spans {
+                if s >= from && e <= end_ms {
+                    covered += 1;
+                } else {
+                    scorer.skip(s, s + 0.5);
+                }
+            }
+        }
         let result = self.scorer.take().map(Scorer::finish);
+        let leak = self
+            .leak_check
+            .then(|| self.leak_verdict(result.as_ref(), covered));
+        let latency = self.probe.is_some().then(|| self.latency_verdict(end_ms));
         let ratio = |n: u32, d: u32| if d == 0 { 0.0 } else { n as f32 / d as f32 };
         PerformanceSummary {
             competitive: self.competitive && result.is_some(),
             played_ms: self.played_ms.round() as u64,
-            exploratory: result.is_none().then(|| exploratory_metrics(&self.voice)),
+            exploratory: (result.is_none() && self.probe.is_none())
+                .then(|| exploratory_metrics(&self.voice)),
             result,
             capture: CaptureStats {
                 device_id: self.device_id.clone(),
@@ -367,6 +562,31 @@ impl Session {
                 leak_suspected: self.outside_frames >= LEAK_MIN_FRAMES
                     && ratio(self.outside_voiced, self.outside_frames) > LEAK_RATIO,
             },
+            leak,
+            latency,
+        }
+    }
+
+    fn leak_verdict(&self, result: Option<&ScoreResult>, covered: u32) -> LeakVerdict {
+        let guide_score = result.map_or(0.0, |r| r.pitch);
+        let played = self.played_ms.round() as u64;
+        let reason = if result.is_none() {
+            Some("O teste precisa de uma música com referência melódica.")
+        } else if self.seeked {
+            Some("O teste foi interrompido: deixe a música tocar sem avançar ou voltar.")
+        } else if played < LEAK_MIN_PLAYED_MS || covered < LEAK_MIN_NOTES {
+            Some("Teste curto demais: deixe tocar pelo menos 8 segundos com 3 notas da melodia.")
+        } else if guide_score > LEAK_MAX_GUIDE_SCORE {
+            Some(
+                "O microfone está captando a voz ou a melodia da música. Use fones de ouvido ou abaixe o volume.",
+            )
+        } else {
+            None
+        };
+        LeakVerdict {
+            passed: reason.is_none(),
+            guide_score,
+            reason: reason.map(str::to_owned),
         }
     }
 }
@@ -419,6 +639,8 @@ mod tests {
             latency_offset_ms: latency,
             device_id: Some("mic".into()),
             capture: CaptureConfig::default(),
+            leak_check: false,
+            latency_probe: None,
         });
         s.set_sample_rate(SR);
         s
@@ -554,6 +776,8 @@ mod tests {
             latency_offset_ms: 0.0,
             device_id: None,
             capture: CaptureConfig::default(),
+            leak_check: false,
+            latency_probe: None,
         };
         let p = LivePerformance::start(cfg, move |_| {
             *counter.lock().unwrap_or_else(|e| e.into_inner()) += 1
@@ -587,5 +811,408 @@ mod tests {
         assert!(json.contains("\"playedMs\":0"));
         assert!(json.contains("\"leakSuspected\":false"));
         assert!(json.contains("\"latencyOffsetMs\":12.5"));
+    }
+
+    // ---------- Leak check (T-004-06) ----------
+
+    /// Regression song (scoring-engine): 10 × 1000 ms notes, 200 ms rests, from 500 ms.
+    fn leak_song() -> Vec<(u32, u32, f32)> {
+        [60.0, 62.0, 64.0, 65.0, 67.0, 69.0, 67.0, 65.0, 64.0, 62.0]
+            .iter()
+            .enumerate()
+            .map(|(i, &m)| (500 + i as u32 * 1200, 1000, m))
+            .collect()
+    }
+
+    fn leak_session(notes: &[(u32, u32, f32)], leak_check: bool) -> Session {
+        let mut s = session(Some(notes), true, 0.0);
+        s.leak_check = leak_check;
+        s.competitive = !leak_check;
+        s
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum Source {
+        /// Sung vowel /a/ (formants F1 700, F2 1220, F3 2600 Hz) on the melody.
+        GuideVocal,
+        /// Piano-like melody line: 1/k² harmonics, 300 ms decay per note.
+        MelodyInstrument,
+        /// Accompaniment without melody: root and fifth one octave below, held.
+        ChordsOnly,
+    }
+
+    /// Speaker sound reaching the mic at `rms_dbfs` (RMS while sounding; −120 =
+    /// none) plus room noise at −60 dBFS RMS. Deterministic.
+    fn speakers(notes: &[(u32, u32, f32)], src: Source, rms_dbfs: f64) -> Vec<f32> {
+        use std::f64::consts::TAU;
+        let end_ms = notes.last().map_or(0, |n| n.0 + n.1) as f64 + 700.0;
+        let n = (end_ms / 1000.0 * SR as f64) as usize;
+        let hz = |m: f64| 440.0 * 2f64.powf((m - 69.0) / 12.0);
+        let formant = |f: f64| {
+            [
+                (700.0, 8.0, 130.0),
+                (1220.0, 6.0, 150.0),
+                (2600.0, 3.0, 250.0),
+            ]
+            .iter()
+            .map(|&(fc, a, bw)| a * (-((f - fc) / bw).powi(2)).exp())
+            .sum::<f64>()
+                + 1.0
+        };
+        let mut raw = vec![0.0f64; n];
+        let silent = rms_dbfs <= -100.0;
+        for (i, x) in raw.iter_mut().enumerate().filter(|_| !silent) {
+            let t = i as f64 * 1000.0 / SR as f64;
+            let Some(&(start, dur, m)) = notes.iter().rev().find(|nt| t >= nt.0 as f64) else {
+                continue;
+            };
+            let (m, since) = (m as f64, t - start as f64);
+            let in_note = since < dur as f64;
+            let ts = i as f64 / SR as f64;
+            *x = match src {
+                Source::GuideVocal if in_note => (1..=20)
+                    .map(|k| {
+                        let f = hz(m) * k as f64;
+                        formant(f) / k as f64 * (TAU * f * ts).sin()
+                    })
+                    .sum(),
+                Source::MelodyInstrument if in_note => {
+                    (1..=8)
+                        .map(|k| (TAU * hz(m) * k as f64 * ts).sin() / (k * k) as f64)
+                        .sum::<f64>()
+                        * (-since / 300.0).exp()
+                }
+                Source::ChordsOnly => [m - 12.0, m - 5.0]
+                    .iter()
+                    .map(|&c| (TAU * hz(c) * ts).sin())
+                    .sum(),
+                _ => 0.0,
+            };
+        }
+        let sounding: Vec<f64> = raw.iter().copied().filter(|v| *v != 0.0).collect();
+        let rms =
+            (sounding.iter().map(|v| v * v).sum::<f64>() / sounding.len().max(1) as f64).sqrt();
+        let gain = if rms > 0.0 {
+            10f64.powf(rms_dbfs / 20.0) / rms
+        } else {
+            0.0
+        };
+        let noise_amp = 10f64.powf(-60.0 / 20.0) * 3f64.sqrt(); // uniform: RMS = amp/√3
+        let mut seed = 0x5EED_u64;
+        raw.iter()
+            .map(|v| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                let u = 2.0 * ((seed >> 11) as f64 / (1u64 << 53) as f64) - 1.0;
+                (v * gain + noise_amp * u) as f32
+            })
+            .collect()
+    }
+
+    /// Runs the audio through the real analysis and a session from video time 0.
+    fn run_audio(mut s: Session, audio: &[f32]) -> PerformanceSummary {
+        s.sync(0.0, true, false, 0);
+        for f in audio_engine::analyze_buffer(audio, SR, &CaptureConfig::default()) {
+            s.on_frame(&f);
+        }
+        s.summary(audio.len() as u64)
+    }
+
+    /// Evidence for LEAK_MAX_GUIDE_SCORE (SPEC-004 R9). User silent; only the
+    /// speakers reach the mic (gate: default noise floor −60 + 10 dB). For each
+    /// case: the leak check verdict and the score the leak alone would earn in a
+    /// normal run. Invariant: a passed check never lets the leak earn > 5 points.
+    /// ~60 s in a debug build (audio synthesis), so manual:
+    /// `cargo test -p master-of-notes leak_threshold_evidence -- --ignored --nocapture`
+    #[test]
+    #[ignore = "slow evidence sweep; numbers are in SPEC-004 R9"]
+    fn leak_threshold_evidence() {
+        let notes = leak_song();
+        eprintln!("| Fonte | Nível (dBFS RMS) | guide_score | Passou | Score só com o vazamento |");
+        eprintln!("|---|---|---|---|---|");
+        let mut rows = Vec::new();
+        for src in [
+            Source::GuideVocal,
+            Source::MelodyInstrument,
+            Source::ChordsOnly,
+        ] {
+            for level in [-20.0, -30.0, -40.0, -45.0, -50.0, -55.0, -120.0] {
+                let audio = speakers(&notes, src, level);
+                let check = run_audio(leak_session(&notes, true), &audio);
+                let normal = run_audio(leak_session(&notes, false), &audio);
+                let v = check.leak.clone().expect("leak verdict");
+                let leak_score = normal.result.map_or(0.0, |r| r.score);
+                eprintln!(
+                    "| {src:?} | {level} | {:.3} | {} | {leak_score:.1} |",
+                    v.guide_score, v.passed
+                );
+                rows.push((src, level, v, leak_score));
+            }
+        }
+        for (src, level, v, leak_score) in &rows {
+            if v.passed {
+                assert!(
+                    *leak_score <= 5.0,
+                    "{src:?} at {level} passed but leaks {leak_score}"
+                );
+            }
+        }
+        // Room noise alone (no speaker sound) must pass.
+        assert!(rows.iter().filter(|r| r.1 == -120.0).all(|r| r.2.passed));
+        // A guide vocal well above the gate must fail.
+        assert!(
+            rows.iter()
+                .any(|r| matches!(r.0, Source::GuideVocal) && r.1 == -20.0 && !r.2.passed)
+        );
+    }
+
+    #[test]
+    fn leak_check_needs_8s_and_3_notes_and_no_seek() {
+        let notes = leak_song();
+        let audio = speakers(&notes, Source::GuideVocal, -120.0);
+        // Full run with no speaker leak: passes, never competitive.
+        let ok = run_audio(leak_session(&notes, true), &audio);
+        assert!(ok.leak.as_ref().is_some_and(|v| v.passed), "{:?}", ok.leak);
+        assert!(!ok.competitive);
+        // 5 s only: too short.
+        let short = run_audio(leak_session(&notes, true), &audio[..5 * SR as usize]);
+        let v = short.leak.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("curto"));
+        // Seek during the check: invalid.
+        let mut s = leak_session(&notes, true);
+        s.sync(0.0, true, false, 0);
+        s.sync(6.0, true, true, 48_000);
+        let v = s.summary(20 * 48_000).leak.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("interrompido"));
+        // No reference: cannot judge.
+        let mut no_ref = session(None, false, 0.0);
+        no_ref.leak_check = true;
+        let v = no_ref.summary(0).leak.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("referência"));
+        // Normal runs have no verdict.
+        assert!(
+            run_audio(leak_session(&notes, false), &audio)
+                .leak
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn leak_threshold_separates_a_silent_room_from_a_leak() {
+        // Fast guard (ideal frames): the guide melody reaching the mic is caught;
+        // a few stray in-tune frames (40 ms per 1000 ms note) are tolerated.
+        let notes = leak_song();
+        let run = |voiced_ms: u32| {
+            let mut s = leak_session(&notes, true);
+            s.sync(0.0, true, false, 0);
+            for k in 0..(13_000 * 48 / HOP) {
+                let centre_ms = (k as f64 * HOP as f64 + HALF) / 48.0;
+                let f0 = notes
+                    .iter()
+                    .find(|n| centre_ms >= n.0 as f64 && centre_ms < (n.0 + voiced_ms) as f64)
+                    .map(|n| midi_hz(n.2));
+                s.on_frame(&frame(k * HOP, f0));
+            }
+            s.summary(13_000 * 48).leak.unwrap()
+        };
+        let leak = run(1000);
+        assert!(!leak.passed && leak.guide_score > 0.99, "{leak:?}");
+        let stray = run(40);
+        assert!(
+            stray.passed && stray.guide_score <= LEAK_MAX_GUIDE_SCORE,
+            "{stray:?}"
+        );
+    }
+
+    // ---------- Latency probe (T-004-07) ----------
+
+    fn probe_clicks() -> Vec<f64> {
+        (0..8).map(|i| 500.0 + i as f64 * 750.0).collect()
+    }
+
+    fn probe_session(clicks: Vec<f64>) -> Session {
+        let mut s = session(None, false, 0.0);
+        s.probe = Some(clicks);
+        s
+    }
+
+    /// Mic signal of `len` samples: room noise (−60 dBFS) + clap-like bursts at
+    /// the given sample positions.
+    fn mic_with_claps(len: usize, claps: &[usize]) -> Vec<f32> {
+        let mut seed = 0xC1AF_u64;
+        let mut rnd = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            (2.0 * ((seed >> 11) as f64 / (1u64 << 53) as f64) - 1.0) as f32
+        };
+        let room = 10f32.powf(-60.0 / 20.0) * 3f32.sqrt();
+        let mut x: Vec<f32> = (0..len).map(|_| room * rnd()).collect();
+        for &c in claps {
+            for k in 0..1440 {
+                if let Some(s) = x.get_mut(c + k) {
+                    *s += 0.3 * rnd() * (-(k as f32) / 288.0).exp();
+                }
+            }
+        }
+        x
+    }
+
+    fn feed_raw(s: &mut Session, x: &[f32]) {
+        for (i, block) in x.chunks(480).enumerate() {
+            s.on_samples(i as u64 * 480, block);
+        }
+    }
+
+    #[test]
+    fn probe_measures_the_delay_through_the_anchor_and_skips_the_pre_roll() {
+        // Playback starts (video 0) when the callback counter is at 24 000; the
+        // mic hears each click 87 ms later. A loud bang in the pre-roll is ignored.
+        let clicks = probe_clicks();
+        let start = 24_000usize;
+        let mut claps: Vec<usize> = clicks
+            .iter()
+            .map(|c| start + ((c + 87.0) * 48.0) as usize)
+            .collect();
+        claps.push(2_000);
+        let x = mic_with_claps(start + 7 * 48_000, &claps);
+        let mut s = probe_session(clicks);
+        s.sync(0.0, true, false, start as u64);
+        feed_raw(&mut s, &x);
+        let sum = s.summary(x.len() as u64);
+        let v = sum.latency.unwrap();
+        assert!(v.passed, "{v:?}");
+        assert_eq!((v.result.detected, v.result.expected), (8, 8));
+        assert!((v.result.offset_ms - 87.0).abs() <= 1.0, "{v:?}");
+        assert!(!sum.competitive && sum.result.is_none() && sum.exploratory.is_none());
+        assert_eq!(s.probe_first, start as u64); // pre-roll not kept
+    }
+
+    #[test]
+    fn probe_maps_each_onset_with_the_anchor_of_its_time() {
+        // At 3 s of mic time the video reports 3.1 s (re-anchor): clicks after it
+        // are measured against the new anchor (+100 ms).
+        let clicks: Vec<f64> = (0..5).map(|i| 3500.0 + i as f64 * 750.0).collect();
+        let claps: Vec<usize> = clicks
+            .iter()
+            .map(|c| ((c + 60.0) * 48.0) as usize)
+            .collect();
+        let x = mic_with_claps(8 * 48_000, &claps);
+        let mut s = probe_session(clicks);
+        s.sync(0.0, true, false, 0);
+        s.sync(3.1, true, false, 3 * 48_000);
+        feed_raw(&mut s, &x);
+        let v = s.summary(x.len() as u64).latency.unwrap();
+        assert!(v.passed, "{v:?}");
+        assert!((v.result.offset_ms - 160.0).abs() <= 1.0, "{v:?}");
+    }
+
+    #[test]
+    fn probe_fails_without_detections_or_after_a_seek() {
+        let x = mic_with_claps(7 * 48_000, &[]);
+        let mut s = probe_session(probe_clicks());
+        s.sync(0.0, true, false, 0);
+        feed_raw(&mut s, &x);
+        let v = s.summary(x.len() as u64).latency.unwrap();
+        assert!(!v.passed && v.result.detected == 0);
+        assert!(v.reason.unwrap().contains("Não detectamos"));
+
+        let mut s = probe_session(probe_clicks());
+        s.sync(0.0, true, false, 0);
+        s.sync(4.0, true, true, 48_000);
+        let v = s.summary(7 * 48_000).latency.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("interrompida"));
+
+        let mut s = probe_session(probe_clicks());
+        s.sync(0.0, true, false, 0);
+        let v = s.summary(48_000).latency.unwrap(); // stopped after 1 s: 1 click
+        assert!(!v.passed && v.reason.unwrap().contains("curta"));
+    }
+
+    #[test]
+    fn probe_config_is_validated_and_serializes_flat() {
+        let base = PerformanceConfig {
+            reference: None,
+            competitive: false,
+            difficulty: Difficulty::Normal,
+            latency_offset_ms: 0.0,
+            device_id: None,
+            capture: CaptureConfig::default(),
+            leak_check: false,
+            latency_probe: Some(probe_clicks()),
+        };
+        assert!(validate(&base).is_ok());
+        let both = PerformanceConfig {
+            leak_check: true,
+            ..base.clone()
+        };
+        assert!(validate(&both).is_err());
+        let offset = PerformanceConfig {
+            latency_offset_ms: 120.0,
+            ..base.clone()
+        };
+        assert!(validate(&offset).is_err());
+        let nan = PerformanceConfig {
+            latency_probe: Some(vec![f64::NAN]),
+            ..base.clone()
+        };
+        assert!(validate(&nan).is_err());
+        assert!(
+            validate(&PerformanceConfig {
+                latency_probe: None,
+                ..base
+            })
+            .is_ok()
+        );
+
+        let v = LatencyVerdict {
+            result: LatencyResult {
+                offset_ms: 87.0,
+                jitter_ms: 1.0,
+                detected: 8,
+                expected: 8,
+            },
+            passed: true,
+            reason: None,
+        };
+        let json = serde_json::to_string(&v).unwrap();
+        assert!(
+            json.contains("\"offsetMs\":87.0") && json.contains("\"passed\":true"),
+            "{json}"
+        );
+        assert!(!json.contains("\"result\""), "{json}");
+    }
+
+    #[test]
+    #[ignore = "needs an audio input device"]
+    fn live_probe_on_the_default_microphone() {
+        // No click track is played here: proves the raw capture path end to end
+        // (clicks counted as expected, a verdict with a reason, no ticks).
+        let cfg = PerformanceConfig {
+            reference: None,
+            competitive: false,
+            difficulty: Difficulty::Normal,
+            latency_offset_ms: 0.0,
+            device_id: None,
+            capture: CaptureConfig::default(),
+            leak_check: false,
+            latency_probe: Some(vec![300.0, 800.0, 1300.0, 1800.0]),
+        };
+        let ticks = Arc::new(Mutex::new(0u32));
+        let counter = ticks.clone();
+        let p = LivePerformance::start(cfg, move |_| {
+            *counter.lock().unwrap_or_else(|e| e.into_inner()) += 1
+        })
+        .expect("default microphone opens");
+        std::thread::sleep(std::time::Duration::from_millis(800));
+        p.sync(0.0, true, false);
+        std::thread::sleep(std::time::Duration::from_millis(2300));
+        let sum = p.finish();
+        let v = sum.latency.expect("probe verdict");
+        eprintln!("played {} ms, {v:?}", sum.played_ms);
+        assert_eq!(v.result.expected, 4);
+        assert!(v.passed || v.reason.is_some());
+        assert_eq!(*ticks.lock().unwrap(), 0);
     }
 }

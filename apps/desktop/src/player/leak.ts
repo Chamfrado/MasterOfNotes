@@ -23,6 +23,9 @@ export function createLeakMonitor(window = LEAK_WINDOW, threshold = LEAK_THRESHO
   };
 }
 
+/** Same slack as the Rust gate (live.rs): volume ≤ checked volume + 0.05. */
+export const LEAK_VOLUME_TOLERANCE = 0.05 + 1e-9;
+
 export type LeakCheckState = "passed" | "failed" | "stale" | "none";
 /**
  * T-004-06: competitive play needs a passed leak check for the current device at <= the checked volume.
@@ -31,6 +34,6 @@ export type LeakCheckState = "passed" | "failed" | "stale" | "none";
 export function leakCheckState(s: Pick<AppSettings, "leakCheck" | "inputDeviceId" | "videoVolume">): LeakCheckState {
   const c = s.leakCheck;
   if (!c) return "none";
-  if (c.deviceId !== s.inputDeviceId || s.videoVolume > c.videoVolume + 1e-9) return "stale";
+  if (c.deviceId !== s.inputDeviceId || s.videoVolume > c.videoVolume + LEAK_VOLUME_TOLERANCE) return "stale";
   return c.passed ? "passed" : "failed";
 }

@@ -114,9 +114,15 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 - T-006-03 e T-006-05 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware). ⏳ start→sync→finish via IPC real ainda não exercitado no app.
 
 - T-006-06 done (Agente 0, 2026-11-19): integrado em main @ 94fecbe; 70 testes de áudio/pontuação (golden incluído) + 40 do app verdes, clippy limpo. Emendas aceitas registradas na seção v2. ⏳ Re-revisão do Agente 4 e validação com voz real.
+- T-004-06 parte Agente 1 `review` (2026-11-19):
+  - `settings.leakCheck {deviceId, videoVolume, passed, atMs}`. É só leitura em `update_settings` (`invalid_setting`) e é gravado só pela execução de teste.
+  - `start_performance` com `leakCheck: true`: recusa rodada/participante; exige referência ativa experimental ou validated; `PerformanceConfig.leak_check`.
+  - No finish: nada vai para `performances`; o veredito vai para as settings (um veredito reprovado substitui uma aprovação anterior) e é devolvido em `outcome.leak`.
+  - Gate competitivo: `leakCheck.passed && deviceId == inputDeviceId && videoVolume ≤ leakCheck.videoVolume + 0,05`. Senão é treino, com o reason "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking.".
+  - Testes ✅ `live::tests::{leak_check_gates_competitive, leak_check_run_saves_verdict_only, leak_check_is_read_only_for_update_settings}`.
 - T-004-06, parte da UI (Agente 3, 2026-11-19), em review:
   - Assistente de Microfone (`src/screens/LeakTest.tsx`): escolhe a música (referência validada, senão experimental; disponível e não `playable='no'`). Para o monitor, espera os metadados, posiciona o vídeo na 1ª nota (`startMs + offsetMs`) no volume atual e chama `startPerformance({leakCheck:true})`. Toca 10 s com sync de `mediaTime` (helper `src/player/sync.ts`, que o Player também usa), pausa, chama `syncPerformance(t, false)` e `finishPerformance()`, e mostra `outcome.leak.passed` (aprovado, ou "use fones de ouvido ou baixe o volume"). Ao terminar, recarrega as settings (o `leakCheck` salvo pelo Rust) e religa o monitor. Em erro, chama `abortPerformance` se a performance ficou aberta. Ganhou também o slider "Volume da música" (`videoVolume`), para testar no volume de uso.
   - Estado do teste: `leakCheckState` (`src/player/leak.ts`) espelha a regra do Rust: aprovado só com o mesmo `inputDeviceId` e `videoVolume` ≤ ao do teste; senão "Refazer" ou "Reprovado".
   - Player: música validada sem teste aprovado mostra o aviso e o botão "Fazer teste" (vai para Microfone); o botão principal vira "Começar como treino". O mesmo atalho aparece na pausa, junto do `reason` do Rust.
   - Testes: `LeakTest.test.tsx` (4), `leak.test.ts` (+4 de `leakCheckState`), `Player.test.tsx` (+1).
-  - ❓ Supõe que o Rust recusa o competitivo nas mesmas condições de `leakCheckState`; o texto do `reason` não é interpretado. ⏳ Commands do Agente 1 ainda não testados juntos.
+  - Regra igual à do Agente 1, inclusive a tolerância de +0,05 no volume; o texto do `reason` não é interpretado. ⏳ Commands do Agente 1 ainda não testados juntos.

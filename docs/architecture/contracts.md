@@ -45,7 +45,12 @@ pub fn window_len(sample_rate: u32) -> usize;
 pub fn hop_len(sample_rate: u32) -> usize;
 pub const YIN_THRESHOLD, MIN_F0_HZ, MAX_F0_HZ, MIN_CONFIDENCE, CLIP_LEVEL, SILENCE_DBFS /* -120 */;
 pub enum AudioError { Device(String), /* ... */ }        // thiserror, Display pt-BR
-impl Capture { pub fn take_error(&self) -> Option<AudioError>; } // ex.: dispositivo desconectado (Lei 13). Capture: Send.
+impl Capture { pub fn take_error(&self) -> Option<AudioError>; }
+impl Capture { pub fn captured_samples(&self) -> u64; /* contador do callback (âncora) */ pub fn start_raw(device_id: Option<&str>, on_samples: impl FnMut(u64, &[f32]) + Send + 'static) -> Result<Capture, AudioError>; /* sem análise; T-004-07 */ }
+// Latência (T-004-07), puras:
+pub struct LatencyResult { pub offset_ms: f32, pub jitter_ms: f32, pub detected: u32, pub expected: u32 }
+pub fn detect_onsets(samples: &[f32], sample_rate: u32, noise_floor_dbfs: f32) -> Vec<f64 /*ms*/>;
+pub fn latency_from(onsets_ms: &[f64], clicks_ms: &[f64]) -> LatencyResult; // ex.: dispositivo desconectado (Lei 13). Capture: Send.
 
 // Calibração (funções puras sobre frames)
 pub enum CalibrationIssue { Noisy, Clipping, TooQuiet }
@@ -134,6 +139,8 @@ pub struct PerformanceSummary { pub competitive: bool, pub played_ms: u64, pub r
 
 Os commands (Agente 1) carregam a referência ativa e as configurações, criam `PerformanceConfig`, guardam `Mutex<Option<LivePerformance>>` no `AppState`, repassam `LiveTick` ao `Channel` e, no `finish`, decidem a persistência: `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (SPEC-007 R2). Também calculam os recordes.
 **Checagem de vazamento (T-004-06, SPEC-006 A2):** `start_performance` com `leakCheck: true` roda uma performance curta com o usuário calado. Nada é persistido em `performances`. `PerformanceConfig` ganha `leak_check: bool`, e `PerformanceSummary` ganha `leak: Option<LeakVerdict { passed, guide_score }>`, onde `guide_score` é a componente de pitch P medida nas notas tocadas. O limiar de `passed` é definido pelo Agente 2 com evidência e documentado na SPEC-004. O command grava `settings.leakCheck = { deviceId, videoVolume, passed, atMs }`. A partir daí, `competitive` também exige `leakCheck.passed && leakCheck.deviceId == inputDeviceId && videoVolume ≤ leakCheck.videoVolume + 0,05`; senão é treino, com `reason` em pt-BR sugerindo fones ou o teste.
+`LeakVerdict { passed, guide_score, reason: Option<String> }`: limiar `guide_score ≤ 0,05`, com ≥ 8 s e ≥ 3 notas inteiras (evidência na SPEC-004 R9).
+**Sonda de latência (T-004-07):** `PerformanceConfig.latency_probe: Option<Vec<f64>>` (instantes dos cliques em tempo de vídeo). É exclusiva com `leak_check` e exige `latency_offset_ms = 0`; se não, `invalid_input`. Usa `Capture::start_raw` (sem LiveTick) e guarda as amostras só a partir do 1º `sync(playing=true)`. `PerformanceSummary.latency: Option<LatencyVerdict { LatencyResult (flatten), passed, reason }>`. offset = mediana(onset_t_song − click_t), com o histórico de âncoras. Falha se detected < expected/2, se o offset sair de ±500 ms, se houver seek ou se forem < 4 cliques. Se `passed`, o command grava `settings.latencyOffsetMs = round(offset)`. A UI toca a trilha de cliques (WAV gerado em JS, 8 × 750 ms, 1º clique ≥ 500 ms) pelo mesmo pipeline de mídia do vídeo.
 `scoring-engine` ganha `Scorer::skip(from_ms, to_ms)`: exclui da agregação as notas que começam no trecho pulado (só em treino; não altera `ALGORITHM_VERSION`).
 
 ## 3. Esquema SQLite (migração 001)

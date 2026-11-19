@@ -33,7 +33,11 @@ const stateText: Record<LeakCheckState, { tone: Tone; text: string }> = {
   none: { tone: "neutral", text: "Não feito" },
 };
 
-type Phase = { name: "idle" } | { name: "running"; left: number } | { name: "done"; passed: boolean } | { name: "error"; error: unknown };
+type Phase =
+  | { name: "idle" }
+  | { name: "running"; left: number }
+  | { name: "done"; passed: boolean; reason: string | null }
+  | { name: "error"; error: unknown };
 
 /** `onFinished` restarts the mic monitor and reloads settings (Rust saved the new leakCheck). */
 export function LeakTest({ settings, onFinished }: { settings: AppSettings; onFinished: () => void }) {
@@ -82,7 +86,7 @@ export function LeakTest({ settings, onFinished }: { settings: AppSettings; onFi
       open.current = false;
       const outcome = await finishPerformance();
       if (!outcome.leak) throw new Error("O teste terminou sem resultado. Tente de novo.");
-      setPhase({ name: "done", passed: outcome.leak.passed });
+      setPhase({ name: "done", passed: outcome.leak.passed, reason: outcome.leak.reason });
     } catch (e) {
       stopSync();
       v.pause();
@@ -125,7 +129,9 @@ export function LeakTest({ settings, onFinished }: { settings: AppSettings; onFi
           (phase.passed ? (
             <p className="text-success">Aprovado: partidas com este microfone valem ranking até este volume.</p>
           ) : (
-            <p className="text-danger">O microfone captou a música: use fones de ouvido ou baixe o volume e repita.</p>
+            <p className="text-danger">
+              {phase.reason ?? "O microfone captou a música"}: use fones de ouvido ou baixe o volume e repita.
+            </p>
           ))}
         {phase.name === "error" && <p className="text-danger">{errorMessage(phase.error)}</p>}
       </div>
