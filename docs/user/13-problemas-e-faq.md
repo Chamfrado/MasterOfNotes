@@ -60,7 +60,7 @@ Não. O app ouve um microfone e uma voz por vez. No **Duelo**, cada pessoa canta
 
 ### Minha partida virou treino
 
-Veja a tabela de motivos em [Valendo ranking ou treino?](06-cantar.md#valendo-ranking-ou-treino). Os motivos mais comuns: referência não validada, teste de vazamento não feito (ou volume aumentado depois do teste) e trecho pulado.
+A tela Resultado mostra o motivo, e a tabela completa está em [Quando a partida valeu como treino](06-cantar.md#quando-a-partida-valeu-como-treino). Os motivos mais comuns: referência não validada, teste de vazamento não feito (ou volume aumentado depois do teste), trecho pulado, falhas no áudio do microfone e menos da metade da música tocada.
 
 ### Não aparece pontuação, só "Métricas exploratórias"
 

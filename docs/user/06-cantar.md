@@ -77,9 +77,11 @@ Uma partida **vale ranking** quando:
 
 1. a música tem **referência validada** ([Referência melódica](05-referencia-melodica.md#validar));
 2. o **teste de vazamento** está aprovado para o microfone e o volume atuais ([Microfone](04-microfone.md#teste-de-vazamento));
-3. você **não pula trechos** durante a música.
+3. você **não pula trechos** durante a música;
+4. o **áudio do microfone chega sem falhas**: se mais de 5% do áudio se perder (por exemplo, um microfone USB com mau contato), a partida vira treino;
+5. **pelo menos metade da música** é tocada.
 
-Senão, ela é **treino**: você recebe a nota, ela fica no histórico com o selo **Treino**, mas não entra no ranking. Com a música pausada, o player mostra o motivo:
+Senão, ela é **treino**: você recebe a nota, ela fica no histórico com o selo **Treino**, mas não entra no ranking. O motivo aparece na tela [Resultado](#resultado). Os motivos que já se sabem antes de começar também aparecem no player, com a música pausada:
 
 | Motivo mostrado | Como resolver |
 |---|---|
@@ -108,20 +110,38 @@ Quando o vídeo termina, aparece a tela **Resultado**.
 
 *Valores ilustrativos.*
 
-- **A nota**, de 0 a 100. Em treino, aparece o selo **Treino** embaixo dela.
+- **A nota**, de 0 a 100.
 - **Novo recorde pessoal!** quando você iguala ou supera a sua melhor nota nessa música.
 - **Afinação**, **Ritmo**, **Sustentação** e **Cobertura**, em porcentagem. O que cada uma significa está em [Como a pontuação funciona](07-pontuacao.md).
 - Quantas notas você acertou e o recorde da música.
 - Botões: **Cantar de novo**, **Ver ranking** e **Outra música**. Numa partida com rodadas, o botão principal é **Voltar para a partida**.
 
+### Quando a partida valeu como treino
+
+Logo abaixo da nota aparece um cartão amarelo com o selo **Treino — fora do ranking** e o motivo. Quando há uma correção direta, o cartão traz um botão que leva até ela.
+
+![Resultado de uma partida de treino: nota, cartão "Treino — fora do ranking" com o motivo "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking." e o botão Fazer teste de vazamento, seguido das métricas em porcentagem.](media/resultado-treino.png)
+
+*Valores ilustrativos.*
+
+| Motivo mostrado | Botão | O que fazer |
+|---|---|---|
+| *Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking.* | **Fazer teste de vazamento** | Faça o [teste](04-microfone.md#teste-de-vazamento) e cante de novo. |
+| *A referência desta música ainda não foi validada: a apresentação é só treino.* | **Abrir referência** | [Confira e valide o alinhamento](05-referencia-melodica.md#validar). |
+| *A referência desta música foi marcada como inválida: a apresentação é só treino.* | **Abrir referência** | [Importe outra referência](05-referencia-melodica.md#importar). |
+| *Esta música não tem referência melódica: não há pontuação, só métricas de treino.* | **Importar referência** | [Importe uma referência](05-referencia-melodica.md#importar). |
+| *A música foi avançada ou voltada durante a performance. Esta performance conta como treino.* | — | Cante de novo sem pular trechos. |
+| *O áudio do microfone teve falhas (N% do áudio não chegou). Esta performance conta como treino.* | — | Confira o cabo ou a conexão USB do microfone, feche programas pesados e cante de novo. |
+| *Menos da metade da música foi tocada: a apresentação valeu como treino.* | — | Cante a música até o fim. |
+
 ### Música sem referência
 
-Sem referência não há nota. O Resultado mostra só **Métricas exploratórias (fora do ranking)**:
+Sem referência não há nota. O cartão de treino aparece com o botão **Importar referência**, e embaixo vêm só as **Métricas exploratórias (fora do ranking)**:
 
 - **Tempo cantando**: em quanto da música o app ouviu voz;
 - **Estabilidade da afinação**: o quanto sua voz ficou firme, sem oscilar, em cada nota que você sustentou.
 
-![Resultado sem referência: aviso de que não há pontuação, botão Importar referência e as métricas Tempo cantando 72% e Estabilidade da afinação 64%.](media/resultado-sem-referencia.png)
+![Resultado sem referência: cartão "Treino — fora do ranking" com o motivo "Esta música não tem referência melódica: não há pontuação, só métricas de treino." e o botão Importar referência; abaixo, as métricas Tempo cantando 72% e Estabilidade da afinação 64%.](media/resultado-sem-referencia.png)
 
 *Valores ilustrativos.*
 

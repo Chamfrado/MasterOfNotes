@@ -62,6 +62,18 @@ const resultNoReference: PerformanceOutcome = {
   exploratory: { voicedRatio: 0.72, pitchStability: 0.64 },
   personalBest: null,
   songRecord: null,
+  reason: "Esta música não tem referência melódica: não há pontuação, só métricas de treino.",
+};
+
+const LEAK_REASON = "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking.";
+const resultTraining: PerformanceOutcome = {
+  performanceId: 12,
+  competitive: false,
+  result: { score: 78.3, pitch: 0.82, rhythm: 0.7, sustain: 0.75, coverage: 0.84, notesTotal: 25, notesHit: 21, algorithmVersion: 2 },
+  exploratory: null,
+  personalBest: null,
+  songRecord: null,
+  reason: LEAK_REASON,
 };
 
 /** Everything the screens call, answered with the example data above. */
@@ -446,7 +458,7 @@ test("06 cantar", async ({ page }) => {
 test("06 cantar — treino, vazamento e sem referência", async ({ page }) => {
   await open(page, {
     get_settings: { ok: ready({ leakCheck: null }) },
-    start_performance: { ok: { competitive: false, reason: "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking." } },
+    start_performance: { ok: { competitive: false, reason: LEAK_REASON } },
   });
   await startSinging(page);
   await expect(page.getByRole("button", { name: "Começar como treino" })).toBeVisible();
@@ -457,7 +469,10 @@ test("06 cantar — treino, vazamento e sem referência", async ({ page }) => {
   await expect(page.getByText("O microfone está captando a música — use fones de ouvido.")).toBeVisible({ timeout: 15_000 });
   await shot(page.getByText("O microfone está captando a música — use fones de ouvido."), "cantar-aviso-vazamento");
   await page.evaluate(() => window.__docsStop?.());
-  await page.keyboard.press("Escape");
+  await setReply(page, "finish_performance", { ok: resultTraining });
+  await seekTo(page, 30.2);
+  await expect(page.getByRole("button", { name: "Fazer teste de vazamento" })).toBeVisible({ timeout: 15_000 });
+  await shot(page, "resultado-treino");
 
   await setReply(page, "start_performance", {
     ok: { competitive: false, reason: "Esta música não tem referência melódica: não há pontuação, só métricas de treino." },

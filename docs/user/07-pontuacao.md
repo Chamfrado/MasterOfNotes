@@ -2,7 +2,7 @@
 
 [← Cantar](06-cantar.md) · [Índice](README.md) · [Próximo: Modos de jogo →](08-modos-de-jogo.md)
 
-A nota vai de **0 a 100** e mede o quanto você cantou **as notas certas, na hora certa, segurando até o fim**. Não importa se a sua voz é bonita, forte ou parecida com a do cantor original. Esta página explica a regra da versão atual do cálculo (versão 2).
+A nota vai de **0 a 100** e mede o quanto você cantou **as notas certas, na hora certa, segurando até o fim**. Não importa se a sua voz é bonita, forte ou parecida com a do cantor original. Esta página explica a regra atual do cálculo.
 
 ## O que o app ouve
 
@@ -71,6 +71,7 @@ Mede quanto de cada nota você **segurou afinado do começo ao fim**. Parar no m
 - **Nota que você não canta conta zero.** Não dá para tirar nota alta cantando só um pedaço da música: cada nota da referência entra na conta, cantada ou não.
 - **Vibrato e enfeites curtos são tolerados.** Pequenas oscilações e passagens rápidas entre notas são suavizadas antes da comparação.
 - **A pontuação parcial**, mostrada durante a música, considera só as notas que já terminaram.
+- **Falha no áudio não é silêncio.** Se o computador perder pedacinhos do som do microfone (por exemplo, um cabo USB com mau contato), esses pedaços não contam contra você. Mas se faltar mais de 5% do áudio da música, a apresentação vira treino, porque a nota não seria confiável.
 
 ## O painel ao vivo
 
