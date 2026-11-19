@@ -25,7 +25,7 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-004-01 | YIN + VAD + `analyze_buffer` + testes sintéticos | Agente 2 | review |
+| T-004-01 | YIN + VAD + `analyze_buffer` + testes sintéticos | Agente 2 | done |
 | T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | review |
 | T-004-03 | Calibração de ruído | Agente 2 | review |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | todo |
@@ -49,3 +49,4 @@ Critérios:
   - ✅ dispositivo inexistente dá erro claro;
   - ❓ o piso medido foi −104,8 dBFS, baixo demais para um microfone de notebook (provável microfone mudo ou bloqueado pela privacidade do Windows);
   - ⏳ validação com voz real (pitch, gate, clipping) depende do proprietário e entra no checklist manual.
+- T-004-01 review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).

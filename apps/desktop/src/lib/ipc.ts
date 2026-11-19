@@ -86,10 +86,11 @@ export interface MicFrame {
   voiced: boolean;
   clipped: boolean;
 }
+export type CalibrationIssue = "noisy" | "clipping" | "tooQuiet";
 export interface NoiseCalibration {
   noiseFloorDbfs: number;
   clippedRatio: number;
-  verdict: "ok" | "noisy" | "too_quiet" | "clipping";
+  issues: CalibrationIssue[]; // empty = ok
 }
 export const listInputDevices = () => invoke<InputDevice[]>("list_input_devices");
 /** Live meter for the mic setup screen (~30 Hz). Stop before starting a performance. */
@@ -170,10 +171,16 @@ export interface ScoreResult {
   notesHit: number;
   algorithmVersion: number;
 }
+/** Without a reference: informative only, never ranked (SPEC-006 item 9). */
+export interface ExploratoryMetrics {
+  voicedRatio: number; // 0..1
+  pitchStability: number; // 0..1
+}
 export interface PerformanceOutcome {
   performanceId: number | null; // null when nothing was persisted (no reference)
   competitive: boolean;
   result: ScoreResult | null; // null when there was no reference
+  exploratory: ExploratoryMetrics | null; // set when result is null
   personalBest: number | null;
   songRecord: number | null;
 }

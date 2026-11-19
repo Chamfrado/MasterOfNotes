@@ -49,10 +49,10 @@ Critérios de aceite (fixtures sintéticas, dificuldade Normal):
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-006-01 | `Scorer` v1 conforme fórmula + testes unitários | Agente 2 | review |
-| T-006-02 | Regressão com gerador de fixtures sintéticas (`tests/regression.rs`) cobrindo a tabela | Agente 2 | review |
+| T-006-01 | `Scorer` v1 conforme fórmula + testes unitários | Agente 2 | done |
+| T-006-02 | Regressão com gerador de fixtures sintéticas (`tests/regression.rs`) cobrindo a tabela | Agente 2 | done |
 | T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | todo |
-| T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | review |
+| T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | todo |
 
 ## TEST
@@ -68,3 +68,4 @@ Critérios de aceite (fixtures sintéticas, dificuldade Normal):
   - `pitch`, `rhythm`, `sustain` e `coverage` em `ScoreResult` vão de 0 a 1, e `score` vai de 0 a 100.
 - Item 9: `exploratory_metrics(&[VoiceFrame]) -> ExploratoryMetrics { voiced_ratio, pitch_stability }` (contrato §2.2). Corridas vozeadas são separadas por frame não vozeado ou por lacuna > 50 ms, e só contam as que têm ≥ 200 ms. Sem corrida qualificada, a estabilidade é 0. Testes: tom estável > 0,999; glissando de 1 oitava < 0,1; vibrato ±30 cents ≈ 0,79; silêncio → 0.
 - T-006-03 (`performance.rs`): onda 2.
+- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
