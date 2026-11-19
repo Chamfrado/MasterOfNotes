@@ -1,9 +1,45 @@
 import { ScoreBadge, formatScore } from "../components/game";
-import { Button, Card } from "../components/ui";
-import type { PerformanceOutcome } from "../lib/ipc";
-import { useNav, type RoundContext } from "../nav";
+import { Badge, Button, Card } from "../components/ui";
+import { getSettings, listSongs, type AppSettings, type PerformanceOutcome, type Song } from "../lib/ipc";
+import { useNav, type Route, type RoundContext } from "../nav";
+import { leakCheckState } from "../player/leak";
+import { useAsync } from "../useAsync";
 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 0 });
+
+export interface TrainingAction {
+  label: string;
+  to: Route;
+}
+/**
+ * T-006-09: the shortcut that fixes why a run was practice, derived from state (never from the reason text).
+ * Seek, audio dropouts or too little played have no shortcut: singing again is the fix.
+ */
+export function trainingAction(song: Pick<Song, "id" | "referenceStatus">, settings: Pick<AppSettings, "leakCheck" | "inputDeviceId" | "videoVolume">): TrainingAction | null {
+  if (song.referenceStatus === "none") return { label: "Importar referência", to: { name: "reference", songId: song.id } };
+  if (song.referenceStatus !== "validated") return { label: "Abrir referência", to: { name: "reference", songId: song.id } };
+  if (leakCheckState(settings) !== "passed") return { label: "Fazer teste de vazamento", to: { name: "mic" } };
+  return null;
+}
+
+/** Why this run is out of the ranking (backend reason) + the fix, when there is one. */
+function TrainingNotice({ songId, reason }: { songId: string; reason: string | null | undefined }) {
+  const { navigate } = useNav();
+  const [state] = useAsync(() => Promise.all([listSongs(), getSettings()]), [songId]);
+  const song = state.status === "ready" ? state.data[0].find((s) => s.id === songId) : undefined;
+  const action = song && state.status === "ready" ? trainingAction(song, state.data[1]) : null;
+  return (
+    <Card className="flex max-w-2xl flex-col items-center gap-3 border-warning/50 text-center">
+      <Badge tone="warning">Treino — fora do ranking</Badge>
+      <p className="text-lg">{reason ?? "Esta apresentação não valeu para o ranking."}</p>
+      {action && (
+        <Button variant="primary" onClick={() => navigate(action.to)}>
+          {action.label}
+        </Button>
+      )}
+    </Card>
+  );
+}
 
 export function Result({ songId, outcome, round }: { songId: string; outcome: PerformanceOutcome; round?: RoundContext }) {
   const { navigate, replace, back } = useNav();
@@ -14,8 +50,10 @@ export function Result({ songId, outcome, round }: { songId: string; outcome: Pe
       {r ? (
         <>
           <div className="animate-enter">
-            <ScoreBadge score={r.score} competitive={outcome.competitive} size="xl" />
+            {/* The practice flag is spelled out in the notice below, so the badge itself stays clean. */}
+            <ScoreBadge score={r.score} size="xl" />
           </div>
+          {!outcome.competitive && <TrainingNotice songId={songId} reason={outcome.reason} />}
           {outcome.personalBest != null && r.score >= outcome.personalBest && (
             <p className="text-xl font-semibold text-success">Novo recorde pessoal!</p>
           )}
@@ -40,32 +78,31 @@ export function Result({ songId, outcome, round }: { songId: string; outcome: Pe
           </p>
         </>
       ) : (
-        <Card className="flex max-w-xl flex-col gap-4">
-          <p>Esta música ainda não tem referência melódica, então não há pontuação. Importe uma referência para competir.</p>
-          <Button className="self-center" onClick={() => navigate({ name: "reference", songId })}>
-            Importar referência
-          </Button>
+        <>
+          <TrainingNotice songId={songId} reason={outcome.reason} />
           {outcome.exploratory && (
-            <section aria-labelledby="exploratory-title" className="flex flex-col gap-3">
-              <h2 id="exploratory-title" className="font-semibold">
-                Métricas exploratórias <span className="text-muted">(fora do ranking)</span>
-              </h2>
-              <dl className="grid grid-cols-2 gap-4">
-                {(
-                  [
-                    ["Tempo cantando", outcome.exploratory.voicedRatio],
-                    ["Estabilidade da afinação", outcome.exploratory.pitchStability],
-                  ] as const
-                ).map(([label, v]) => (
-                  <div key={label} className="flex flex-col gap-1 rounded-md bg-surface-2 p-4">
-                    <dt className="text-sm text-muted">{label}</dt>
-                    <dd className="font-display text-3xl font-bold tabular-nums">{percent.format(v)}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
+            <Card className="flex max-w-xl flex-col gap-4">
+              <section aria-labelledby="exploratory-title" className="flex flex-col gap-3">
+                <h2 id="exploratory-title" className="font-semibold">
+                  Métricas exploratórias <span className="text-muted">(fora do ranking)</span>
+                </h2>
+                <dl className="grid grid-cols-2 gap-4">
+                  {(
+                    [
+                      ["Tempo cantando", outcome.exploratory.voicedRatio],
+                      ["Estabilidade da afinação", outcome.exploratory.pitchStability],
+                    ] as const
+                  ).map(([label, v]) => (
+                    <div key={label} className="flex flex-col gap-1 rounded-md bg-surface-2 p-4">
+                      <dt className="text-sm text-muted">{label}</dt>
+                      <dd className="font-display text-3xl font-bold tabular-nums">{percent.format(v)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            </Card>
           )}
-        </Card>
+        </>
       )}
       <div className="flex flex-wrap justify-center gap-4">
         {round ? (

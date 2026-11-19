@@ -156,3 +156,5 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
   - Novos achados: N1 (Alta) vibrato ±75/±100 c → 77,5/63,9 com o cantor centrado; N2 (Alta, ❓) com o denominador fixo, 5–15 % de frames perdidos custam 4–12 pontos, e o WASAPI desta máquina entregou 40–46 mil de 48 mil amostras/s; N3 (Média) o gate pune duas vezes o atraso legato; N4 (Média) notas de 50 ms com 25 ms de atraso → 1,1.
   - Amador típico (drift ±20, vibrato ±50, desvio ±20 c) no Normal: 85,6–90,4.
 - T-006-08 done (Agente 0, 2026-11-19): re-revisão integrada; achados N1–N4 → algoritmo v3 (T-006-09).
+- T-006-09, parte da UI (Agente 3, 2026-11-19), em review: Resultado com `competitive=false` mostra o selo "Treino — fora do ranking" e o `outcome.reason` do backend em destaque, também quando não há referência. O atalho vem de `trainingAction` (pura), pelo estado e não pelo texto: sem referência → "Importar referência"; não validada → "Abrir referência"; teste de vazamento não aprovado (`leakCheckState`) → "Fazer teste de vazamento". Seek, falha de áudio ou pouca música tocada não têm atalho ("Cantar de novo" resolve). Testes: `Result.test.tsx` (7).
+
