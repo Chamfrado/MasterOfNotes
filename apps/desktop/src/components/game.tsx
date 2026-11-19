@@ -6,8 +6,9 @@ const fmt1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
 const fmt0 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
 export const formatScore = (n: number) => fmt1.format(n);
 
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-/** MIDI note number → scientific pitch name (60 → "C4"). */
+// Solfège, as Brazilian singers read it (coordinator decision): octave numbers follow scientific pitch (Dó4 = middle C).
+const NOTE_NAMES = ["Dó", "Dó#", "Ré", "Ré#", "Mi", "Fá", "Fá#", "Sol", "Sol#", "Lá", "Lá#", "Si"];
+/** MIDI note number → solfège name with octave (60 → "Dó4", 69 → "Lá4"). */
 export function midiToName(midi: number): string {
   const n = Math.round(midi);
   return `${NOTE_NAMES[((n % 12) + 12) % 12]}${Math.floor(n / 12) - 1}`;

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "../components/ui";
 import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
-import { SongDetails } from "./SongDetails";
+import { SongDetails, personalBest } from "./SongDetails";
 
 vi.mock("../lib/ipc", () => ({
   listSongs: vi.fn(),
@@ -80,13 +80,38 @@ describe("SongDetails", () => {
     expect(navigate).toHaveBeenCalledWith({ name: "reference", songId: "s1" });
   });
 
-  it("shows a singer's personal best from the leaderboard", async () => {
+  it("personal best comes from listPerformances (no top-50 limit): competitive, current key, current difficulty", async () => {
+    const row = (over: Partial<ipc.PerformanceRow>): ipc.PerformanceRow => ({
+      performanceId: 1,
+      songId: "s1",
+      songTitle: "Aquarela",
+      participantName: "Bia",
+      score: 50,
+      competitive: true,
+      algorithmVersion: 2,
+      referenceRevision: 1,
+      difficulty: "hard",
+      createdMs: 0,
+      isCurrentKey: true,
+      ...over,
+    });
+    vi.mocked(ipc.listPerformances).mockImplementation(async (args) =>
+      args.participantId === 1
+        ? [
+            row({ score: 61.2 }),
+            row({ performanceId: 2, score: 99, competitive: false }), // practice
+            row({ performanceId: 3, score: 98, isCurrentKey: false }), // older version
+            row({ performanceId: 4, score: 97, difficulty: "easy" }), // other difficulty
+          ]
+        : [],
+    );
     renderDetails();
     const select = await screen.findByRole("combobox", { name: "Recorde pessoal de" });
     await userEvent.selectOptions(select, "Bia");
-    expect(screen.getByText("Bia: 92 pontos (2º lugar).")).toBeInTheDocument();
+    expect(await screen.findByText("Bia: 61,2 pontos.")).toBeInTheDocument();
+    expect(ipc.listPerformances).toHaveBeenCalledWith({ songId: "s1", participantId: 1, limit: 500 });
     await userEvent.selectOptions(select, "Zeca");
-    expect(screen.getByText("Zeca ainda não tem pontuação no ranking desta música.")).toBeInTheDocument();
+    expect(await screen.findByText("Zeca ainda não tem pontuação valendo ranking nesta música (Difícil).")).toBeInTheDocument();
   });
 
   it("explains an unplayable file and blocks Cantar", async () => {
@@ -162,3 +187,14 @@ describe("SongDetails", () => {
     expect(await screen.findByText("Banco indisponível.")).toBeInTheDocument();
   });
 });
+
+describe("personalBest", () => {
+  const r = (score: number, competitive = true, isCurrentKey = true, difficulty: ipc.Difficulty = "normal") =>
+    ({ score, competitive, isCurrentKey, difficulty }) as ipc.PerformanceRow;
+  it("takes the max among ranked rows of the difficulty, null when none", () => {
+    expect(personalBest([r(70), r(80), r(95, false), r(96, true, false), r(97, true, true, "hard")], "normal")).toBe(80);
+    expect(personalBest([r(95, false)], "normal")).toBeNull();
+    expect(personalBest([], "hard")).toBeNull();
+  });
+});
+

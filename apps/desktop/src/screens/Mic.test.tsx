@@ -58,7 +58,7 @@ describe("Mic", () => {
     const onFrame = vi.mocked(ipc.startMicMonitor).mock.calls[0][1];
     act(() => onFrame({ rmsDbfs: -18, f0Hz: 440, confidence: 0.9, voiced: true, clipped: false }));
     expect(screen.getByRole("meter")).toHaveAttribute("aria-valuenow", "-18");
-    expect(screen.getByText("Nota A4 · 440 Hz")).toBeInTheDocument();
+    expect(screen.getByText("Nota Lá4 · 440 Hz")).toBeInTheDocument();
   });
 
   it("shows the real monitor error", async () => {
