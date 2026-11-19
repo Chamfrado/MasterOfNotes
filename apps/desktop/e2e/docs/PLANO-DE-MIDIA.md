@@ -47,7 +47,7 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 | microfone-calibrar | G | **Calibrar** → "Medindo… silêncio, por favor" → "Ambiente bom para cantar." | `calibrate_noise` com atraso de 3 s |
 | microfone-calibrar-problemas | P (recorte) | Resultado com avisos (barulhento / saturando) | `issues:["noisy","clipping"]` |
 | microfone-latencia-auto | P (recorte) | "Latência medida: … Ajuste salvo." | `finish_performance` com `latency` de exemplo |
-| microfone-vazamento | P (recorte) | Teste de vazamento **Aprovado** e outro **Reprovado** com a orientação | `leakCheck` passed / failed |
+| microfone-vazamento-aprovado, microfone-vazamento-reprovado | P (recorte) | Duas execuções do teste pela UI (10 s cada); o veredito vem do mock | `finish_performance.leak` passed / failed |
 
 ### 05-referencia-melodica.md
 | ID | Tipo | Conteúdo | Estado do mock |
@@ -86,7 +86,7 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 | festa-vencedor | P | Festa encerrada com **Vencedor da festa** | `fake-backend` |
 | duelo | P | Duelo com VS e vencedor | `fake-backend` |
 | desafio | P | Desafio com meta, média e progresso | `fake-backend` |
-| festa-completa | V | Fluxo da festa de ponta a ponta (base: `party.e2e.ts`) | link opcional |
+| ~~festa-completa~~ | V | Não gerado: o GIF festa-criar e as imagens cobrem o fluxo; economiza ~3 MB de histórico | — |
 
 ### 09-ranking-e-historico.md
 | ID | Tipo | Conteúdo | Estado do mock |
@@ -105,28 +105,34 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 ### 11-atualizacoes.md
 | ID | Tipo | Conteúdo | Estado do mock |
 |---|---|---|---|
-| atualizacao-disponivel | P | "Versão X disponível" + notas + **Baixar atualização** | `plugin:updater|check` com versão fictícia ❓ |
+| atualizacao-disponivel | P | "Versão X disponível" + notas + **Baixar atualização** | `plugin:updater|check` com versão fictícia (MockSpec do script) |
 | atualizacao-instalar | P | Diálogo **Instalar agora?** | download simulado (só no script de captura) |
 | atualizacao-em-dia | P (recorte) | "Você já está na versão mais recente." | `check` → null |
 
-> ❓ O mock atual não cobre os comandos do plugin updater. Se não der para responder pelo `MockSpec` (sem alterar arquivos do Agente 4), estas imagens ficam para depois ou eu peço o suporte ao Agente 4.
 
 ### 12-privacidade.md, 13-problemas-e-faq.md, 14-glossario.md
 Só texto; reusam recortes das páginas 03, 04 e 06 (ex.: `detalhes-incompativel`, `microfone-calibrar-problemas`).
 
-## Totais estimados
-| Tipo | Qtd | Estimativa |
+## Totais (gerados em 2026-11-19)
+| Tipo | Qtd | Tamanho |
 |---|---|---|
-| PNG | ~33 | ~5 MB |
-| GIF | ~9 | ~9 MB (meta 1 MB cada) |
-| Vídeo | 2 | ~6 MB |
-| **Total** | | **~20 MB** (limite 40 MB) |
+| PNG | 37 | 3,9 MB |
+| GIF | 9 | 4,0 MB (maior: 1,3 MB) |
+| Vídeo | 1 | 3,0 MB |
+| **Total** | 47 | **10,9 MB** (limite 40 MB) |
 
-## GIF sem ffmpeg — proposta
+## GIF sem ffmpeg (aprovado pelo coordenador)
 1. O script tira screenshots em sequência (≈ 8 fps) com `page.screenshot()` durante o fluxo.
 2. Codifica com **`gifenc`** (MIT, sem dependências, ~10 KB; quantização + paleta + LZW em JS puro), como **devDependency** do `apps/desktop` (pedido ao Agente 3).
-3. Para caber em ≤ 2 MB: GIF reduzido a 960×600, paleta de 128 cores, e quadros parados repetidos viram atraso maior (não frame novo).
+3. Para caber em ≤ 2 MB: GIF reduzido a 960×600, paleta de 128 cores, quadros parados repetidos viram atraso maior, e pixels iguais ao quadro anterior ficam transparentes (só a área que mudou ocupa bytes; reduziu os GIFs de 3 a 4 vezes).
 
 Alternativas descartadas: APNG/WebP montado à mão (APNG sem perdas fica 5–10× maior que o orçamento; WebP animado exige encoder nativo); codificar GIF no próprio script sem biblioteca (LZW + quantização ≈ 150 linhas para manter).
 
 Vídeo: `recordVideo` nativo do Playwright (WebM VP8), sem dependência.
+
+## Como regenerar
+```sh
+pnpm --filter desktop exec playwright test -c e2e/docs/playwright.docs.config.ts            # tudo (~8 min)
+pnpm --filter desktop exec playwright test -c e2e/docs/playwright.docs.config.ts -g "06 cantar"  # uma página
+```
+A primeira execução gera a música de teste (~1 min) em `e2e/docs/test-results/song/` (ignorado pelo git). Porta do Vite: `DOCS_PORT` (padrão 1450).

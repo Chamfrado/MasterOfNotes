@@ -84,7 +84,7 @@ Se é a primeira vez, siga nesta ordem:
 - **Histórico de partidas**
 
 ### 10. [Ajustes, Modo TV e controle por setas](10-ajustes-e-modo-tv.md)
-- Cada opção da tela **Configurações** (aberta pelo menu **Ajustes**)
+- Cada opção da tela **Ajustes**
 - **Modo TV** para jogar na sala, de longe
 - **Reduzir movimento**
 - Usar só o teclado ou um controle remoto que envia setas, Enter e Esc

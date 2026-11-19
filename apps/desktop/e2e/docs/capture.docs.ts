@@ -587,7 +587,7 @@ test("09 ranking", async ({ page }) => {
 // ---------- 10 ajustes e Modo TV ----------
 
 test("10 ajustes e modo TV", async ({ page }) => {
-  await open(page);
+  await open(page, { get_settings: { ok: ready({ reducedMotion: "system" }) } }); // the real default
   await nav(page, "Ajustes");
   await shot(page, "configuracoes", { fullPage: true });
 
