@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { LiveTick } from "../lib/ipc";
-import { createLeakMonitor } from "./leak";
+import { createLeakMonitor, leakCheckState } from "./leak";
 
 const mic = (voiced: boolean) => ({ rmsDbfs: -20, f0Hz: voiced ? 220 : null, confidence: 0.9, voiced, clipped: false });
 const silentPart = (voiced: boolean): LiveTick => ({ mic: mic(voiced), feedback: null });
@@ -40,5 +40,23 @@ describe("createLeakMonitor", () => {
     let r = true;
     for (let i = 0; i < 10; i++) r = push(silentPart(false));
     expect(r).toBe(false);
+  });
+});
+
+describe("leakCheckState", () => {
+  const check = { deviceId: "usb", videoVolume: 0.6, passed: true, atMs: 1 };
+  it("needs a check", () => {
+    expect(leakCheckState({ leakCheck: null, inputDeviceId: "usb", videoVolume: 0.5 })).toBe("none");
+  });
+  it("passes on the same device at or below the checked volume", () => {
+    expect(leakCheckState({ leakCheck: check, inputDeviceId: "usb", videoVolume: 0.6 })).toBe("passed");
+    expect(leakCheckState({ leakCheck: check, inputDeviceId: "usb", videoVolume: 0.3 })).toBe("passed");
+  });
+  it("is stale on another device or a louder volume", () => {
+    expect(leakCheckState({ leakCheck: check, inputDeviceId: null, videoVolume: 0.6 })).toBe("stale");
+    expect(leakCheckState({ leakCheck: check, inputDeviceId: "usb", videoVolume: 0.65 })).toBe("stale");
+  });
+  it("reports a failed check", () => {
+    expect(leakCheckState({ leakCheck: { ...check, passed: false }, inputDeviceId: "usb", videoVolume: 0.6 })).toBe("failed");
   });
 });

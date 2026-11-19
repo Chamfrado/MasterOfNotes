@@ -19,12 +19,12 @@ import {
   type Song,
 } from "../lib/ipc";
 import { useNav } from "../nav";
-import { createLeakMonitor } from "../player/leak";
+import { createLeakMonitor, leakCheckState } from "../player/leak";
 import { initialPlayerState, playerReducer } from "../player/playerMachine";
+import { startVideoSync, warn } from "../player/sync";
 import { useAsync } from "../useAsync";
 
 const COUNTDOWN_S = 3;
-const SYNC_EVERY_MS = 250;
 const SEEK_STEP_S = 5;
 const VOLUME_STEP = 0.05;
 const CONTROLS_HIDE_MS = 3000;
@@ -41,7 +41,6 @@ export const clock = (s: number) => {
   return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
 };
 
-const warn = (what: string) => (e: unknown) => console.warn(`${what}:`, errorMessage(e));
 
 export function Player({ songId }: { songId: string }) {
   const [load, reload] = useAsync(() => Promise.all([listSongs(), getSettings()]), []);
@@ -103,6 +102,16 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
   const leakMonitor = useRef(createLeakMonitor());
   const [leak, setLeak] = useState(false);
   const practice = seekedAway || (perf != null && !perf.competitive);
+  // T-004-06: a validated song still needs a passed leak check to count for the ranking.
+  const leakPending = song.referenceStatus === "validated" && leakCheckState(settings) !== "passed";
+  const leakShortcut = (
+    <div className="flex flex-wrap items-center gap-3 rounded-md border border-warning/40 bg-bg/80 px-4 py-3">
+      <p className="text-warning">Para valer ranking, faça antes o teste de vazamento do microfone.</p>
+      <Button variant="secondary" onClick={() => navigate({ name: "mic" })}>
+        Fazer teste
+      </Button>
+    </div>
+  );
 
   useEffect(() => {
     dispatch({ type: "LOAD" });
@@ -129,17 +138,7 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
   useEffect(() => {
     const v = video.current;
     if (state.status !== "playing" || !v || !perf) return;
-    let handle = 0;
-    let last = 0;
-    const onFrame: VideoFrameRequestCallback = (now, meta) => {
-      if (now - last >= SYNC_EVERY_MS) {
-        last = now;
-        syncPerformance(meta.mediaTime, true, false).catch(warn("sync_performance"));
-      }
-      handle = v.requestVideoFrameCallback(onFrame);
-    };
-    handle = v.requestVideoFrameCallback(onFrame);
-    return () => v.cancelVideoFrameCallback(handle);
+    return startVideoSync(v);
   }, [state.status, perf]);
 
   // Controls fade out while singing; pointer or key activity brings them back.
@@ -340,6 +339,7 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
           {state.status === "paused" && perf && !perf.competitive && perf.reason && (
             <p className="self-start rounded-md bg-bg/80 px-4 py-2 text-warning">{perf.reason}</p>
           )}
+          {state.status === "paused" && leakPending && <div className="self-start">{leakShortcut}</div>}
           <div className="flex items-center gap-4 tabular-nums">
             <span className="text-sm">{clock(time)}</span>
             <input
@@ -393,9 +393,12 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
             <h2 className="font-display text-4xl font-bold">{song.title}</h2>
             {state.status === "loading" && <LoadingState label="Carregando vídeo…" />}
             {state.status === "ready" && (
-              <Button variant="primary" size="lg" autoFocus onClick={start}>
-                Começar
-              </Button>
+              <>
+                {leakPending && leakShortcut}
+                <Button variant="primary" size="lg" autoFocus onClick={start}>
+                  {leakPending ? "Começar como treino" : "Começar"}
+                </Button>
+              </>
             )}
             {state.status === "error" && (
               <p role="alert" className="text-danger">
