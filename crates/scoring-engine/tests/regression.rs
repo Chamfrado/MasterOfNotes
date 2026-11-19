@@ -714,10 +714,18 @@ fn n4_short_tied_notes_tolerate_latency_error() {
     for (dur, min) in [(50.0, 70.0), (100.0, 85.0), (150.0, 0.0)] {
         let s = tied(&pitches, dur);
         for late in [25.0, 50.0] {
-            let r = sing(&s, |t| at(&s, t - late));
-            report(&format!("N4 ligadas de {dur} ms, {late} ms atrasadas"), &r);
-            if late == 25.0 {
-                assert!(r.score >= min, "{dur} ms: {r:?}");
+            // The formant voice makes YIN jump octaves on fast changes: the
+            // in-note median must keep the pitch class.
+            for (voice, v) in [("senoide", SINE), ("voz humana", HUMAN)] {
+                let audio = render(song_end(&s), |t| at(&s, t - late), AMP, v);
+                let r = score(&s, &audio);
+                report(
+                    &format!("N4 ligadas de {dur} ms, {late} ms atrasadas, {voice}"),
+                    &r,
+                );
+                if late == 25.0 {
+                    assert!(r.score >= min, "{dur} ms {voice}: {r:?}");
+                }
             }
         }
     }
@@ -897,10 +905,10 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         ("vibrato", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         ("siren", r(9.5, 0.1454789, 0.0, 0.0, 0.0, 0, 10)),
         ("tied_repeated", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
-        ("human_voice", r(99.7, 0.998, 0.996, 0.99404, 1.0, 10, 10)),
+        ("human_voice", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
             "human_vibrato_75",
-            r(99.5, 0.9968002, 0.9939798, 0.99104, 1.0, 10, 10),
+            r(99.9, 0.99835986, 1.0, 1.0, 1.0, 10, 10),
         ),
         (
             "hold_previous_150",

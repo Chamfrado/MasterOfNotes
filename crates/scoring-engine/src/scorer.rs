@@ -482,11 +482,12 @@ impl Scorer {
     }
 
     /// Median (in MIDI units) of the voiced f0 values in the centered 5-frame
-    /// window, using only frames with time in `[from, to)`; `None` if this frame
-    /// itself is not voiced.
+    /// window, using only frames with time in `[from, to)`, each folded to this
+    /// frame's octave first (pitch-detector octave jumps keep their pitch
+    /// class); `None` if this frame itself is not voiced.
     fn smoothed_midi(&self, i: usize, from: f64, to: f64) -> Option<f64> {
         let own = self.raw[i];
-        own.f0_hz.filter(|_| own.voiced)?;
+        let own = hz_to_midi(own.f0_hz.filter(|&hz| own.voiced && hz > 0.0)? as f64);
         let lo = i.saturating_sub(MEDIAN_HALF);
         let hi = (i + MEDIAN_HALF).min(self.raw.len() - 1);
         let mut v: Vec<f64> = self.raw[lo..=hi]
@@ -494,7 +495,7 @@ impl Scorer {
             .filter(|f| f.voiced && f.t_ms >= from && f.t_ms < to)
             .filter_map(|f| f.f0_hz)
             .filter(|&hz| hz > 0.0)
-            .map(|hz| hz_to_midi(hz as f64))
+            .map(|hz| fold_to(hz_to_midi(hz as f64), own))
             .collect();
         median(&mut v)
     }
@@ -526,7 +527,7 @@ fn contour(seg: &[Option<f64>], k: usize, own: f64) -> f64 {
     let (sum, count) = seg[lo..(lo + w).min(seg.len())]
         .iter()
         .flatten()
-        .map(|&v| v - 12.0 * ((v - own) / 12.0).round())
+        .map(|&v| fold_to(v, own))
         .filter(|v| (v - own).abs() <= CONTOUR_RANGE_ST)
         .fold((0.0, 0u32), |(s, c), v| (s + v, c + 1));
     sum / count as f64 // ≥ 1: `own` is in its own window
@@ -559,6 +560,11 @@ fn median(v: &mut [f64]) -> Option<f64> {
     } else {
         (v[m - 1] + v[m]) / 2.0
     })
+}
+
+/// `midi` moved by whole octaves to within ±6 semitones of `near`.
+fn fold_to(midi: f64, near: f64) -> f64 {
+    midi - 12.0 * ((midi - near) / 12.0).round()
 }
 
 fn hz_to_midi(hz: f64) -> f64 {
