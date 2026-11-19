@@ -1,0 +1,21 @@
+node_modules/
+dist/
+target/
+*.log
+*.local
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+apps/desktop/src-tauri/gen/schemas/
+# coordination worktrees (one per agent)
+.worktrees/
+# derived artifacts (regenerate with `graphify`)
+graphify-out/
+# test outputs
+playwright-report/
+test-results/
+coverage/
+# signing keys must never be committed
+*.key
+*.key.pub

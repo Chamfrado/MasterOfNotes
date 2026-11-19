@@ -1,0 +1,166 @@
+# Contratos entre módulos
+
+**Dono deste arquivo: Agente 0.** Mudanças só via coordenador (Lei 07). Proponha alterações por mensagem ao coordenador com: motivo, diff proposto, impacto.
+
+## 1. Mapa de propriedade de arquivos
+
+| Caminho | Dono | Observação |
+|---|---|---|
+| `AGENTS.md`, `CLAUDE.md`, `docs/**`, `specs/**`, `Cargo.toml` (raiz), `package.json` (raiz), `pnpm-workspace.yaml` | Agente 0 | Outros agentes atualizam apenas a seção STATUS da própria spec. |
+| `apps/desktop/src/lib/ipc.ts` | Agente 0 | Contrato TS do IPC. Tipos espelham structs Rust (`serde(rename_all="camelCase")`). |
+| `apps/desktop/src-tauri/**` (exceto `performance.rs`) | Agente 1 | Inclui `tauri.conf.json`, `capabilities/`, `Cargo.toml` do app, `db/`, `library/`, `commands/`. |
+| `apps/desktop/src-tauri/src/performance.rs` | Agente 2 | Sessão ao vivo (âncora, sync, scorer). Registrada no `lib.rs` pelo Agente 1. |
+| `crates/audio-engine/**`, `crates/scoring-engine/**`, `tests/fixtures/audio/**`, `tests/fixtures/references/**` | Agente 2 | |
+| `apps/desktop/src/**` (exceto `lib/ipc.ts` e `**/*.e2e.*`), `apps/desktop/index.html`, estilos, `apps/desktop/package.json` | Agente 3 | Agente 4 pede dependências de teste ao Agente 3. |
+| `crates/game/**`, `apps/desktop/e2e/**`, `apps/desktop/playwright.config.ts`, `.github/workflows/**`, `docs/testing/evidence/**` | Agente 4 | |
+
+## 2. APIs dos crates (Rust)
+
+### 2.1 `audio-engine` (Agente 2)
+
+```rust
+pub struct InputDevice { pub id: String, pub name: String, pub is_default: bool, pub sample_rate: u32, pub channels: u16 }
+pub fn list_input_devices() -> Result<Vec<InputDevice>, AudioError>;
+
+/// Um frame de análise a cada HOP (10 ms). Volume NÃO influencia pitch/confiança.
+pub struct AnalysisFrame {
+    pub sample_index: u64,     // índice da 1ª amostra do frame no stream (monotônico)
+    pub sample_rate: u32,
+    pub f0_hz: Option<f32>,    // None = sem pitch detectável (silêncio, ruído, fricativa)
+    pub confidence: f32,       // 0..1 (YIN: 1 - aperiodicidade)
+    pub rms_dbfs: f32,
+    pub voiced: bool,          // VAD: acima do noise gate E com pitch confiável
+    pub clipped: bool,
+}
+/// Captura: análise roda em thread própria, nunca no callback de áudio. Drop = parar.
+pub struct Capture;
+impl Capture {
+    pub fn start(device_id: Option<&str>, cfg: CaptureConfig, on_frame: impl FnMut(AnalysisFrame) + Send + 'static) -> Result<Capture, AudioError>;
+}
+pub struct CaptureConfig { pub noise_floor_dbfs: f32 /* do calibrate */, pub gate_margin_db: f32 }
+/// Função pura também exposta para testes/offline: analisa um buffer mono.
+pub fn analyze_buffer(samples: &[f32], sample_rate: u32, cfg: &CaptureConfig) -> Vec<AnalysisFrame>;
+```
+
+### 2.2 `scoring-engine` (Agente 2)
+
+```rust
+pub const ALGORITHM_VERSION: u32 = 1;          // bump a cada mudança que altere notas
+pub const REFERENCE_FORMAT_VERSION: u32 = 1;
+
+pub struct Note { pub start_ms: u32, pub dur_ms: u32, pub midi: f32, pub lyric: Option<String> }
+pub struct MelodyReference { pub format_version: u32, pub notes: Vec<Note> } // ordenadas, sem sobreposição
+pub fn parse_reference_json(json: &str) -> Result<MelodyReference, RefError>;
+pub fn import_midi(bytes: &[u8], track: Option<usize>) -> Result<MelodyReference, RefError>;
+pub fn midi_tracks(bytes: &[u8]) -> Result<Vec<MidiTrackInfo>, RefError>;  // para o usuário escolher a trilha vocal
+
+pub enum Difficulty { Easy, Normal, Hard }
+pub struct VoiceFrame { pub t_ms: f64 /* tempo de música */, pub f0_hz: Option<f32>, pub confidence: f32, pub voiced: bool }
+pub struct Scorer;
+impl Scorer {
+    pub fn new(reference: &MelodyReference, offset_ms: i32, difficulty: Difficulty) -> Self;
+    pub fn push(&mut self, frame: VoiceFrame) -> Option<LiveFeedback>; // Some quando há nota ativa
+    pub fn finish(self) -> ScoreResult;                                // determinístico
+}
+pub enum FeedbackLabel { Excellent, VeryGood, Good, NeedsWork, NotDetected }
+pub struct LiveFeedback { pub t_ms: f64, pub target_midi: f32, pub sung_midi: Option<f32>, pub cents_error: Option<f32>, pub label: FeedbackLabel, pub running_score: f32 }
+pub struct ScoreResult { pub score: f32 /*0..100*/, pub pitch: f32, pub rhythm: f32, pub sustain: f32, pub coverage: f32, pub notes_total: u32, pub notes_hit: u32, pub algorithm_version: u32 }
+```
+
+### 2.3 `game` (Agente 4) — puro, sem I/O
+
+```rust
+pub enum GameMode { Solo, Party, Duel, Challenge }
+pub struct PerformanceRecord { pub participant_id: i64, pub song_id: String, pub score: f32, pub compat: CompatKey }
+pub struct CompatKey { pub reference_id: i64, pub reference_revision: i64, pub algorithm_version: u32, pub difficulty: String }
+pub struct Standing { pub participant_id: i64, pub total: f32, pub average: f32, pub rounds: u32, pub eligible: bool, pub rank: u32 }
+pub fn party_standings(records: &[PerformanceRecord], min_rounds: u32) -> Vec<Standing>; // ordena por média; desempate: total, depois id
+pub fn plan_rounds(participants: &[i64], songs: &[String], order: RoundOrder, seed: u64) -> Vec<(i64, String)>; // shuffle determinístico por seed
+pub fn duel_outcome(a: &PerformanceRecord, b: &PerformanceRecord) -> Result<DuelOutcome, GameError>; // erro se CompatKey difere
+pub fn challenge_progress(scores: &[f32], target: f32, rounds: u32) -> ChallengeProgress;
+pub fn leaderboard(records: &[PerformanceRecord], compat: &CompatKey) -> Vec<LeaderboardRow>; // só registros com a mesma CompatKey
+```
+
+## 3. Esquema SQLite (migração 001)
+
+Dono da implementação: Agente 1 (`src-tauri/migrations/001_init.sql`). Mudanças de esquema = nova migração, nunca editar migração já integrada.
+
+```sql
+CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);           -- value = JSON
+CREATE TABLE songs (
+  id TEXT PRIMARY KEY,               -- content id: blake3(size ‖ primeiros 64KiB ‖ últimos 64KiB), hex 32
+  path TEXT NOT NULL UNIQUE,
+  file_name TEXT NOT NULL,
+  title TEXT NOT NULL,               -- inicial = nome do arquivo sem extensão
+  artist TEXT,
+  extension TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  modified_ms INTEGER NOT NULL,
+  duration_ms INTEGER,               -- preenchido pela UI em loadedmetadata
+  playable TEXT NOT NULL DEFAULT 'unknown' CHECK (playable IN ('unknown','yes','no')),
+  available INTEGER NOT NULL DEFAULT 1,  -- 0 = arquivo sumiu; linha mantida (histórico)
+  added_ms INTEGER NOT NULL,
+  updated_ms INTEGER NOT NULL
+);
+CREATE TABLE melody_references (
+  id INTEGER PRIMARY KEY,
+  song_id TEXT NOT NULL REFERENCES songs(id),
+  source TEXT NOT NULL CHECK (source IN ('midi','json','manual','extracted')),
+  format_version INTEGER NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,  -- +1 a cada mudança de notas ou offset
+  status TEXT NOT NULL CHECK (status IN ('processing','experimental','validated','invalid')),
+  offset_ms INTEGER NOT NULL DEFAULT 0,
+  notes_json TEXT NOT NULL,
+  active INTEGER NOT NULL DEFAULT 1,    -- no máximo 1 ativa por música
+  created_ms INTEGER NOT NULL,
+  updated_ms INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX one_active_reference ON melody_references(song_id) WHERE active = 1;
+CREATE TABLE participants (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, created_ms INTEGER NOT NULL);
+CREATE TABLE game_sessions (
+  id INTEGER PRIMARY KEY,
+  mode TEXT NOT NULL CHECK (mode IN ('solo','party','duel','challenge')),
+  name TEXT,
+  status TEXT NOT NULL CHECK (status IN ('active','completed','abandoned')),
+  config_json TEXT NOT NULL DEFAULT '{}',   -- minRounds, targetScore, difficulty, seed
+  started_ms INTEGER NOT NULL,
+  completed_ms INTEGER
+);
+CREATE TABLE rounds (
+  id INTEGER PRIMARY KEY,
+  session_id INTEGER NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+  position INTEGER NOT NULL,
+  song_id TEXT NOT NULL REFERENCES songs(id),
+  participant_id INTEGER REFERENCES participants(id),
+  status TEXT NOT NULL CHECK (status IN ('pending','completed','skipped')),
+  UNIQUE (session_id, position)
+);
+CREATE TABLE performances (
+  id INTEGER PRIMARY KEY,
+  round_id INTEGER REFERENCES rounds(id),
+  song_id TEXT NOT NULL REFERENCES songs(id),
+  participant_id INTEGER REFERENCES participants(id),
+  reference_id INTEGER REFERENCES melody_references(id),
+  reference_revision INTEGER,
+  algorithm_version INTEGER NOT NULL,
+  difficulty TEXT NOT NULL,
+  competitive INTEGER NOT NULL,       -- 1 só se referência validated e sem seek
+  score REAL NOT NULL,
+  metrics_json TEXT NOT NULL,         -- ScoreResult completo
+  capture_json TEXT NOT NULL,         -- dispositivo, noise floor, latency, clipping %
+  created_ms INTEGER NOT NULL
+);
+CREATE INDEX perf_leaderboard ON performances(song_id, reference_id, reference_revision, algorithm_version, difficulty, score DESC) WHERE competitive = 1;
+```
+
+Áudio do microfone **nunca** é persistido (Lei 14).
+
+## 4. IPC (Tauri commands e eventos)
+
+Fonte de verdade: [`apps/desktop/src/lib/ipc.ts`](../../apps/desktop/src/lib/ipc.ts). Todos os comandos retornam `Result<T, AppError>` em Rust; `AppError` serializa como `{ code: string, message: string }`, mensagem em pt-BR pronta para o usuário.
+
+Regras:
+- Nome do comando Rust = nome snake_case da função em `ipc.ts`.
+- Structs com `#[serde(rename_all = "camelCase")]`.
+- Streams de alta frequência usam `tauri::ipc::Channel<T>`, não eventos globais.
+- Eventos globais: `library://changed` (payload `LibraryChange`).
