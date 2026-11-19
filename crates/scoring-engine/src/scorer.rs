@@ -1,5 +1,5 @@
-//! Deterministic vocal scoring, algorithm v4 (SPEC-006 "Algoritmo v4", on top of
-//! v3 and v2). Every constant below is quoted from the spec; changing any result
+//! Deterministic vocal scoring, algorithm v5 (SPEC-006 "Algoritmo v5", on top of
+//! v4, v3 and v2). Every constant below is quoted from the spec; changing any result
 //! requires bumping `ALGORITHM_VERSION` and the golden values in
 //! `tests/regression.rs`.
 //!
@@ -10,11 +10,13 @@
 //!   and between the same onsets (this note's and the next one's); values
 //!   farther than 250 cents from the frame are not averaged in, so short
 //!   ornaments stay local.
-//! - Pitch error in cents (E1, v4):
-//!   `|contour − target| + 2.5·max(0, spread − 60) + 2·max(0, movement − 20)`.
+//! - Pitch error in cents (E1, v4/v5):
+//!   `|contour − target| + 3.5·max(0, spread − 60) + 3·max(0, swing − 50)`.
 //!   Spread = mean `|median − contour|` in the window (≈ 62 for a ±100 c
-//!   vibrato); movement = `|contour(+100 ms) − contour(−100 ms)|` (a vibrato's
-//!   centre stays put). A trill or a wobble around the target is not singing it.
+//!   vibrato). Swing = max − min of the centre (contour averaged again over
+//!   250 ms) within ±600 ms, counted only while the contour reverses ≥ 2 times
+//!   there (an oscillation). A trill or a wobble around the target is not
+//!   singing it; a single fall, bend or scoop is style, not error.
 //! - `p(frame)` = 1 within T_full cents, 0 beyond T_zero, linear between
 //!   (unvoiced = 0).
 //! - `pitch_i` = Σp / frames that arrived (+ the frames after the last one
@@ -34,7 +36,7 @@ use crate::MelodyReference;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-pub const ALGORITHM_VERSION: u32 = 4;
+pub const ALGORITHM_VERSION: u32 = 5;
 
 /// Frame period of the analysis (contract: one frame every 10 ms).
 const HOP_MS: f64 = 10.0;
@@ -50,14 +52,20 @@ const CONTOUR_RANGE_ST: f64 = 2.5;
 /// up to ±100 c spreads ≤ ~65 c around its centre (mean |frame − centre|); the
 /// excess counts as pitch error, `SPREAD_WEIGHT` cents per cent.
 const VIBRATO_SPREAD_CENTS: f64 = 60.0;
-const SPREAD_WEIGHT: f64 = 2.5;
-/// E1 (v4): a vibrato's centre stays put; an unstable voice's centre moves.
-/// Movement of the centre between −100 and +100 ms counts as pitch error.
-/// Movement up to `WANDER_FREE_CENTS` is free (slow drift, a 4 Hz vibrato's
-/// residual); beyond it, `WANDER_WEIGHT` cents of error per cent.
-const WANDER_FRAMES: usize = 10;
-const WANDER_FREE_CENTS: f64 = 20.0;
-const WANDER_WEIGHT: f64 = 2.0;
+const SPREAD_WEIGHT: f64 = 3.5;
+/// E1 (v5): an unstable voice's centre swings back and forth; a vibrato's centre
+/// stays put and an expressive gesture (fall, bend, scoop) moves it once. The
+/// centre is the contour averaged again over 250 ms: the 190 + 250 ms cascade
+/// leaves < 3% of a 4–7 Hz vibrato. Its swing (max − min within
+/// ±`SWING_HALF` frames) counts, beyond `SWING_FREE_CENTS`, at `SWING_WEIGHT`
+/// cents of error per cent, only while it oscillates: ≥ `MIN_REVERSALS`
+/// changes of direction larger than `REVERSAL_CENTS` in that window.
+const CENTRE_HALF: usize = 12;
+const SWING_HALF: usize = 60;
+const SWING_FREE_CENTS: f64 = 50.0;
+const SWING_WEIGHT: f64 = 3.0;
+const REVERSAL_CENTS: f64 = 8.0;
+const MIN_REVERSALS: u32 = 2;
 /// Onset search starts at max(start − 300 ms, end of the previous note + guard).
 const ONSET_EARLY_MS: f64 = 300.0;
 /// Right after a note ends the analysis window (≈ 43 ms, dated at its centre)
@@ -437,27 +445,28 @@ impl Scorer {
                 own.map(|own| contour(&m[s0..s1], k - s0, own))
             })
             .collect();
+        // E1 (v5): the centre of the contour (vibrato residue averaged out).
+        let contour_only: Vec<Option<f64>> = shape.iter().map(|s| s.map(|s| s.0)).collect();
+        let centre_of: Vec<Option<f64>> = (0..shape.len())
+            .map(|k| {
+                let (s0, s1) = segment(k);
+                contour_only[k]
+                    .map(|own| window_mean(&contour_only[s0..s1], k - s0, own, CENTRE_HALF).0)
+            })
+            .collect();
         for (k, sk) in shape.iter().enumerate() {
             let Some((centre, spread)) = *sk else {
                 continue;
             };
-            // E1: how far the centre moves in ±100 ms (a vibrato's centre stays put).
-            // A jump beyond the contour range is a note change or an ornament,
-            // already kept out of the contour: not wander.
             let (s0, s1) = segment(k);
-            let around = |j: usize| shape[j.clamp(s0, s1 - 1)].map(|s| s.0);
-            let wander = match (
-                around(k.saturating_sub(WANDER_FRAMES)),
-                around(k + WANDER_FRAMES),
-            ) {
-                (Some(x), Some(y)) => Some((fold_to(y, x) - x).abs())
-                    .filter(|&d| d <= CONTOUR_RANGE_ST)
-                    .map_or(0.0, |d| 100.0 * d),
-                _ => 0.0,
+            let swing = if reversals(&contour_only[s0..s1], k - s0, SWING_HALF) >= MIN_REVERSALS {
+                swing(&centre_of[s0..s1], k - s0, SWING_HALF)
+            } else {
+                0.0
             };
             let err = cents(centre, n.midi).abs()
                 + SPREAD_WEIGHT * (100.0 * spread - VIBRATO_SPREAD_CENTS).max(0.0)
-                + WANDER_WEIGHT * (wander - WANDER_FREE_CENTS).max(0.0);
+                + SWING_WEIGHT * (100.0 * swing - SWING_FREE_CENTS).max(0.0);
             let p = pitch_credit(err, self.tol);
             c.p_sum += p;
             c.held += u32::from(p > 0.0);
@@ -579,10 +588,15 @@ impl Scorer {
 /// to the octave of `own` and only if within `CONTOUR_RANGE_ST` of it. Also
 /// returns the spread: mean |value − mean| of those values (semitones).
 fn contour(seg: &[Option<f64>], k: usize, own: f64) -> (f64, f64) {
-    let w = 2 * CONTOUR_HALF + 1;
-    let lo = k
-        .saturating_sub(CONTOUR_HALF)
-        .min(seg.len().saturating_sub(w));
+    window_mean(seg, k, own, CONTOUR_HALF)
+}
+
+/// Mean and mean absolute deviation of the voiced values in a `2·half + 1`
+/// window kept inside `seg`, folded to the octave of `own` and within
+/// `CONTOUR_RANGE_ST` of it.
+fn window_mean(seg: &[Option<f64>], k: usize, own: f64, half: usize) -> (f64, f64) {
+    let w = 2 * half + 1;
+    let lo = k.saturating_sub(half).min(seg.len().saturating_sub(w));
     let values: Vec<f64> = seg[lo..(lo + w).min(seg.len())]
         .iter()
         .flatten()
@@ -593,6 +607,52 @@ fn contour(seg: &[Option<f64>], k: usize, own: f64) -> (f64, f64) {
     let mean = values.iter().sum::<f64>() / n;
     let spread = values.iter().map(|v| (v - mean).abs()).sum::<f64>() / n;
     (mean, spread)
+}
+
+/// max − min (semitones) of the voiced values within ±`half` of `k`, folded to
+/// the octave of the value at `k` and within the contour range of it.
+fn swing(seg: &[Option<f64>], k: usize, half: usize) -> f64 {
+    let Some(own) = seg[k] else { return 0.0 };
+    let (lo, hi) = seg[k.saturating_sub(half)..(k + half + 1).min(seg.len())]
+        .iter()
+        .flatten()
+        .map(|&v| fold_to(v, own))
+        .filter(|v| (v - own).abs() <= CONTOUR_RANGE_ST)
+        .fold((own, own), |(lo, hi), v| (lo.min(v), hi.max(v)));
+    hi - lo
+}
+
+/// Changes of direction of the voiced values of `seg` within ±`half` of `k`,
+/// ignoring moves smaller than `REVERSAL_CENTS` (hysteresis).
+fn reversals(seg: &[Option<f64>], k: usize, half: usize) -> u32 {
+    let hyst = REVERSAL_CENTS / 100.0;
+    let mut values = seg[k.saturating_sub(half)..(k + half + 1).min(seg.len())]
+        .iter()
+        .flatten();
+    let Some(&first) = values.next() else {
+        return 0;
+    };
+    // direction: 0 = not known yet (track both extremes), 1 = rising, −1 = falling.
+    let (mut count, mut direction, mut hi, mut lo, mut ext) = (0, 0i8, first, first, first);
+    for &v in values {
+        let v = fold_to(v, first);
+        match direction {
+            0 => {
+                (hi, lo) = (hi.max(v), lo.min(v));
+                if v - lo > hyst {
+                    (direction, ext) = (1, v);
+                } else if hi - v > hyst {
+                    (direction, ext) = (-1, v);
+                }
+            }
+            1 if v > ext => ext = v,
+            1 if ext - v > hyst => (count, direction, ext) = (count + 1, -1, v),
+            -1 if v < ext => ext = v,
+            -1 if v - ext > hyst => (count, direction, ext) = (count + 1, 1, v),
+            _ => {}
+        }
+    }
+    count
 }
 
 /// N4: how far a short note's region (and onset window) may shift.
