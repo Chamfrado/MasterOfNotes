@@ -18,7 +18,7 @@ Critérios:
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
-| T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | todo |
+| T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | review |
 | T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | todo |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | doing |
 
@@ -30,3 +30,15 @@ Critérios:
 - T-008-04 em andamento (Agente 4, 2026-11-19): infraestrutura E2E pronta: `apps/desktop/playwright.config.ts` (Vite na porta 1440), `e2e/tauri-mock.ts` (mock de `__TAURI_INTERNALS__` só em teste, respostas por comando, `setReply`, registro de chamadas), `e2e/smoke.e2e.ts` com 6 fluxos verdes, E2E no CI. Fluxo Festa ⏳ aguarda as telas do Agente 3.
 - T-008-01 done (Agente 0, 2026-11-19): integrado em main, `cargo test -p game` 15/15 ✅ e clippy limpo após merge. Nota para T-008-02: `party_standings` só lista quem tem performance; o glue deve acrescentar participantes da festa com 0 rodadas (inelegíveis) para exibição. `challenge_progress` exige `rounds ≥ 1` (validar no command).
 - E2E smoke (Agente 0, 2026-11-19): 6/6 Playwright verdes em main @ a04004d. T-008-04 segue em doing (fluxo Festa).
+- T-008-02 `review` (Agente 1, 2026-11-19): `src-tauri/src/sessions.rs`.
+  - Comandos: `list_participants`, `create_participant` (1–40 caracteres, único sem distinção de caixa → `participant_exists`), `create_session`, `get_session`, `list_sessions`, `set_round_status` (só pending/skipped, rodada não concluída, sessão ativa), `complete_session`.
+  - Regras de `create_session`:
+    - solo: 1 música e 0–1 participante; aceita música sem referência;
+    - festa: ≥ 2 participantes e ≥ 1 música;
+    - duelo: 2 participantes e 1 música;
+    - desafio: ≥ 1 música, 0–1 participante, meta 0–100 obrigatória e uma rodada por música;
+    - festa/duelo/desafio exigem referência `validated` (`reference_not_validated`);
+    - participantes repetidos ou inexistentes são recusados.
+  - Rodadas: `game::plan_rounds` com seed < 2^53 salva em `config`. `minRounds` padrão = menor nº de rodadas de um participante.
+  - Standings: `game::party_standings` sobre as rodadas concluídas, mais os participantes com 0 rodadas no fim, inelegíveis. Rodada `completed` só via performance competitiva (T-006-05).
+  - Testes ✅ `sessions::tests::{participants_unique_case_insensitive, mode_rules, party_standings_average_and_zero_round_participants, shuffle_is_reproducible_from_saved_seed}`.
