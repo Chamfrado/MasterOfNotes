@@ -129,9 +129,10 @@ export function LeakTest({ settings, onFinished }: { settings: AppSettings; onFi
           (phase.passed ? (
             <p className="text-success">Aprovado: partidas com este microfone valem ranking até este volume.</p>
           ) : (
-            <p className="text-danger">
-              {phase.reason ?? "O microfone captou a música"}: use fones de ouvido ou baixe o volume e repita.
-            </p>
+            <div className="text-danger">
+              <p>{phase.reason ?? "O microfone captou a música."}</p>
+              <p>Use fones de ouvido ou baixe o volume e repita.</p>
+            </div>
           ))}
         {phase.name === "error" && <p className="text-danger">{errorMessage(phase.error)}</p>}
       </div>

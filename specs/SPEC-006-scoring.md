@@ -75,7 +75,7 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 | T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | done |
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
-| T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | todo |
+| T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | doing (backend done; UI em integração) |
 
 ## TEST
 `scoring-engine/tests/regression.rs` cobre cada linha da tabela. Pipeline completo (áudio sintético → `analyze_buffer` → `Scorer`) para pelo menos perfeito, desafinado, silêncio, atraso.
@@ -125,4 +125,6 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
   - Estado do teste: `leakCheckState` (`src/player/leak.ts`) espelha a regra do Rust: aprovado só com o mesmo `inputDeviceId` e `videoVolume` ≤ ao do teste; senão "Refazer" ou "Reprovado".
   - Player: música validada sem teste aprovado mostra o aviso e o botão "Fazer teste" (vai para Microfone); o botão principal vira "Começar como treino". O mesmo atalho aparece na pausa, junto do `reason` do Rust.
   - Testes: `LeakTest.test.tsx` (4), `leak.test.ts` (+4 de `leakCheckState`), `Player.test.tsx` (+1).
-  - Regra igual à do Agente 1, inclusive a tolerância de +0,05 no volume; o texto do `reason` não é interpretado. ⏳ Commands do Agente 1 ainda não testados juntos.
+  - Regra igual à do Agente 1, inclusive a tolerância de +0,05 no volume; o texto do `reason` não é interpretado. ⏳ Testes de UI com IPC simulado; com os commands reais (main 2cef2b0) só verificado o tipo.
+
+- T-004-06 (Agente 0, 2026-11-19): partes dos Agentes 2 e 1 integradas em main @ 2cef2b0 (140 testes Rust verdes). Decisão: qualquer veredito reprovado (inclusive inconclusivo) substitui uma aprovação anterior, que é o lado conservador. A UI (Agente 3) entra no próximo merge.
