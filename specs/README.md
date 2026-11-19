@@ -16,6 +16,7 @@ Status de tarefa: `todo` · `doing` · `review` (entregue, aguardando coordenado
 | [SPEC-008](SPEC-008-game-modes.md) | Modos Solo, Festa, Duelo, Desafio | Agente 4 | AC-012 |
 | [SPEC-009](SPEC-009-updater.md) | Distribuição e atualização | Agente 1 | AC-014, AC-015 |
 | [SPEC-010](SPEC-010-design-system.md) | Design system e telas | Agente 3 | — |
+| [SPEC-011](SPEC-011-user-docs.md) | Documentação do usuário | Agente 5 | — |
 
 ## Matriz de rastreabilidade (AC → spec → teste → evidência)
 
