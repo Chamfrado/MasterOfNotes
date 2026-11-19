@@ -10,16 +10,16 @@ import {
   stopMicMonitor,
   updateSettings,
   type AppSettings,
+  type CalibrationIssue,
   type MicFrame,
   type NoiseCalibration,
 } from "../lib/ipc";
 import { useAsync } from "../useAsync";
 
 const CALIBRATION_S = 3;
-const verdictText: Record<NoiseCalibration["verdict"], string> = {
-  ok: "Ambiente bom para cantar.",
+const issueText: Record<CalibrationIssue, string> = {
   noisy: "Ambiente barulhento: a pontuação pode ignorar trechos baixos.",
-  too_quiet: "Sinal muito baixo: aproxime o microfone ou aumente o ganho.",
+  tooQuiet: "Sinal muito baixo: aproxime o microfone ou aumente o ganho.",
   clipping: "O microfone está saturando: diminua o ganho de entrada.",
 };
 
@@ -112,9 +112,18 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
           <Button variant="primary" onClick={calibrate} disabled={calibrating}>
             {calibrating ? "Medindo… silêncio, por favor" : settings.noiseFloorDbfs == null ? "Calibrar" : "Calibrar de novo"}
           </Button>
-          <p aria-live="polite" className={verdict?.verdict === "ok" ? "text-success" : "text-warning"}>
-            {verdict ? verdictText[verdict.verdict] : ""}
-          </p>
+          <div aria-live="polite">
+            {verdict &&
+              (verdict.issues.length === 0 ? (
+                <p className="text-success">Ambiente bom para cantar.</p>
+              ) : (
+                <ul className="flex flex-col gap-1 text-warning">
+                  {verdict.issues.map((i) => (
+                    <li key={i}>{issueText[i]}</li>
+                  ))}
+                </ul>
+              ))}
+          </div>
         </div>
         <Slider
           label="Ajuste de latência"
