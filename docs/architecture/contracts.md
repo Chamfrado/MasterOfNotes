@@ -37,10 +37,23 @@ pub struct Capture;
 impl Capture {
     pub fn start(device_id: Option<&str>, cfg: CaptureConfig, on_frame: impl FnMut(AnalysisFrame) + Send + 'static) -> Result<Capture, AudioError>;
 }
-pub struct CaptureConfig { pub noise_floor_dbfs: f32 /* do calibrate */, pub gate_margin_db: f32 }
+pub struct CaptureConfig { pub noise_floor_dbfs: f32 /* do calibrate */, pub gate_margin_db: f32 } // Default: -60 / 10
 /// Função pura também exposta para testes/offline: analisa um buffer mono.
 pub fn analyze_buffer(samples: &[f32], sample_rate: u32, cfg: &CaptureConfig) -> Vec<AnalysisFrame>;
+/// Tempo do frame = centro da janela: sample_index + window_len(sr)/2.
+pub fn window_len(sample_rate: u32) -> usize;
+pub fn hop_len(sample_rate: u32) -> usize;
+pub const YIN_THRESHOLD, MIN_F0_HZ, MAX_F0_HZ, MIN_CONFIDENCE, CLIP_LEVEL, SILENCE_DBFS /* -120 */;
+pub enum AudioError { Device(String), /* ... */ }        // thiserror, Display pt-BR
+impl Capture { pub fn take_error(&self) -> Option<AudioError>; } // ex.: dispositivo desconectado (Lei 13). Capture: Send.
+
+// Calibração (funções puras sobre frames)
+pub enum CalibrationIssue { Noisy, Clipping, TooQuiet }
+pub struct NoiseCalibration { pub noise_floor_dbfs: f32 /* p90 do RMS */, pub clipped_ratio: f32, pub issues: Vec<CalibrationIssue> }
+pub fn calibrate_noise(frames: &[AnalysisFrame]) -> NoiseCalibration;
+pub fn check_voice(frames: &[AnalysisFrame], cfg: &CaptureConfig) -> Vec<CalibrationIssue>;
 ```
+Tipos públicos com `Serialize` em camelCase.
 
 ### 2.2 `scoring-engine` (Agente 2)
 
@@ -53,8 +66,12 @@ pub struct MelodyReference { pub format_version: u32, pub notes: Vec<Note> } // 
 pub fn parse_reference_json(json: &str) -> Result<MelodyReference, RefError>;
 pub fn import_midi(bytes: &[u8], track: Option<usize>) -> Result<MelodyReference, RefError>;
 pub fn midi_tracks(bytes: &[u8]) -> Result<Vec<MidiTrackInfo>, RefError>;  // para o usuário escolher a trilha vocal
+pub fn to_reference_json(r: &MelodyReference) -> String;  // inverso do parse; formato de melody_references.notes_json
+pub struct MidiTrackInfo { pub index: usize, pub name: Option<String>, pub note_count: u32 }
+/// Display pt-BR pronto para o usuário. import_midi(None) com várias trilhas → TrackRequired.
+pub enum RefError { Json, UnknownFormat, UnsupportedVersion, Empty, ZeroDuration{..}, PitchOutOfRange{..}, Midi, SmpteUnsupported, SequentialUnsupported, NoSuchTrack, TrackRequired }
 
-pub enum Difficulty { Easy, Normal, Hard }
+pub enum Difficulty { Easy, Normal, Hard }   // serde: "easy" | "normal" | "hard"
 pub struct VoiceFrame { pub t_ms: f64 /* tempo de música */, pub f0_hz: Option<f32>, pub confidence: f32, pub voiced: bool }
 pub struct Scorer;
 impl Scorer {
@@ -65,7 +82,11 @@ impl Scorer {
 pub enum FeedbackLabel { Excellent, VeryGood, Good, NeedsWork, NotDetected }
 pub struct LiveFeedback { pub t_ms: f64, pub target_midi: f32, pub sung_midi: Option<f32>, pub cents_error: Option<f32>, pub label: FeedbackLabel, pub running_score: f32 }
 pub struct ScoreResult { pub score: f32 /*0..100*/, pub pitch: f32, pub rhythm: f32, pub sustain: f32, pub coverage: f32, pub notes_total: u32, pub notes_hit: u32, pub algorithm_version: u32 }
+/// SPEC-006 item 9: sem referência, só métricas exploratórias (não competitivas, nunca vão para ranking).
+pub struct ExploratoryMetrics { pub voiced_ratio: f32 /* 0..1 */, pub pitch_stability: f32 /* 0..1: 1 - min(1, desvio absoluto mediano em cents dentro de trechos sustentados / 100) */ }
+pub fn exploratory_metrics(frames: &[VoiceFrame]) -> ExploratoryMetrics;
 ```
+Tipos públicos com `Serialize` em camelCase (`FeedbackLabel`: `"veryGood"`, `"notDetected"`…).
 
 ### 2.3 `game` (Agente 4) — puro, sem I/O
 
