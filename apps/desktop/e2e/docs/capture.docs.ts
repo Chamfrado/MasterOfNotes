@@ -282,7 +282,7 @@ test("03 biblioteca", async ({ page }) => {
 
   await page.getByRole("button", { name: "Detalhes de Canção da Manhã" }).click();
   await page.getByLabel("Recorde pessoal de").selectOption("Lia");
-  await expect(page.getByText("Lia: 92,1 pontos (1º lugar).")).toBeVisible();
+  await expect(page.getByText("Lia: 92,1 pontos.")).toBeVisible();
   await page.mouse.move(0, 0);
   await shot(page, "detalhes-musica", { fullPage: true });
 
@@ -335,7 +335,7 @@ test("04 microfone", async ({ page }) => {
   });
   await setReply(page, "get_settings", { ok: ready({ leakCheck: { ...leakOk, passed: false } }) });
   await page.getByRole("button", { name: "Fazer teste" }).click();
-  await expect(page.getByText("Use fones de ouvido ou baixe o volume e repita.")).toBeVisible({ timeout: 25_000 });
+  await expect(page.getByText("O microfone está captando a voz ou a melodia da música.", { exact: false })).toBeVisible({ timeout: 25_000 });
   await shot(leakCard, "microfone-vazamento-reprovado");
 
   await setReply(page, "finish_performance", { ok: { ...resultNoReference, exploratory: null, leak: { passed: true, guideScore: 0.03, reason: null } } });
@@ -550,7 +550,7 @@ test("08 modos de jogo, 09 histórico", async ({ page }) => {
   await singRound(page);
   await singRound(page);
   await page.getByRole("button", { name: "Encerrar" }).click();
-  await expect(page.getByText(/venceu o duelo!/)).toBeVisible();
+  await expect(page.getByText(/venceu o duelo por/)).toBeVisible();
   await shot(page, "duelo");
 
   // Challenge: left running (2 of 3) so "Continuar de onde parou" shows on Jogar.

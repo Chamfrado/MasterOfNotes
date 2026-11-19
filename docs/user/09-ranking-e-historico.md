@@ -27,7 +27,7 @@ Na tela de cada música (clique no título dela na Biblioteca), o quadro **Recor
 
 - o **recorde da música** e quem fez;
 - as **5 melhores notas** na dificuldade atual;
-- **Recorde pessoal de**: escolha um cantor para ver a melhor nota dele e a posição.
+- **Recorde pessoal de**: escolha um cantor para ver a melhor nota dele que vale ranking nessa música e nessa dificuldade.
 
 Veja a imagem em [Biblioteca → Tela da música](03-biblioteca.md#tela-da-música-detalhes).
 

@@ -80,13 +80,15 @@ Cantar direto pela **Biblioteca** também funciona, mas sem nome: no ranking apa
 
 ## Duelo
 
-Dois cantores, a mesma música, uma rodada para cada um. Quem tiver a nota maior vence; notas iguais dão empate.
+Dois cantores, a mesma música, uma rodada para cada um. Quem tiver a nota maior vence, e a tela mostra por quantos pontos. Notas iguais dão **Empate!**.
 
-![Duelo encerrado: Lia 69,5 VS Rui 83,1 e a frase "Rui venceu o duelo!".](media/duelo.png)
+![Duelo encerrado: Lia 69,5 VS Rui 83,1 e a frase "Rui venceu o duelo por 13,6 pontos!".](media/duelo.png)
 
 *Nomes e notas ilustrativos.*
 
-Enquanto só um cantou, a tela diz *"O duelo termina quando os dois cantarem."*
+Enquanto só um cantou, a tela diz *"Aguardando: o duelo termina quando os dois cantarem."*
+
+Se as duas apresentações foram feitas em condições diferentes (por exemplo, a referência da música foi alinhada de novo entre uma e outra, ou a dificuldade mudou), aparece **Duelo sem vencedor**: as notas não podem ser comparadas de forma justa. Veja [Versão anterior](09-ranking-e-historico.md#versão-anterior).
 
 ## Desafio
 

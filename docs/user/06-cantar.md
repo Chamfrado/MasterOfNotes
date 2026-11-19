@@ -20,7 +20,7 @@ O player ocupa a janela toda (o menu some). Aparece o nome da música e o botão
 
 ## Durante a música
 
-![Player durante a música: no alto à esquerda, o painel com a nota alvo Ré4, o selo Excelente e a bolinha de afinação; no alto à direita, a pontuação parcial 81,1; embaixo, a barra de controles.](media/cantar-painel-completo.png)
+![Player durante a música: no alto à esquerda, o painel com a nota alvo (em solfejo, como Dó4), a avaliação do momento e a bolinha de afinação; no alto à direita, a pontuação parcial; embaixo, a barra de controles.](media/cantar-painel-completo.png)
 
 *Notas e pontuação ilustrativas.*
 

@@ -12,6 +12,7 @@ export default defineConfig({
   testMatch: "*.docs.ts",
   outputDir: "test-results/run",
   workers: 1, // captures are timing-sensitive (GIF frames, video): one page at a time
+  retries: 1, // ponytail: real-time video under CPU load flaked once in 5 full runs; a retry rewrites that group's files
   timeout: 180_000,
   reporter: "list",
   use: {

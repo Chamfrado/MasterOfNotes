@@ -33,9 +33,10 @@ export async function shot(target: Page | Locator, id: string, opts: { fullPage?
   const options = { path, animations: "disabled", caret: "hide" } as const;
   if ("goto" in target) await target.screenshot({ ...options, fullPage: opts.fullPage });
   else {
-    const box = await target.boundingBox();
+    const box = await target.boundingBox(); // viewport coordinates; a fullPage clip is in page coordinates
     if (!box) throw new Error(`${id}: elemento não visível`);
-    const clip = { x: Math.max(0, box.x - PAD), y: Math.max(0, box.y - PAD), width: box.width + 2 * PAD, height: box.height + 2 * PAD };
+    const [sx, sy] = await target.page().evaluate(() => [window.scrollX, window.scrollY]);
+    const clip = { x: Math.max(0, box.x + sx - PAD), y: Math.max(0, box.y + sy - PAD), width: box.width + 2 * PAD, height: box.height + 2 * PAD };
     await target.page().screenshot({ ...options, clip, fullPage: true });
   }
   return checkBudget(`${id}.png`);
