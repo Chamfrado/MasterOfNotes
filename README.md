@@ -4,6 +4,10 @@ Karaokê desktop com pontuação vocal real: escolha uma pasta de vídeos, cante
 
 > Status: em desenvolvimento (Fase 1). Veja [docs/roadmap.md](docs/roadmap.md).
 
+## Para usuários
+
+📖 **[Guia do usuário](docs/user/README.md)**: instalação, primeiros passos, microfone, como a pontuação funciona, modos de jogo e solução de problemas.
+
 ## Desenvolvimento
 
 Requisitos (Windows): Node 22+, pnpm 10, Rust stable (MSVC), Visual Studio Build Tools, WebView2.
