@@ -7,7 +7,7 @@ use std::time::Duration;
 use audio_engine::{AnalysisFrame, Capture, CaptureConfig, InputDevice, NoiseCalibration};
 use serde_json::json;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager};
 
 use crate::commands::{AppState, blocking};
 use crate::error::{AppError, AppResult};
@@ -105,9 +105,13 @@ pub async fn start_mic_monitor(
 }
 
 #[tauri::command]
-pub async fn stop_mic_monitor(monitor: State<'_, MicMonitor>) -> AppResult<()> {
-    monitor.stop();
-    Ok(())
+pub async fn stop_mic_monitor(app: AppHandle) -> AppResult<()> {
+    // Dropping the capture joins the audio thread: keep it off the async workers.
+    blocking(move || {
+        app.state::<MicMonitor>().stop();
+        Ok(())
+    })
+    .await
 }
 
 /// Records `seconds` of room noise (user silent) and saves `noiseFloorDbfs`.
