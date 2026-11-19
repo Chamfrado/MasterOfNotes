@@ -11,6 +11,7 @@
 | 2 — Áudio/pontuação | `masterofnotes-c3` | `.worktrees/agent-2` | `agent-2/work` |
 | 3 — UX/UI | `masterofnotes-47` | `.worktrees/agent-3` | `agent-3/work` |
 | 4 — Modos/QA | `masterofnotes-d4` | `.worktrees/agent-4` | `agent-4/work` |
+| 5 — Documentação do usuário | `masterofnotes-cc` | `.worktrees/agent-5` | `agent-5/work` |
 
 Se uma sessão for perdida: abra uma nova sessão Claude Code na raiz do repositório, leia `AGENTS.md`, este arquivo e o roadmap, e avise o coordenador do novo nome de sessão.
 

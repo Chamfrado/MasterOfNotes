@@ -12,6 +12,7 @@
 | `apps/desktop/src-tauri/src/performance.rs` | Agente 2 | Sessão ao vivo (âncora, sync, scorer). Registrada no `lib.rs` pelo Agente 1. |
 | `crates/audio-engine/**`, `crates/scoring-engine/**`, `tests/fixtures/audio/**`, `tests/fixtures/references/**` | Agente 2 | |
 | `apps/desktop/src/**` (exceto `lib/ipc.ts` e `**/*.e2e.*`), `apps/desktop/index.html`, `apps/desktop/vite.config.ts`, estilos, `apps/desktop/package.json` | Agente 3 | Agente 4 pede dependências de teste ao Agente 3. |
+| `docs/user/**` (guia do usuário + mídia), `apps/desktop/e2e/docs/**` (scripts de captura de screenshots, GIFs e vídeos) | Agente 5 | Pode importar `e2e/fixtures.ts`/`tauri-mock.ts`/`fake-backend.ts` (só leitura; mudanças via Agente 4). Dependências JS via Agente 3. |
 | `crates/game/**`, `apps/desktop/e2e/**`, `apps/desktop/playwright.config.ts`, `.github/workflows/**`, `docs/testing/evidence/**` | Agente 4 | |
 
 ## 2. APIs dos crates (Rust)
