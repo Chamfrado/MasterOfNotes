@@ -1,4 +1,4 @@
-# MasterOfNotes
+# Master Of Notes
 
 Karaokê desktop com pontuação vocal real: escolha uma pasta de vídeos, cante no microfone e seja avaliado contra a melodia de referência. Offline, sem conta.
 

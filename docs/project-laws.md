@@ -29,4 +29,4 @@ Imutáveis, salvo ADR aprovada pelo coordenador (Agente 0). Todo agente, humano 
 
 - CI (`.github/workflows/ci.yml`) roda typecheck, testes TS, `cargo test --workspace`, `cargo clippy -D warnings` e `cargo fmt --check`.
 - `cargo test -p scoring-engine` inclui a suíte de regressão do algoritmo (Lei 11/12).
-- Busca proibida no CI: `Math.random` fora de `*.test.*` dentro de `apps/desktop/src/**/score*` (Lei 03).
+- Busca proibida no CI: `Math.random` fora de `*.test.*` dentro de `apps/desktop/src/**/scor*` (Lei 03).
