@@ -13,9 +13,9 @@
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | done |
-| T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | todo |
+| T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | review |
 | T-009-03 | Workflow de release (cria draft, não publica) | Agente 4 | review |
-| T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados (chave de TESTE descartável, servidor local) | Agente 1 | todo |
+| T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados (chave de TESTE descartável, servidor local) | Agente 1 | review |
 
 ## STATUS
 - T-009-03 em review (Agente 4, 2026-11-19): `.github/workflows/release.yml` (tag `v*` ou manual → NSIS + `latest.json` → release **draft** via `tauri-apps/tauri-action`). Nunca executado no GitHub ⏳.
@@ -28,3 +28,9 @@
 - T-009-01 done (Agente 0, 2026-11-19): `pnpm build` gerou `Master Of Notes_0.1.0_x64-setup.exe` (2,79 MiB, NSIS por usuário, pt-BR/en) na worktree do Agente 1; o binário release sobe sem erro. AC-014 parcial: instalador gerado ✅; instalar/desinstalar ⏳ (T-009-04).
 - Decisão (Agente 0, 2026-11-19): identifier `com.masterofnotes.app` → `com.masterofnotes.karaoke`, porque o sufixo `.app` conflita com o bundle do macOS (aviso do Tauri). A troca foi feita **antes de qualquer distribuição**: só a pasta de dados de desenvolvimento desta máquina fica órfã. Depois da primeira release, o identifier é imutável (a pasta `app_data_dir` depende dele, Lei 14).
 - Evidência T-009-01 (Agente 1, 2026-11-19): `Master Of Notes_0.1.0_x64-setup.exe`, 2.928.467 bytes, SHA-256 `ec92e7a3f187ee21c855159405a31ac86049d6b9da1fc5591d164d2921bde137`. Gerado de agent-1/work @ 84de723, ainda com o identifier `com.masterofnotes.app`. Depois o identifier mudou para `com.masterofnotes.karaoke` (tauri.conf.json), e `target/release` foi limpo (orçamento de disco). Nenhum código, teste ou evidência tinha o identifier fixo.
+- T-009-02 parte backend `review` (Agente 1, 2026-11-19):
+  - `tauri-plugin-updater` 2 só é registrado se `plugins.updater.pubkey` não estiver vazio. Sem chave, o app loga "updater desativado: sem chave pública na configuração" e funciona normalmente (R7, Lei 10).
+  - O config do repositório traz o endpoint `https://github.com/Chamfrado/MasterOfNotes/releases/latest/download/latest.json`, `requireSignedVersion: true` (anti-downgrade), `windows.installMode: passive` e `pubkey: ""`, aguardando a chave do proprietário.
+  - Capability `updater:default`.
+  - Teste ✅ `tests::updater_needs_a_real_key`; smoke do app de dev sem chave ✅.
+- T-009-04 `review` (Agente 1, 2026-11-19): teste real com chave descartável fora do repo. Evidência: [update-test.md](../docs/testing/evidence/update-test.md). Assinatura adulterada recusada sem instalar; 0.1.0 → 0.1.1 instalou, reabriu e preservou pasta da biblioteca, participante e músicas; desinstalação limpa (dados mantidos). Nenhum material de chave commitado.
