@@ -6,12 +6,6 @@ mod settings;
 
 use tauri::Manager;
 
-// Scaffold command still used by the template App.tsx; remove once Agent 3 replaces it.
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -44,7 +38,6 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            greet,
             commands::get_settings,
             commands::update_settings,
             commands::set_library_folder,
