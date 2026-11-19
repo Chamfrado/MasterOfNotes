@@ -67,7 +67,14 @@ pub struct PerformanceOutcome {
     pub latency: Option<LatencyVerdict>,
     pub personal_best: Option<f32>,
     pub song_record: Option<f32>,
+    /// pt-BR: why the run did not count for the ranking (`None` when competitive).
+    pub reason: Option<String>,
 }
+
+const REASON_HALF: &str = "Menos da metade da música foi tocada: a apresentação valeu como treino.";
+const REASON_NO_DURATION: &str =
+    "A duração da música ainda não é conhecida: a apresentação valeu como treino.";
+const REASON_TRAINING: &str = "A apresentação valeu como treino.";
 
 /// What the run needs to be stored when it finishes (captured at start).
 #[derive(Debug, Clone, PartialEq)]
@@ -82,6 +89,8 @@ pub struct RunContext {
     pub leak_check: Option<(Option<String>, f64)>,
     /// Latency probe run (T-004-07).
     pub latency_probe: bool,
+    /// Why the run was not competitive from the start (the `reason` of `PerformanceStarted`).
+    pub start_reason: Option<String>,
 }
 
 struct Running {
@@ -287,6 +296,7 @@ pub fn prepare(
             .leak_check
             .then(|| (s.input_device_id.clone(), s.video_volume)),
         latency_probe: probe,
+        start_reason: reason.map(str::to_owned),
     };
     Ok((
         cfg,
@@ -313,6 +323,7 @@ pub fn persist(
         latency: None,
         personal_best: None,
         song_record: None,
+        reason: None,
     };
     // Latency probe (T-004-07): a passed measurement becomes the latency setting.
     if ctx.latency_probe {
@@ -374,14 +385,28 @@ pub fn persist(
     let (Some(result), Some((ref_id, revision))) = (summary.result, ctx.reference) else {
         return Ok(PerformanceOutcome {
             exploratory: summary.exploratory,
+            reason: ctx.start_reason.clone().or(summary.reason),
             ..not_stored
         });
     };
     let duration_ms: Option<i64> = library::get_song(conn, &ctx.song_id)?.duration_ms;
     // Unknown duration → cannot prove 50% was played → training.
-    let competitive = summary.competitive
-        && duration_ms
-            .is_some_and(|d| d > 0 && summary.played_ms as f64 >= MIN_PLAYED_RATIO * d as f64);
+    let played_enough = duration_ms
+        .is_some_and(|d| d > 0 && summary.played_ms as f64 >= MIN_PLAYED_RATIO * d as f64);
+    let competitive = summary.competitive && played_enough;
+    // The Result screen always explains a training run: root cause known at start first
+    // (no validated reference, leak check), then the session's (seek…), then this gate.
+    let reason = if competitive {
+        None
+    } else if let Some(r) = &ctx.start_reason {
+        Some(r.clone())
+    } else if !summary.competitive {
+        Some(summary.reason.unwrap_or_else(|| REASON_TRAINING.to_owned()))
+    } else if duration_ms.is_none() {
+        Some(REASON_NO_DURATION.to_owned())
+    } else {
+        Some(REASON_HALF.to_owned())
+    };
     let difficulty = difficulty_str(ctx.difficulty);
 
     let tx = conn.transaction()?;
@@ -438,6 +463,7 @@ pub fn persist(
         latency: None,
         personal_best: ctx.participant_id.and_then(|p| best(&|q| q == Some(p))),
         song_record: best(&|_| true),
+        reason,
     })
 }
 
@@ -748,6 +774,7 @@ mod tests {
     fn summary(competitive: bool, played_ms: u64, score: Option<f32>) -> PerformanceSummary {
         PerformanceSummary {
             competitive,
+            reason: None,
             played_ms,
             result: score.map(|score| ScoreResult {
                 score,
@@ -773,6 +800,7 @@ mod tests {
                 latency_offset_ms: 0.0,
                 clipped_ratio: 0.0,
                 leak_suspected: false,
+                missing_ratio: 0.0,
             },
         }
     }
@@ -836,6 +864,46 @@ mod tests {
             })
             .unwrap();
         assert!(stored.contains("\"noiseFloorDbfs\""));
+    }
+
+    #[test]
+    fn training_runs_always_explain_why() {
+        let (_d, mut conn) = env(Some("validated"), Some(10_000));
+        let (_, ctx, _) = prepare(&conn, &args()).unwrap();
+        // Competitive run: no reason.
+        let ok = persist(&mut conn, &ctx, summary(true, 9_000, Some(80.0))).unwrap();
+        assert!(ok.competitive);
+        assert_eq!(ok.reason, None);
+        // The session's own reason (e.g. a seek) is passed through.
+        let mut seek = summary(false, 9_000, Some(80.0));
+        seek.reason = Some("Houve um salto no vídeo.".into());
+        let out = persist(&mut conn, &ctx, seek).unwrap();
+        assert_eq!(out.reason.as_deref(), Some("Houve um salto no vídeo."));
+        // This module's 50% gate.
+        let short = persist(&mut conn, &ctx, summary(true, 4_000, Some(80.0))).unwrap();
+        assert!(!short.competitive);
+        assert_eq!(short.reason.as_deref(), Some(REASON_HALF));
+
+        // Reason known at start wins (reference not validated).
+        let (_d, mut conn) = env(Some("experimental"), Some(10_000));
+        let (_, ctx, started) = prepare(&conn, &args()).unwrap();
+        let out = persist(&mut conn, &ctx, summary(false, 9_000, Some(80.0))).unwrap();
+        assert_eq!(out.reason, started.reason);
+        // Unknown duration.
+        let (_d, mut conn) = env(Some("validated"), None);
+        let (_, ctx, _) = prepare(&conn, &args()).unwrap();
+        let out = persist(&mut conn, &ctx, summary(true, 9_000, Some(80.0))).unwrap();
+        assert_eq!(out.reason.as_deref(), Some(REASON_NO_DURATION));
+        // capture_json carries whatever CaptureStats serializes (missingRatio included).
+        let capture: serde_json::Value = serde_json::from_str(
+            &conn
+                .query_row("SELECT capture_json FROM performances LIMIT 1", [], |r| {
+                    r.get::<_, String>(0)
+                })
+                .unwrap(),
+        )
+        .unwrap();
+        assert!(capture.get("missingRatio").is_some());
     }
 
     #[test]
