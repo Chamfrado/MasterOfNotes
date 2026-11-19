@@ -1,6 +1,6 @@
 # AGENTS.md — instruções para agentes (atuais e futuros)
 
-**MasterOfNotes**: karaokê desktop (Tauri 2 + React + Rust) com pontuação vocal real contra referência melódica. Offline, sem contas.
+**Master Of Notes**: karaokê desktop (Tauri 2 + React + Rust) com pontuação vocal real contra referência melódica. Offline, sem contas.
 
 ## Leia antes de qualquer mudança
 1. [docs/project-laws.md](docs/project-laws.md) — 20 leis. Obrigatórias.
