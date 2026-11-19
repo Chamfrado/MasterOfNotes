@@ -52,6 +52,8 @@ Para cada nota, o app procura o momento em que você **começou a cantá-la afin
 
 O ritmo só conta nas notas que você cantou afinado. Entrar na hora certa cantando a nota errada não ganha ponto de ritmo.
 
+Notas muito curtas (menos de 0,12 segundo, comuns em trechos rápidos) aceitam um pequeno atraso extra, de até 30 ms, porque nelas qualquer atraso pesa muito.
+
 Se o ritmo parece sempre baixo mesmo cantando no tempo, provavelmente falta ajustar a [latência](04-microfone.md#5-latência-atraso).
 
 ### Sustentação
@@ -69,7 +71,7 @@ Mede quanto de cada nota você **segurou afinado do começo ao fim**. Parar no m
 - **Cantar mais alto não aumenta a nota.** O volume da voz não entra em nenhuma conta. Ele só precisa ser suficiente para o app ouvir você acima do ruído do ambiente (veja [Calibração de ruído](04-microfone.md#3-calibração-de-ruído)).
 - **Trechos sem canto não contam.** Introdução, solos e pausas previstas na melodia não tiram nem dão pontos.
 - **Nota que você não canta conta zero.** Não dá para tirar nota alta cantando só um pedaço da música: cada nota da referência entra na conta, cantada ou não.
-- **Vibrato e enfeites curtos são tolerados.** Pequenas oscilações e passagens rápidas entre notas são suavizadas antes da comparação.
+- **Vibrato não é desafinação.** O vibrato é aquela oscilação natural da voz numa nota longa. O app compara a altura média da sua voz ao longo de cada oscilação (cerca de 0,2 segundo), e não cada instante isolado, então um vibrato centrado na nota não tira pontos. Nos testes, um vibrato de até ¾ de semitom para cada lado teve nota praticamente cheia. Enfeites curtos entre notas também são absorvidos. Já cantar a nota toda acima ou abaixo continua contando como desafinação.
 - **A pontuação parcial**, mostrada durante a música, considera só as notas que já terminaram.
 - **Falha no áudio não é silêncio.** Se o computador perder pedacinhos do som do microfone (por exemplo, um cabo USB com mau contato), esses pedaços não contam contra você. Mas se faltar mais de 5% do áudio da música, a apresentação vira treino, porque a nota não seria confiável.
 

@@ -68,7 +68,8 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 | cantar-treino-vazamento | P | "Para valer ranking, faça antes o teste de vazamento…" + **Começar como treino** | referência validada, `leakCheck:null` |
 | cantar-aviso-vazamento | P (recorte) | "O microfone está captando a música — use fones de ouvido." | ticks com padrão de vazamento |
 | resultado | P | Resultado com nota, 4 métricas e **Novo recorde pessoal!** | `outcome` da fixture (ilustrativo) |
-| resultado-sem-referencia | P | Resultado sem referência com métricas exploratórias | `result:null`, `exploratory` |
+| resultado-treino | P | Resultado de treino: cartão com o motivo e o botão de correção | `competitive:false`, `reason` |
+| resultado-sem-referencia | P | Resultado sem referência: cartão de treino + métricas exploratórias | `result:null`, `exploratory`, `reason` |
 | cantar-fluxo-completo | V | Do Começar ao Resultado (~40 s, música de teste) | link opcional |
 
 ### 07-pontuacao.md
@@ -113,13 +114,13 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 ### 12-privacidade.md, 13-problemas-e-faq.md, 14-glossario.md
 Só texto; reusam recortes das páginas 03, 04 e 06 (ex.: `detalhes-incompativel`, `microfone-calibrar-problemas`).
 
-## Totais (gerados em 2026-11-19)
+## Totais (gerados em 2026-11-19, main 7caa1c9)
 | Tipo | Qtd | Tamanho |
 |---|---|---|
-| PNG | 37 | 3,9 MB |
-| GIF | 9 | 4,0 MB (maior: 1,3 MB) |
-| Vídeo | 1 | 3,0 MB |
-| **Total** | 47 | **10,9 MB** (limite 40 MB) |
+| PNG | 38 | 4,1 MB |
+| GIF | 9 | 2,8 MB (maior: 0,65 MB) |
+| Vídeo | 1 | 3,1 MB |
+| **Total** | 48 | **10,0 MB** (limite 40 MB) |
 
 ## GIF sem ffmpeg (aprovado pelo coordenador)
 1. O script tira screenshots em sequência (≈ 8 fps) com `page.screenshot()` durante o fluxo.

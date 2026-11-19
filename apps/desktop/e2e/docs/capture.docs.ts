@@ -69,7 +69,7 @@ const LEAK_REASON = "Faça o teste de vazamento do microfone (ou use fones) para
 const resultTraining: PerformanceOutcome = {
   performanceId: 12,
   competitive: false,
-  result: { score: 78.3, pitch: 0.82, rhythm: 0.7, sustain: 0.75, coverage: 0.84, notesTotal: 25, notesHit: 21, algorithmVersion: 2 },
+  result: { score: 78.3, pitch: 0.82, rhythm: 0.7, sustain: 0.75, coverage: 0.84, notesTotal: 25, notesHit: 21, algorithmVersion: 3 },
   exploratory: null,
   personalBest: null,
   songRecord: null,
