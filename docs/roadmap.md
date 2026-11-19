@@ -7,7 +7,7 @@ Atualizado pelo coordenador. Última atualização: 2026-11-19 (fim da onda 2; M
 | Fase | Estado |
 |---|---|
 | 0–5 | ✅ Código completo: catálogo, player, captura, referência, pontuação **v3**, Solo/Festa/Duelo/Desafio, rankings, histórico, as 13 telas |
-| 6 Distribuição | ✅ instalador NSIS, update assinado testado (chave de teste), **rascunho do release v0.1.0** com a chave de produção (assinatura conferida) |
+| 6 Distribuição | ✅ **v0.1.1 publicada (pré-release)**: https://github.com/Chamfrado/MasterOfNotes/releases/tag/v0.1.1. Instalador assinado (updater), pontuação v5, guia do usuário |
 | 7 Estabilização | 🔄 QA da pontuação v3 (3ª rodada); guia do usuário ✅; ⏳ roteiro manual com microfone real |
 
 Testes em `main`: `pnpm check` (Rust ≈ 160, Vitest 198) + Playwright 99, todos verdes; CI do GitHub verde.
@@ -22,7 +22,6 @@ Desempenho: todas as metas cumpridas (`docs/testing/performance.md`, `performanc
 | Item | Impacto | Ação necessária |
 |---|---|---|
 | Licença do produto | `LICENSE` provisório "todos os direitos reservados" | Decidir a licença definitiva |
-| Publicar o release v0.1.0 (rascunho pronto) | distribuição | Clicar em Publish no GitHub |
 | Certificado Authenticode (opcional) | aviso do SmartScreen na instalação | Decidir se compra um certificado de assinatura de código |
 | Microfone: Realtek padrão mediu −104,8 dBFS | AC-005/006 | Conferir mudo/privacidade do Windows; fazer o teste com voz |
 | ffmpeg ausente | Fixtures do checklist de codecs (AC-004) | Instalar ffmpeg ou fornecer vídeos de teste próprios |
