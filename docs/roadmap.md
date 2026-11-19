@@ -42,8 +42,8 @@ Testes em `main`: Rust 13 suítes verdes (≈ 88 testes + 3 de hardware ignorado
 
 ## Riscos
 - Codecs MKV/AVI no WebView2 (ADR-0003): mitigado com mensagem clara; FFmpeg adiado.
-- Vazamento da música no microfone: aviso na calibração + recomendação de fones.
-- YIN validado só com sinais sintéticos: revisão QA em curso; plano B pYIN.
+- **Voz-guia do vídeo captada pelo microfone (A2): a −20 dB pontua 99,8 com o usuário calado.** Risco aceito até T-004-06 (checagem de vazamento obrigatória para o modo competitivo).
+- YIN: robusto com voz sintética realista (revisão QA). Regras do scorer v1 com injustiças A1–A9, corrigidas no v2 (T-006-06).
 - Disco C: com pouca folga: política de builds por crate (docs/agent-coordination.md).
 
 ## Decisões pendentes

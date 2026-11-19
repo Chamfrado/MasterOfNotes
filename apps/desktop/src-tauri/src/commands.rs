@@ -136,7 +136,7 @@ pub fn restore_library(app: &AppHandle) {
     });
 }
 
-async fn blocking<T: Send + 'static>(
+pub async fn blocking<T: Send + 'static>(
     f: impl FnOnce() -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {
     tauri::async_runtime::spawn_blocking(f).await.map_err(|e| {
