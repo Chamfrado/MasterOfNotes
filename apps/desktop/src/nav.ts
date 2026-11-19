@@ -21,7 +21,9 @@ export type Route =
   | { name: "new-session"; mode: GameMode }
   | { name: "session"; id: number }
   | { name: "participants" }
-  | { name: "history" };
+  | { name: "history" }
+  | { name: "settings" }
+  | { name: "updates" };
 
 export interface Nav {
   route: Route;

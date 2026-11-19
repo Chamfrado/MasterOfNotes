@@ -15,6 +15,7 @@ import {
   type NoiseCalibration,
 } from "../lib/ipc";
 import { useAsync } from "../useAsync";
+import { LatencyProbe } from "./LatencyProbe";
 import { LeakTest } from "./LeakTest";
 
 const CALIBRATION_S = 3;
@@ -57,6 +58,12 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
       stopMicMonitor().catch((e: unknown) => console.warn("stop_mic_monitor:", errorMessage(e)));
     };
   }, [deviceId, monitorRun]);
+
+  // After a leak test or latency probe: Rust saved new settings; the run stopped the monitor.
+  const afterRun = () => {
+    getSettings().then(setSettings, (e: unknown) => toast(errorMessage(e), "error"));
+    setMonitorRun((n) => n + 1);
+  };
 
   const patch = async (p: Partial<AppSettings>) => {
     try {
@@ -158,16 +165,11 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
         <p className="-mt-3 text-sm text-muted">
           Se a pontuação parece atrasada em relação ao que você canta, aumente; se parece adiantada, diminua.
         </p>
+        <LatencyProbe onFinished={afterRun} />
       </Card>
 
       <Card className="lg:col-span-2">
-        <LeakTest
-          settings={settings}
-          onFinished={() => {
-            getSettings().then(setSettings, (e: unknown) => toast(errorMessage(e), "error"));
-            setMonitorRun((n) => n + 1);
-          }}
-        />
+        <LeakTest settings={settings} onFinished={afterRun} />
       </Card>
     </div>
   );

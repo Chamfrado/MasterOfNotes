@@ -16,7 +16,7 @@
 | T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | done |
 | T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | done |
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | done |
-| T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | todo |
+| T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | done |
 | T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | done |
 
 ## STATUS
@@ -30,3 +30,10 @@
 2026-11-19 (Agente 4):
 - T-010-05 em review: `apps/desktop/e2e/a11y.e2e.ts` (axe-core, teclado, 4 viewports, movimento reduzido) nas 7 telas/estados existentes. Relatório e achados A11Y-01..05 em [a11y-audit.md](../docs/testing/evidence/a11y-audit.md). Abertos para o Agente 3: A11Y-01 (badge 12 px) e A11Y-02 (axe serious `label-content-name-mismatch`), marcados com `test.fail` até serem corrigidos.
 - T-010-05, T-010-03 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
+- T-010-04 em review (Agente 3, 2026-11-19). Telas sociais: ver SPEC-008 (T-008-03).
+  - Ajustes (`Settings.tsx`, item "Ajustes" na NavBar): dificuldade, painel do player, Modo TV, reduzir movimento (sistema/sempre/nunca, aplicado na hora), subpastas, verificar atualizações ao abrir, "Verificar agora". Atualização otimista: se o Rust recusar, volta o valor e mostra o erro.
+  - Modo TV (A11Y-03): `html[data-tv=on]` muda a raiz para `clamp(20px, 0.95vw + 10px, 40px)`, o que dá text-sm ≈ 24,7 px em 1080p.
+  - Consentimento (SPEC-001 R2): cartão no Início enquanto `autoCheckUpdates=false` e a pergunta ainda não foi feita.
+  - ❓ Modo TV e "pergunta de atualização já feita" ficam no localStorage do WebView (`src/display.ts`, marcado `ponytail:`). Proposto ao coordenador como campos de `AppSettings`.
+  - Testes: `Settings.test.tsx` (8: ajustes, aplicação imediata, reversão em erro, consentimento ×2, Atualizações ×3).
+- T-010-04 done (Agente 0, 2026-11-19): integrado em main @ b3ed719; vitest 173/173, Playwright 44/44. Modo TV e consentimento migram do localStorage para AppSettings (tvMode, updateConsentAsked), contrato em main.

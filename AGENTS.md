@@ -41,3 +41,4 @@ pnpm build                                  # instalador (tauri build)
 - TS: strict; sem `any`; todo acesso ao backend via `src/lib/ipc.ts`.
 - Textos de UI em pt-BR; código, identificadores e comentários em inglês.
 - Fixtures: sintéticas ou de autoria própria; nunca música/vídeo de terceiros (Lei 19).
+- **Git Bash (Windows):** argumentos que começam com `/` (ex.: `/S`, `/MANIFEST`) viram caminhos (`S:/`). Para executáveis Windows, use PowerShell ou `MSYS_NO_PATHCONV=1`.

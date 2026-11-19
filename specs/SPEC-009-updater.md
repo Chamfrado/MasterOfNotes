@@ -34,3 +34,9 @@
   - Capability `updater:default`.
   - Teste ✅ `tests::updater_needs_a_real_key`; smoke do app de dev sem chave ✅.
 - T-009-04 `review` (Agente 1, 2026-11-19): teste real com chave descartável fora do repo. Evidência: [update-test.md](../docs/testing/evidence/update-test.md). Assinatura adulterada recusada sem instalar; 0.1.0 → 0.1.1 instalou, reabriu e preservou pasta da biblioteca, participante e músicas; desinstalação limpa (dados mantidos). Nenhum material de chave commitado.
+- T-009-02, parte da UI (Agente 3, 2026-11-19), em review: `Updates.tsx` (rota `updates`, em Ajustes → "Verificar agora").
+  - `check()` mostra a versão instalada (`getVersion`), a nova versão, data e notas. "Baixar atualização" chama `update.download` com progresso em MB. Ao terminar, abre a confirmação "Instalar agora?"; só então `update.install()` roda (o NSIS fecha e reabre o app; sem plugin-process).
+  - "Depois" e "Mais tarde" não fazem nada; o recurso Rust é liberado com `close()` ao sair. Só existe fora do Player, então nunca roda durante uma performance (R4).
+  - Erro de rede, assinatura ou falta de chave (R7): "Não foi possível verificar ou baixar a atualização. O app continua funcionando normalmente." + detalhe + "Tentar de novo".
+  - Ao abrir: `UpdateWatcher` (App) só chama `check()` com `autoCheckUpdates=true` e só avisa por toast; nunca baixa nem instala sozinho.
+  - ⏳ Depende do Agente 1: registrar `tauri-plugin-updater` no `lib.rs` e a capability `updater:default`. Sem isso, `check()` falha e a tela mostra o erro.
