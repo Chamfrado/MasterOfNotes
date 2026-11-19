@@ -4,6 +4,7 @@ mod error;
 mod library;
 mod mic;
 mod reference;
+mod sessions;
 mod settings;
 
 use tauri::Manager;
@@ -56,6 +57,14 @@ pub fn run() {
             reference::import_reference,
             reference::set_reference_offset,
             reference::set_reference_status,
+            sessions::cmd::list_participants,
+            sessions::cmd::create_participant,
+            sessions::cmd::create_session,
+            sessions::cmd::get_session,
+            sessions::cmd::list_sessions,
+            sessions::cmd::set_round_status,
+            sessions::cmd::complete_session,
+            sessions::cmd::get_leaderboard,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
