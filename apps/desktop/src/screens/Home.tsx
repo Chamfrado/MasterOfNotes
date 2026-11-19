@@ -1,5 +1,7 @@
-import { Button, Card, ErrorState, LoadingState } from "../components/ui";
-import { getSettings } from "../lib/ipc";
+import { Button, Card, ErrorState, LoadingState, errorMessage, useToast } from "../components/ui";
+import { useState } from "react";
+import { markUpdateConsentAsked, updateConsentAsked } from "../display";
+import { getSettings, updateSettings } from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 
@@ -34,6 +36,7 @@ export function Home() {
         {settings.status === "error" && (
           <ErrorState title="Não foi possível ler as configurações" error={settings.error} onRetry={reload} />
         )}
+        {settings.status === "ready" && !settings.data.autoCheckUpdates && <UpdateConsent />}
         {settings.status === "ready" && (
           <div className="grid gap-4 md:grid-cols-2">
             <SetupStep
@@ -56,6 +59,42 @@ export function Home() {
         )}
       </section>
     </div>
+  );
+}
+
+/** SPEC-001 R2 / Law 10: autoCheckUpdates starts off; ask once. */
+function UpdateConsent() {
+  const toast = useToast();
+  const [asked, setAsked] = useState(updateConsentAsked);
+  if (asked) return null;
+  const answer = async (yes: boolean) => {
+    if (yes) {
+      try {
+        await updateSettings({ autoCheckUpdates: true });
+        toast("Combinado: vamos verificar atualizações ao abrir.", "success");
+      } catch (e) {
+        toast(errorMessage(e), "error");
+        return;
+      }
+    }
+    markUpdateConsentAsked();
+    setAsked(true);
+  };
+  return (
+    <Card role="region" aria-label="Atualizações automáticas" className="flex flex-wrap items-center gap-4">
+      <p className="flex-1">
+        Quer que o Master Of Notes verifique se há versão nova ao abrir? É o único uso de internet do app, e nada é instalado
+        sem você confirmar.
+      </p>
+      <div className="flex gap-3">
+        <Button variant="ghost" onClick={() => answer(false)}>
+          Agora não
+        </Button>
+        <Button variant="primary" onClick={() => answer(true)}>
+          Sim, verificar
+        </Button>
+      </div>
+    </Card>
   );
 }
 

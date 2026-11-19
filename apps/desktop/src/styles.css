@@ -61,6 +61,10 @@
 html {
   font-size: clamp(16px, 0.55vw + 10px, 28px);
 }
+/* Modo TV (A11Y-03): ~3 m away, smallest text (text-sm) ≥ 24 px at 1080p. */
+html[data-tv="on"] {
+  font-size: clamp(20px, 0.95vw + 10px, 40px);
+}
 
 body {
   margin: 0;
