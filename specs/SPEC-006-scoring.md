@@ -76,6 +76,7 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 | T-006-05 | Persistência da performance + recordes | Agente 1 | done |
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
 | T-006-07 | Medição de desempenho do caminho de áudio (CPU/memória 5 min, latência frame → LiveTick, estabilidade em 10 execuções, custo do finish) → `docs/testing/performance.md` | Agente 2 | done |
+| T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | review |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -136,3 +137,8 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
   - 10 performances seguidas: sem crescimento de threads nem de memória.
   - `finish`: cálculo 0,03–0,15 ms, mas liberar o dispositivo leva 43–503 ms (cpal/WASAPI). Há uma proposta, aguardando o coordenador.
 - T-006-07 done (Agente 0, 2026-11-19): integrado em main @ 1e7ddb2. Todas as metas de áudio cumpridas (CPU 3,8% release; callback→tick p95 5,6 ms; sem vazamento em 10 execuções). Decisão: a liberação assíncrona do dispositivo no finish foi RECUSADA (corrida com start, sem meta violada); o finish já roda em `blocking`. ⏳ latência Channel → pintura (UI).
+- T-006-08 `review` (Agente 4, 2026-11-19): re-revisão de QA do v2 em [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md), com v1 × v2 no mesmo áudio.
+  - Resolvidos: A1, A4 (monotônico; +90 c = 37,1), A5 (sirene ≤ 11,8; nota fixa 24,4), A6, A7, A8 e A9 em boa parte. A2 resolvido por processo (T-004-06).
+  - Parcial: A3 (assimétrico com pausa < 300 ms; o teste A3 usa só pausas de 400 ms). A4(b): queda máxima 10,7 (Normal) e 10,4 (Hard), contra a meta de ≤ 10.
+  - Novos achados: N1 (Alta) vibrato ±75/±100 c → 77,5/63,9 com o cantor centrado; N2 (Alta, ❓) com o denominador fixo, 5–15 % de frames perdidos custam 4–12 pontos, e o WASAPI desta máquina entregou 40–46 mil de 48 mil amostras/s; N3 (Média) o gate pune duas vezes o atraso legato; N4 (Média) notas de 50 ms com 25 ms de atraso → 1,1.
+  - Amador típico (drift ±20, vibrato ±50, desvio ±20 c) no Normal: 85,6–90,4.
