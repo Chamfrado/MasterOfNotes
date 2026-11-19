@@ -19,23 +19,25 @@ Status de tarefa: `todo` · `doing` · `review` (entregue, aguardando coordenado
 
 ## Matriz de rastreabilidade (AC → spec → teste → evidência)
 
-| AC | Spec | Teste | Evidência |
+Atualizada pelo coordenador em 2026-11-19. ✅ executado com evidência · 🟡 automatizado/sintético verde, falta a validação manual com hardware real · ⏳ pendente.
+
+| AC | Spec | Teste automatizado | Evidência / estado |
 |---|---|---|---|
-| AC-001 instalar e executar | 001, 009 | `tauri build` + instalação manual | ⏳ |
-| AC-002 selecionar pasta | 002 | `library::tests` + e2e | ⏳ |
-| AC-003 listar/pesquisar | 002, 010 | `Library.test.tsx` | ⏳ |
-| AC-004 reproduzir vídeo | 003 | checklist manual por formato | ⏳ |
-| AC-005 selecionar/testar mic | 004 | manual com dispositivo real | ⏳ |
-| AC-006 calibrar | 004 | testes de noise floor + manual | ⏳ |
-| AC-007 referência válida | 005 | `scoring-engine` testes de referência | ⏳ |
-| AC-008 afinado/desafinado/silêncio/atraso | 006 | `scoring-engine/tests/regression.rs` | ⏳ |
-| AC-009 feedback coerente | 006, 010 | regressão + manual | ⏳ |
-| AC-010 salvar performance | 007 | `db` testes | ⏳ |
-| AC-011 leaderboard persistente | 007 | `game` + `db` testes | ⏳ |
-| AC-012 partida Festa | 008 | `game` testes + e2e | ⏳ |
-| AC-013 persistir após reabrir | 001 | `db` teste de reabertura + manual | ⏳ |
-| AC-014 instalador | 009 | `tauri build` | ⏳ |
-| AC-015 update assinado | 009 | release de teste local | ⏳ |
-| AC-016 docs/specs/leis | — | revisão do coordenador | ⏳ |
+| AC-001 instalar e executar | 001, 009 | build release + smoke | ✅ instalado e executado no Windows 11, sem UAC (`update-test.md`) |
+| AC-002 selecionar pasta | 002 | `library::tests` (9), E2E smoke | 🟡 `set_library_folder` real no WebView2 (passeio do Agente 1); diálogo nativo → roteiro passo 1 |
+| AC-003 listar/pesquisar | 002, 010 | `Library.test.tsx`, E2E busca sem acento | 🟡 roteiro passo 2 |
+| AC-004 reproduzir vídeo | 003 | E2E Player + vídeo sintético, `test-song.e2e` | 🟡 vídeo tocou no WebView2 real com CSP de produção; formatos → `codecs.md` |
+| AC-005 selecionar/testar mic | 004 | `audio-engine` (sintéticos + hardware ignorado) | ⏳ captura funciona, mas o mic padrão está mudo/bloqueado (−105 dBFS) → roteiro passo 6 |
+| AC-006 calibrar | 004 | `calibrate_noise`, `Mic.test.tsx` | ⏳ roteiro passos 7, 10, 11 |
+| AC-007 referência válida | 005 | `reference` (Rust), `Reference.test.tsx`, `test_song.rs` | 🟡 roteiro passos 8–9 |
+| AC-008 afinado/desafinado/silêncio/atraso | 006 | regressão v2 com golden (pipeline áudio → score) | ✅ sintético (`scoring-accuracy.md`, `scoring-review.md`); ⏳ voz real, roteiro 12–15 |
+| AC-009 feedback coerente | 006, 010 | `Player.test.tsx`, regressão | ⏳ roteiro 12–14 |
+| AC-010 salvar performance | 007 | `live::tests` (persistência, competitive ≥ 50%) | 🟡 roteiro 16 |
+| AC-011 leaderboard persistente | 007 | `game` + `live` + E2E Ranking | 🟡 roteiro 16, 19 |
+| AC-012 partida Festa | 008 | `game` (15), telas + E2E Festa (em andamento) | ⏳ roteiro 17–18 |
+| AC-013 persistir após reabrir | 001 | `db::reopen_preserves_data`; dados sobreviveram ao update | ✅ via update 0.1.0 → 0.1.1 (`update-test.md`); roteiro 19 |
+| AC-014 instalador | 009 | `pnpm build` | ✅ NSIS por usuário, SHA-256 na SPEC-009 |
+| AC-015 update assinado | 009 | assinatura adulterada recusada + update real | ✅ **com chave de teste**; ⏳ produção (chave do proprietário) |
+| AC-016 docs/specs/leis | — | `pnpm check`, CI | 🟡 revisão final do coordenador na Fase 7 |
 
 Evidências em `docs/testing/evidence/`.

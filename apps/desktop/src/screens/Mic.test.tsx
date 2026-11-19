@@ -12,6 +12,13 @@ vi.mock("../lib/ipc", () => ({
   startMicMonitor: vi.fn(),
   stopMicMonitor: vi.fn(() => Promise.resolve()),
   calibrateNoise: vi.fn(),
+  listSongs: vi.fn(() => Promise.resolve([])),
+  getReference: vi.fn(),
+  startPerformance: vi.fn(),
+  syncPerformance: vi.fn(),
+  finishPerformance: vi.fn(),
+  abortPerformance: vi.fn(),
+  videoSrc: () => "asset://v.mp4",
 }));
 
 const settings = { inputDeviceId: null, noiseFloorDbfs: null, latencyOffsetMs: 0 } as ipc.AppSettings;

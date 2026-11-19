@@ -35,10 +35,10 @@ test("lista só disponíveis e busca ignora acento e caixa", async ({ page }) =>
   const search = page.getByRole("searchbox", { name: "Buscar músicas" });
   await search.fill("cancao");
   await expect(page.getByText("1 de 3 músicas")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cantar Canção da Manhã, de Banda Aurora" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cantar Canção da Manhã Banda Aurora" })).toBeVisible();
 
   await search.fill("ELETRICA");
-  await expect(page.getByRole("button", { name: "Cantar Saudade Elétrica" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cantar Saudade Elétrica b2.mp4" })).toBeVisible();
   await expect(page.getByText("1 de 3 músicas")).toBeVisible();
 
   await search.fill("ze mirante"); // artist field, accents and case folded
@@ -65,7 +65,7 @@ test("falha ao listar a biblioteca mostra o erro do backend e permite tentar de 
 test("player mostra o erro do backend quando a música não carrega e Esc volta", async ({ page }) => {
   const { pageErrors } = await openLibrary(page, { list_songs: { ok: songs } });
   await setReply(page, "list_songs", appError("A biblioteca está indisponível no momento."));
-  await page.getByRole("button", { name: "Cantar Saudade Elétrica" }).click();
+  await page.getByRole("button", { name: "Cantar Saudade Elétrica b2.mp4" }).click();
   await expect(page.getByRole("alert").getByText("A biblioteca está indisponível no momento.")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("heading", { level: 1, name: "Biblioteca" })).toBeVisible();
@@ -77,7 +77,7 @@ test("player com vídeo ilegível mostra o aviso de codec e marca a música como
     list_songs: { ok: songs },
     update_song: { ok: { ...songs[0], playable: "no" } },
   });
-  await page.getByRole("button", { name: "Cantar Canção da Manhã, de Banda Aurora" }).click();
+  await page.getByRole("button", { name: "Cantar Canção da Manhã Banda Aurora" }).click();
   await expect(page.getByRole("alert")).toContainText("Converta para MP4 com vídeo H.264 e áudio AAC.");
   await expect(page.getByRole("button", { name: "Começar" })).toHaveCount(0);
   await expect.poll(() => ipcCalls(page, "update_song")).toEqual([{ cmd: "update_song", args: { id: "a1", patch: { playable: "no" } } }]);

@@ -10,9 +10,12 @@ export const settings = (libraryFolder: string | null, extra: Partial<AppSetting
   latencyOffsetMs: 0,
   difficulty: "normal",
   videoVolume: 0.8,
+  tvMode: false,
+  updateConsentAsked: false,
   reducedMotion: "on",
   feedbackOverlay: "full",
   autoCheckUpdates: false,
+  leakCheck: null,
   ...extra,
 });
 

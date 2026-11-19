@@ -15,6 +15,8 @@ import {
   type NoiseCalibration,
 } from "../lib/ipc";
 import { useAsync } from "../useAsync";
+import { LatencyProbe } from "./LatencyProbe";
+import { LeakTest } from "./LeakTest";
 
 const CALIBRATION_S = 3;
 const issueText: Record<CalibrationIssue, string> = {
@@ -45,6 +47,7 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
   const [monitorError, setMonitorError] = useState<unknown>(null);
   const [calibrating, setCalibrating] = useState(false);
   const [verdict, setVerdict] = useState<NoiseCalibration | null>(null);
+  const [monitorRun, setMonitorRun] = useState(0); // bump to restart the monitor after a leak test
   const deviceId = settings.inputDeviceId;
 
   useEffect(() => {
@@ -54,7 +57,13 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
     return () => {
       stopMicMonitor().catch((e: unknown) => console.warn("stop_mic_monitor:", errorMessage(e)));
     };
-  }, [deviceId]);
+  }, [deviceId, monitorRun]);
+
+  // After a leak test or latency probe: Rust saved new settings; the run stopped the monitor.
+  const afterRun = () => {
+    getSettings().then(setSettings, (e: unknown) => toast(errorMessage(e), "error"));
+    setMonitorRun((n) => n + 1);
+  };
 
   const patch = async (p: Partial<AppSettings>) => {
     try {
@@ -141,9 +150,26 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
           }}
           format={(v) => `${v > 0 ? "+" : ""}${v} ms`}
         />
+        <Slider
+          label="Volume da música"
+          min={0}
+          max={1}
+          step={0.05}
+          value={settings.videoVolume}
+          onChange={(v) => {
+            setSettings((s) => ({ ...s, videoVolume: v }));
+            void patch({ videoVolume: v });
+          }}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
         <p className="-mt-3 text-sm text-muted">
           Se a pontuação parece atrasada em relação ao que você canta, aumente; se parece adiantada, diminua.
         </p>
+        <LatencyProbe onFinished={afterRun} />
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <LeakTest settings={settings} onFinished={afterRun} />
       </Card>
     </div>
   );

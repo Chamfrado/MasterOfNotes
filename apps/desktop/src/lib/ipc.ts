@@ -23,6 +23,10 @@ export interface AppSettings {
   reducedMotion: "system" | "on" | "off";
   feedbackOverlay: "full" | "compact" | "hidden";
   autoCheckUpdates: boolean;
+  /** Larger root scale for TVs (A11Y-03). Default false. */
+  tvMode: boolean;
+  /** The first-run "check for updates?" consent card was answered. Default false. */
+  updateConsentAsked: boolean;
   /** Last leak check (SPEC-004 R9 / T-004-06). Competitive play requires a passed check for the current device at <= this volume. Read-only via updateSettings. */
   leakCheck: LeakCheck | null;
 }
@@ -280,5 +284,28 @@ export const completeSession = (id: number) => invoke<GameSession>("complete_ses
 /** Ranking for the song's current active reference revision + current algorithm + difficulty. */
 export const getLeaderboard = (songId: string, difficulty: Difficulty) =>
   invoke<LeaderboardRow[]>("get_leaderboard", { songId, difficulty });
+
+/** Performance history incl. older algorithm/reference versions (SPEC-007 R6). Newest first. */
+export interface PerformanceRow {
+  performanceId: number;
+  songId: string;
+  songTitle: string;
+  participantName: string | null; // null = Anônimo
+  score: number;
+  competitive: boolean;
+  algorithmVersion: number;
+  referenceRevision: number;
+  difficulty: Difficulty;
+  createdMs: number;
+  /** Same CompatKey as the song's current one (active reference + revision + ALGORITHM_VERSION), for this row's difficulty. false = "versão anterior". */
+  isCurrentKey: boolean;
+}
+export interface ListPerformances {
+  songId?: string;
+  participantId?: number;
+  limit: number; // 1..500
+}
+export const listPerformances = (args: ListPerformances) =>
+  invoke<PerformanceRow[]>("list_performances", { args });
 
 // Updates (SPEC-009) use @tauri-apps/plugin-updater directly; no custom commands.

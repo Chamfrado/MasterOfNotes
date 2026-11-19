@@ -1,5 +1,5 @@
 // Karaoke-specific components (SPEC-010 T-010-02). Pure presentation: data comes from ipc.ts types.
-import type { FeedbackLabel, LeaderboardRow, LiveFeedback, MicFrame } from "../lib/ipc";
+import type { FeedbackLabel, GameMode, LeaderboardRow, LiveFeedback, MicFrame, Standing } from "../lib/ipc";
 import { Badge, type Tone } from "./ui";
 
 const fmt1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -147,6 +147,61 @@ export function RankingTable({ rows, caption, highlightId }: { rows: Leaderboard
             <th scope="row" className="px-4 py-3 font-medium">{r.participantName}</th>
             <td className="px-4 py-3 text-right font-semibold tabular-nums">{formatScore(r.score)}</td>
             <td className="rounded-r-md px-4 py-3 text-right text-muted tabular-nums">{dateFmt.format(r.createdMs)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+// ---------- Game modes / StandingsTable (SPEC-008) ----------
+export const modeLabel: Record<GameMode, string> = { solo: "Solo", party: "Festa", duel: "Duelo", challenge: "Desafio" };
+
+/** Party standings: ranked by AVERAGE among eligible (rounds ≥ minRounds); ineligible listed below, flagged. */
+export function StandingsTable({
+  standings,
+  names,
+  minRounds,
+  caption,
+}: {
+  standings: Standing[];
+  names: Map<number, string>;
+  minRounds: number | undefined;
+  caption: string;
+}) {
+  if (standings.length === 0) return <p className="py-6 text-center text-muted">Ninguém cantou ainda.</p>;
+  const rows = [...standings].sort((a, b) => Number(b.eligible) - Number(a.eligible) || a.rank - b.rank);
+  return (
+    <table className="w-full border-separate border-spacing-y-1 text-left">
+      <caption className="sr-only">{caption}</caption>
+      <thead className="text-sm text-muted">
+        <tr>
+          <th scope="col" className="px-4 py-2">#</th>
+          <th scope="col" className="px-4 py-2">Cantor</th>
+          <th scope="col" className="px-4 py-2 text-right">Média</th>
+          <th scope="col" className="px-4 py-2 text-right">Total</th>
+          <th scope="col" className="px-4 py-2 text-right">Rodadas</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((r) => (
+          <tr key={r.participantId} className={r.eligible ? "bg-surface-2" : "bg-surface-2/50 text-muted"}>
+            <td className="rounded-l-md px-4 py-3 font-display font-bold tabular-nums">{r.eligible ? r.rank : "–"}</td>
+            <th scope="row" className="px-4 py-3 font-medium">
+              <span className="flex flex-wrap items-center gap-2">
+                {names.get(r.participantId) ?? `#${r.participantId}`}
+                {!r.eligible && (
+                  <Badge tone="warning">
+                    {minRounds != null && r.rounds < minRounds
+                      ? `Inelegível: ${minRounds - r.rounds === 1 ? "falta 1 rodada" : `faltam ${minRounds - r.rounds} rodadas`}`
+                      : "Inelegível"}
+                  </Badge>
+                )}
+              </span>
+            </th>
+            <td className="px-4 py-3 text-right font-semibold tabular-nums">{r.rounds ? formatScore(r.average) : "–"}</td>
+            <td className="px-4 py-3 text-right tabular-nums">{formatScore(r.total)}</td>
+            <td className="rounded-r-md px-4 py-3 text-right tabular-nums">{r.rounds}</td>
           </tr>
         ))}
       </tbody>

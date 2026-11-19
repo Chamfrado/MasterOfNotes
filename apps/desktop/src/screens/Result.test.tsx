@@ -4,9 +4,10 @@ import type { PerformanceOutcome } from "../lib/ipc";
 import { NavContext } from "../nav";
 import { Result } from "./Result";
 
+const replace = vi.fn();
 const renderResult = (outcome: PerformanceOutcome) =>
   render(
-    <NavContext.Provider value={{ route: { name: "home" }, navigate: vi.fn(), back: vi.fn() }}>
+    <NavContext.Provider value={{ route: { name: "home" }, navigate: vi.fn(), replace, back: vi.fn() }}>
       <Result songId="s" outcome={outcome} />
     </NavContext.Provider>,
   );
