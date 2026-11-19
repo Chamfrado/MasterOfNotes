@@ -94,3 +94,10 @@ Critérios:
   - ⏳ Medida real com cliques nas caixas e palmas não foi feita. O microfone desta máquina parece mudo (piso de −105 a −109 dBFS); depende do proprietário.
 - T-004-07 parte Agente 1 `review` (2026-11-19): `start_performance` com `latencyProbe` (1–500 cliques; recusa junto com leakCheck, rodada ou participante) monta `PerformanceConfig.latency_probe` com `latency_offset_ms = 0`, sem referência. No finish, nada vai para `performances`; se `passed`, grava `latencyOffsetMs = round(offsetMs)` pelo caminho validado das settings; devolve `outcome.latency` (achatado, como no ipc.ts). Teste ✅ `live::tests::latency_probe_saves_offset_only_when_passed`. ❓ `songId` continua obrigatório e precisa existir (a UI passa a música atual).
 - T-004-07 (Agente 0, 2026-11-19): sonda integrada em main @ 2cef2b0. Sintético: atraso de 87 ms medido com erro ≤ 1 ms. ⏳ UI (trilha de cliques) e medição real com caixas e palmas.
+- T-004-07, parte da UI (Agente 3, 2026-11-19), em review: "Medir automaticamente" na tela de Microfone (`src/screens/LatencyProbe.tsx`).
+  - `src/player/clickTrack.ts` (puro) gera um WAV PCM 16-bit mono 48 kHz com 8 cliques de 6 ms (2 kHz, decaimento rápido), um a cada 750 ms, o 1º em 1000 ms; os ataques caem exatos na amostra.
+  - O WAV toca por um `<audio>` (blob:, permitido na CSP `media-src`), o mesmo pipeline de saída dos vídeos. Passa `latencyProbe: clicksMs` (tempo de mídia) ao `startPerformance` e sincroniza com `currentTime` do elemento em `playing`, a cada 250 ms e no fim (`<audio>` não tem `requestVideoFrameCallback`).
+  - No fim, mostra `outcome.latency`: se passou, "Latência medida: X ms (variação ±Y ms, D de E palmas). Ajuste salvo." e recarrega as settings; se não, o `reason` do Rust e "O ajuste atual foi mantido." O ajuste manual continua.
+  - Testes: `clickTrack.test.ts` (3: espaçamento, WAV válido, ataques exatos) e `LatencyProbe.test.tsx` (4).
+  - ❓ Usa a 1ª música disponível como `songId` (o command exige uma). ⏳ Medida real com caixas e palmas não feita.
+
