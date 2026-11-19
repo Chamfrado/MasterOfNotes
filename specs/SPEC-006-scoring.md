@@ -50,9 +50,9 @@ Revisão: [scoring-review.md](../docs/testing/evidence/scoring-review.md). O v1 
 - **A1 + A3: janela de onset.** Busca em `[max(start − 300 ms, fim_da_nota_anterior), start + d/2]`. O erro é simétrico: `rhythm = 1` se |err| ≤ 80 ms, `0` se |err| ≥ 300 ms, linear entre. Nota colada na anterior (gap 0) começa a busca em `start`, então nota repetida ligada cantada no tempo tem ritmo 1.
 - **A4: sem degrau.** Sustain e onset deixam de usar o corte p ≥ 0,5. Restrições obrigatórias, a formulação é do Agente 2:
   (a) o score é monotonicamente não crescente em |e| para desafinação constante;
-  (b) nenhum salto > 5 pontos entre desafinações constantes vizinhas a 10 cents;
+  (b) nenhum salto > 10 pontos entre desafinações constantes vizinhas a 10 cents. Revisado em 2026-11-19: a meta original de 5 era matematicamente incompatível com (c) e com perfeito ≈ 100, que exigem ≥ 6,7 por passo; medido no v2: máx. 9,7;
   (c) +90 cents constante (quase a nota vizinha) ≤ 40 no Normal.
-- **A5: ritmo só em notas acertadas.** `rhythm_i = 0` se `pitch_i < 0,5`. Meta: sirene de 1 oitava e nota fixa ≤ 15.
+- **A5: ritmo só em notas acertadas.** `rhythm_i = 0` se `pitch_i < 0,5`. Meta: sirene de 1 oitava ≤ 15; nota fixa ≤ 25. Revisado: quem sustenta uma classe canta de fato, afinadas, as notas daquela classe, e o crédito é legítimo, coerente com "1 de 10 notas = 10". **Formulação aceita no v2:** em vez do corte `pitch_i < 0,5 → 0`, ritmo e sustain são multiplicados pelo fator contínuo `clamp(2·acerto − 1, 0, 1) · min(1, 2·pitch_i)`, que é compatível com A4 (sem degrau).
 - **A6: zona de transição.** Quando a nota anterior termina a < 30 ms do início desta, os primeiros `min(25 ms, d/4)` são excluídos do pitch e do sustain. O mesmo vale para o final, em relação à próxima nota. Meta: notas ligadas de 100 ms, canto perfeito ≥ 92; de 50 ms ≥ 85.
 - **A8: denominador fixo.** O denominador de `pitch_i`/`sustain_i` é o número de frames **esperados** da nota (d/10 ms, menos as zonas de transição). Frame ausente conta 0. Trechos pulados por seek ficam fora (`Scorer::skip`).
 - **A7: golden.** A regressão ganha `assert_eq!` do `ScoreResult` completo (valores exatos) para cada fixture. Qualquer mudança de resultado quebra o teste e exige bump de versão e atualização desta spec.
@@ -60,6 +60,8 @@ Revisão: [scoring-review.md](../docs/testing/evidence/scoring-review.md). O v1 
 - **A2: voz-guia no microfone.** Não dá para resolver só no scorer. Decisão: a **checagem de vazamento** (SPEC-004 R9) passa a ser **obrigatória para modo competitivo**, por dispositivo e volume. O resultado fica salvo nas settings (`leakCheck: { deviceId, videoVolume, passed, atMs }`). Sem checagem aprovada para o dispositivo e o volume atuais, a performance é treino, e a UI explica e sugere fones. Tarefa T-004-06. Até ela existir, é um risco aceito e registrado no roadmap.
 
 Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescentadas pelos itens acima.
+
+**Tolerâncias v2** (T_full, T_zero, em cents): Easy (40, 200), Normal (25, 165), Hard (15, 155). O Normal ficou mais exigente que no v1: +50 cents dá 74,5. ⏳ Risco: calibrado só com voz sintética (incluindo drift de 15 cents, jitter e sopro: 99,6–100). Precisa ser confirmado com gravações reais de cantores amadores antes da release; se amadores afinados ficarem abaixo de ~85 no Normal, ajustar (com bump de versão).
 
 ## PLAN
 `scoring-engine` puro. `Scorer` incremental; `finish()` consolida. 5 min ≈ 30k frames em memória (ok). `performance.rs` (src-tauri) faz âncora/sync, aplica latência e decide `competitive`.
