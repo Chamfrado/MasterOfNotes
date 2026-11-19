@@ -1,6 +1,6 @@
 # Validação do fluxo vertical no app real
 
-Roteiro manual do proprietário: será completado pelo coordenador. Este documento começa pela música de teste.
+Roteiro manual do proprietário. A música de teste vem antes porque é o pré-requisito; o roteiro em si está na seção **Roteiro do proprietário**, ao final.
 
 ## Música de teste (T-003-05)
 
@@ -66,3 +66,41 @@ Medido em 2026-11-19 (Chromium headless 1.65.1):
 - Alinhamento de notas **ligadas** não é medido automaticamente (a janela de 10 ms não separa notas vizinhas). Elas usam o mesmo relógio de áudio das notas medidas.
 - O WebM não tem índice de seek (Cues). O seek funciona porque há um keyframe por segundo; o seek pode ser menos preciso que num MP4 fechado.
 - Gerado e verificado no Chromium headless. A reprodução no **WebView2** real (mesmo motor Blink) entra no roteiro manual / `codecs.md`.
+
+## Roteiro do proprietário (fluxo vertical, AC-002 a AC-013)
+
+Leva cerca de 25 min. Preencha a coluna **Resultado** (✅ / ❌ + observação) e anote data, commit (`git log -1 --oneline`), microfone usado e se usou fones ou caixas. Qualquer ❌ vira bug com o passo exato.
+
+### Preparação (uma vez)
+1. **Microfone liberado:** Configurações do Windows → Privacidade e segurança → Microfone → "Permitir que aplicativos da área de trabalho acessem o microfone" **ligado**; e o microfone não está mudo (no Painel de Som, a barra de nível reage à voz). *Motivo: nos testes automáticos, o Realtek padrão mediu −105 dBFS, sinal de mudo ou bloqueado.*
+2. Gere a música de teste (seção acima) numa pasta fora do repositório, ex.: `C:/Karaoke/teste`. Se quiser, coloque também na pasta 1–2 vídeos **seus** (mp4/webm/mkv/mov/avi) para o teste de formatos.
+3. Abra o app: na raiz do repositório, `pnpm dev` (a primeira compilação leva alguns minutos).
+
+### Passos
+
+| # | AC | Passo | Esperado | Resultado |
+|---|---|---|---|---|
+| 1 | AC-002 | Biblioteca → escolher a pasta `C:/Karaoke/teste` | As 2 músicas de teste (e os seus vídeos) aparecem; o `.json` não aparece | |
+| 2 | AC-003 | Buscar "karaoke", depois "TESTE" e depois "xyz" | Filtra sem distinguir maiúsculas e acentos; "xyz" mostra o estado vazio | |
+| 3 | AC-002 | Com o app aberto, copie mais um vídeo para a pasta; depois apague-o | Ele aparece e some sozinho em ~2 s | |
+| 4 | AC-004 | Abrir `mon-test-song` (com guia) → Cantar → tocar | Vídeo e som sincronizados; a letra na faixa inferior não fica coberta pelo overlay; Espaço pausa e retoma; F = tela cheia; H alterna o overlay; ↑/↓ volume | |
+| 5 | AC-004 | Abrir cada vídeo seu (se houver) | Toca, ou mostra a mensagem clara de formato não suportado (AVI deve mostrar a mensagem) | |
+| 6 | AC-005 | Microfone → escolher o dispositivo | O medidor reage à voz; "Voz detectada" e a nota aparecem ao cantar um "aaa" | |
+| 7 | AC-006 | Microfone → Calibrar (3 s em silêncio) | Mostra "Ambiente bom para cantar." ou um aviso compreensível | |
+| 8 | AC-007 | Biblioteca → `mon-test-song` → Referência → importar `mon-test-song.mon-melody.json` | 25 notas desenhadas sobre o vídeo, alinhadas ao "Sol4", "Lá4"… mostrados no vídeo; **Validar alinhamento** | |
+| 9 | AC-007 | Repetir o passo 8 para `mon-test-song-karaoke` | Referência validada | |
+| 10 | A2 | Microfone → **Teste de vazamento** com **caixas de som** (sem fones), em silêncio | Provavelmente **reprovado** (a guia vaza): é o comportamento correto | |
+| 11 | A2 | Repetir o teste de vazamento **com fones** | **Aprovado** | |
+| 12 | AC-008/009 | `mon-test-song-karaoke`, **em silêncio** do começo ao fim | Feedback "Nota não detectada"; score ≈ 0 | |
+| 13 | AC-008/009 | `mon-test-song-karaoke`, **cantando junto** (cante "lá" na altura das notas mostradas; ouça antes a versão com guia) | Feedback "Bom"/"Muito bom" nas notas acertadas; score coerente com o que você sentiu. Anote o número | |
+| 14 | AC-008 | Repetir **cantando propositalmente meio tom acima** em tudo | Score bem menor que no passo 13 | |
+| 15 | sync | No passo 13, os acertos aparecem "atrasados"? | Se sim, ajuste a latência no Microfone (±10 ms) e repita; anote o valor que ficou melhor | |
+| 16 | AC-010/011 | Depois do passo 13: Resultado → Ranking da música | A performance aparece com seu nome; recorde pessoal e da música corretos | |
+| 17 | AC-012 | Jogar → Festa: 2 participantes, 2 músicas de teste (validadas), ordem sorteada; cante as rodadas (pode ser curto) | Ranking parcial com total e média; vencedor ao final | |
+| 18 | AC-012 | Durante a festa, feche o app no meio e reabra → Jogar → "Continuar de onde parou" | A festa retoma na rodada certa | |
+| 19 | AC-013 | Feche e reabra o app | Pasta, configurações, referências validadas, ranking e histórico preservados | |
+
+### Registro
+- Data / commit:
+- Microfone / fones ou caixas:
+- Bugs encontrados (passo → o que aconteceu):
