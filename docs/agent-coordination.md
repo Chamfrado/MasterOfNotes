@@ -22,6 +22,7 @@ Se uma sessão for perdida: abra uma nova sessão Claude Code na raiz do reposit
 4. Agente marca a tarefa como `review` na spec e envia o **relatório de entrega** ao coordenador.
 5. Coordenador revisa, roda os testes, faz merge em `main` (`--no-ff`), marca `done` e avisa todos para sincronizarem (`git merge main`).
 6. Mudança de contrato: o agente propõe; o coordenador altera `contracts.md`/`ipc.ts` em `main` e avisa todos.
+7. **Worktree terminada é excluída** (regra do proprietário). Quando o agente conclui todas as tarefas atribuídas àquela worktree, ele avisa no relatório: "worktree livre". Depois do merge, o coordenador roda `git worktree remove .worktrees/agent-N` e `git branch -d agent-N/work`. A próxima atribuição recria a worktree a partir de `main`. Nunca remover enquanto houver trabalho não integrado.
 
 ## Relatório de entrega (agente → coordenador)
 
