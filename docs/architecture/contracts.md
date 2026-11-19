@@ -134,8 +134,8 @@ impl LivePerformance {
     pub fn take_error(&self) -> Option<AppError>;   // mic desconectado
     pub fn finish(self) -> PerformanceSummary;      // drop = abort
 }
-pub struct PerformanceSummary { pub competitive: bool, pub played_ms: u64, pub result: Option<ScoreResult>, pub exploratory: Option<ExploratoryMetrics>, pub capture: CaptureStats }
-// CaptureStats → performances.capture_json: device, noiseFloorDbfs, latencyOffsetMs, clippedRatio, leakSuspected (só indicativo)
+pub struct PerformanceSummary { pub competitive: bool, pub reason: Option<String> /* pt-BR, por que virou treino (v3) */, pub played_ms: u64, pub result: Option<ScoreResult>, pub exploratory: Option<ExploratoryMetrics>, pub capture: CaptureStats }
+// CaptureStats → performances.capture_json: device, noiseFloorDbfs, latencyOffsetMs, clippedRatio, missingRatio (0..1; > 0,05 ⇒ treino, v3 N2), leakSuspected (só indicativo)
 ```
 
 Os commands (Agente 1) carregam a referência ativa e as configurações, criam `PerformanceConfig`, guardam `Mutex<Option<LivePerformance>>` no `AppState`, repassam `LiveTick` ao `Channel` e, no `finish`, decidem a persistência: `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (SPEC-007 R2). Também calculam os recordes.

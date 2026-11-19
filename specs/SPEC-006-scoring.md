@@ -63,6 +63,18 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 
 **Tolerâncias v2** (T_full, T_zero, em cents): Easy (40, 200), Normal (25, 165), Hard (15, 155). O Normal ficou mais exigente que no v1: +50 cents dá 74,5. ⏳ Risco: calibrado só com voz sintética (incluindo drift de 15 cents, jitter e sopro: 99,6–100). Precisa ser confirmado com gravações reais de cantores amadores antes da release; se amadores afinados ficarem abaixo de ~85 no Normal, ajustar (com bump de versão).
 
+## Algoritmo v3 (decisão do coordenador, 2026-11-19, a partir da re-revisão de QA)
+
+Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md). `ALGORITHM_VERSION = 3`. Resultados v1 e v2 já gravados ficam preservados e separados no ranking (Lei 11).
+
+- **N1 (ALTA): vibrato não é desafinação.** O erro em cents passa a ser medido sobre o **contorno sem vibrato** (suavização de ~1 período, 150–200 ms, centrada; formulação do Agente 2), e não frame a frame. Metas, com voz realista centrada, Normal: vibrato ±50 c ≥ 95; ±75 c ≥ 92; ±100 c ≥ 88. Desafinação constante continua penalizada como no v2 (as metas de A4 seguem valendo).
+- **N2 (ALTA): frame que não chegou ≠ frame calado.** Frame ausente (o áudio não chegou: déficit do driver, buffer cheio) fica **fora** do denominador, como `skip`. Frame que chegou e não é vozeado continua contando 0. Se mais de **5%** dos frames esperados da música faltarem, a performance vira **treino**, com reason em pt-BR ("o áudio do microfone teve falhas…"). Isso mantém A8 resolvido (perda grande ⇒ não competitivo) sem punir máquinas com pequeno déficit. O `performance.rs` mede a falta pelo contador do callback em relação ao tempo de vídeo tocado, e o `CaptureStats` registra a porcentagem.
+- **N3 (MÉDIA): o gate não cobra o mesmo erro três vezes.** A acurácia usada no fator contínuo de ritmo/sustentação começa no onset detectado (ou em start + 80 ms se não houver onset), de modo que segurar a nota anterior pese uma vez só.
+- **N4 (MÉDIA): notas curtas × latência.** Notas < 120 ms ganham tolerância de tempo proporcional (formulação do Agente 2), com meta: ligadas de 50 ms com 25 ms de atraso ≥ 70; de 100 ms ≥ 85. Além disso, a calibração assistida (T-004-07) passa a exibir a precisão (jitter) e recomenda repetir se ela for > 10 ms.
+- **A3 (resto):** se a voz já está na nota-alvo no início da janela, o onset recua até o início real do trecho contínuo, para que entrar 400 ms antes não equivalha a entrar 190 ms antes. Regressão com pausas curtas (≤ 105 ms) e longas.
+- **A4(b):** meta mantida em ≤ 10 por 10 cents (o QA mediu 10,7 entre 50 e 60 cents com frames ideais).
+- **Gatilho de calibração com amadores:** a curva do QA (amador típico 85–90 no Normal) fica registrada. As tolerâncias de pitch **não** mudam no v3 sem evidência de voz real; o N1 já deve elevar o amador com vibrato.
+
 ## PLAN
 `scoring-engine` puro. `Scorer` incremental; `finish()` consolida. 5 min ≈ 30k frames em memória (ok). `performance.rs` (src-tauri) faz âncora/sync, aplica latência e decide `competitive`.
 
@@ -76,6 +88,8 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 | T-006-05 | Persistência da performance + recordes | Agente 1 | done |
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
 | T-006-07 | Medição de desempenho do caminho de áudio (CPU/memória 5 min, latência frame → LiveTick, estabilidade em 10 execuções, custo do finish) → `docs/testing/performance.md` | Agente 2 | done |
+| T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | done |
+| T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | todo |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -136,3 +150,9 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
   - 10 performances seguidas: sem crescimento de threads nem de memória.
   - `finish`: cálculo 0,03–0,15 ms, mas liberar o dispositivo leva 43–503 ms (cpal/WASAPI). Há uma proposta, aguardando o coordenador.
 - T-006-07 done (Agente 0, 2026-11-19): integrado em main @ 1e7ddb2. Todas as metas de áudio cumpridas (CPU 3,8% release; callback→tick p95 5,6 ms; sem vazamento em 10 execuções). Decisão: a liberação assíncrona do dispositivo no finish foi RECUSADA (corrida com start, sem meta violada); o finish já roda em `blocking`. ⏳ latência Channel → pintura (UI).
+- T-006-08 `review` (Agente 4, 2026-11-19): re-revisão de QA do v2 em [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md), com v1 × v2 no mesmo áudio.
+  - Resolvidos: A1, A4 (monotônico; +90 c = 37,1), A5 (sirene ≤ 11,8; nota fixa 24,4), A6, A7, A8 e A9 em boa parte. A2 resolvido por processo (T-004-06).
+  - Parcial: A3 (assimétrico com pausa < 300 ms; o teste A3 usa só pausas de 400 ms). A4(b): queda máxima 10,7 (Normal) e 10,4 (Hard), contra a meta de ≤ 10.
+  - Novos achados: N1 (Alta) vibrato ±75/±100 c → 77,5/63,9 com o cantor centrado; N2 (Alta, ❓) com o denominador fixo, 5–15 % de frames perdidos custam 4–12 pontos, e o WASAPI desta máquina entregou 40–46 mil de 48 mil amostras/s; N3 (Média) o gate pune duas vezes o atraso legato; N4 (Média) notas de 50 ms com 25 ms de atraso → 1,1.
+  - Amador típico (drift ±20, vibrato ±50, desvio ±20 c) no Normal: 85,6–90,4.
+- T-006-08 done (Agente 0, 2026-11-19): re-revisão integrada; achados N1–N4 → algoritmo v3 (T-006-09).
