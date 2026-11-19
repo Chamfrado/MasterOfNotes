@@ -49,14 +49,22 @@ Critérios de aceite (fixtures sintéticas, dificuldade Normal):
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-006-01 | `Scorer` v1 conforme fórmula + testes unitários | Agente 2 | todo |
-| T-006-02 | Regressão com gerador de fixtures sintéticas (`tests/regression.rs`) cobrindo a tabela | Agente 2 | todo |
+| T-006-01 | `Scorer` v1 conforme fórmula + testes unitários | Agente 2 | review |
+| T-006-02 | Regressão com gerador de fixtures sintéticas (`tests/regression.rs`) cobrindo a tabela | Agente 2 | review |
 | T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | todo |
-| T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | todo |
+| T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | review |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | todo |
 
 ## TEST
 `scoring-engine/tests/regression.rs` cobre cada linha da tabela. Pipeline completo (áudio sintético → `analyze_buffer` → `Scorer`) para pelo menos perfeito, desafinado, silêncio, atraso.
 
 ## STATUS
-Pendente.
+- T-006-01/02/04 `review` (Agente 2, 2026-11-19): `Scorer` v1 (`ALGORITHM_VERSION = 1`). Todas as 12 linhas da tabela passam pelo pipeline completo (áudio → `analyze_buffer` → `Scorer`). Números em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md). Nenhum parâmetro da baseline foi alterado.
+- Interpretações (sem mudar a fórmula):
+  - a mediana é centrada (±2 frames), só sobre frames vozeados, em unidades MIDI. Por isso o feedback ao vivo chega 2 frames (20 ms) atrasado;
+  - `pitch_i` e `sustain_i` são a média sobre os frames recebidos dentro da nota. Nota sem frames vale 0;
+  - frames antes do início da nota (até −150 ms) contam só para o onset;
+  - `NotDetected` aparece quando menos da metade dos frames dos últimos 200 ms em nota é vozeada;
+  - `pitch`, `rhythm`, `sustain` e `coverage` em `ScoreResult` vão de 0 a 1, e `score` vai de 0 a 100.
+- Item 9 (métricas exploratórias sem referência): não implementado. Não está no contrato §2.2.
+- T-006-03 (`performance.rs`): onda 2.

@@ -25,7 +25,7 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-004-01 | YIN + VAD + `analyze_buffer` + testes sintéticos | Agente 2 | todo |
+| T-004-01 | YIN + VAD + `analyze_buffer` + testes sintéticos | Agente 2 | review |
 | T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | todo |
 | T-004-03 | Calibração de ruído | Agente 2 | todo |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | todo |
@@ -35,4 +35,7 @@ Critérios:
 `audio-engine/tests/synthetic.rs`: senoides, oitavas, glissando, silêncio, ruído, clipping, invariância a volume, harmônicos. Dispositivo real = teste manual registrado em `docs/testing/evidence/`.
 
 ## STATUS
-Pendente.
+- T-004-01 `review` (Agente 2, 2026-11-19): YIN + gate + clipping + `analyze_buffer` em `crates/audio-engine`. 15 testes sintéticos verdes. Todos os critérios acima medidos em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md). CPU ≈ 2,7% de um núcleo.
+- Detalhes de implementação: `clipped` olha só o hop do frame (cada amostra conta uma vez para o % de clipping). `f0_hz = None` quando confiança < 0,6, então `voiced = gate && f0.is_some()`. O tempo do frame é o centro da janela: `sample_index + window_len/2` (`audio_engine::window_len`).
+- Limitação conhecida: tom acima de 1100 Hz é lido como o subharmônico dentro da faixa (2 kHz → 1 kHz). Não afeta a pontuação (dobra de oitava).
+- T-004-02/03: pendentes.
