@@ -57,6 +57,18 @@ pub struct GameSession {
     pub completed_ms: Option<i64>,
     pub rounds: Vec<Round>,
     pub standings: Vec<Standing>,
+    /// Duel only, once both rounds are completed (T-008-05).
+    pub duel: Option<DuelResult>,
+}
+
+/// Mirrors `DuelResult` in ipc.ts.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum DuelResult {
+    /// `winner` = participant id; `None` = draw.
+    Result { winner: Option<i64>, margin: f32 },
+    /// The two performances have different CompatKeys (pt-BR message).
+    Incompatible { message: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -382,6 +394,10 @@ pub fn get_session(conn: &Connection, id: i64) -> AppResult<GameSession> {
         }
     }
 
+    let duel = match mode {
+        GameMode::Duel => duel_result(conn, &rounds)?,
+        _ => None,
+    };
     Ok(GameSession {
         id,
         mode,
@@ -392,7 +408,54 @@ pub fn get_session(conn: &Connection, id: i64) -> AppResult<GameSession> {
         completed_ms,
         rounds,
         standings,
+        duel,
     })
+}
+
+/// Compares the latest competitive performance of each duel round (game::duel_outcome).
+fn duel_result(conn: &Connection, rounds: &[Round]) -> AppResult<Option<DuelResult>> {
+    if rounds.len() != 2 || rounds.iter().any(|r| r.status != "completed") {
+        return Ok(None);
+    }
+    let mut records = Vec::with_capacity(2);
+    for round in rounds {
+        let record = conn
+            .query_row(
+                "SELECT participant_id, song_id, score, reference_id, reference_revision,
+                        algorithm_version, difficulty, created_ms
+                 FROM performances WHERE round_id = ?1 AND competitive = 1
+                 ORDER BY id DESC LIMIT 1",
+                [round.id],
+                |r| {
+                    Ok(PerformanceRecord {
+                        participant_id: r.get(0)?,
+                        song_id: r.get(1)?,
+                        score: r.get::<_, f64>(2)? as f32,
+                        compat: CompatKey {
+                            reference_id: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                            reference_revision: r.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                            algorithm_version: r.get(5)?,
+                            difficulty: r.get(6)?,
+                        },
+                        created_ms: r.get(7)?,
+                    })
+                },
+            )
+            .optional()?;
+        let Some(record) = record else {
+            return Ok(None);
+        };
+        records.push(record);
+    }
+    Ok(Some(match game::duel_outcome(&records[0], &records[1]) {
+        Ok(o) => DuelResult::Result {
+            winner: o.winner,
+            margin: o.margin,
+        },
+        Err(e) => DuelResult::Incompatible {
+            message: e.to_string(),
+        },
+    }))
 }
 
 pub fn list_sessions(conn: &Connection) -> AppResult<Vec<GameSession>> {
@@ -838,6 +901,71 @@ mod tests {
         for bad in [0, 501] {
             assert_eq!(hist(&e, None, None, bad).unwrap_err().code, "invalid_input");
         }
+    }
+
+    #[test]
+    fn duel_result_same_key_and_incompatible() {
+        let mut e = env();
+        let a = create_participant(&e.conn, "A").unwrap().id;
+        let b = create_participant(&e.conn, "B").unwrap().id;
+        let mut duel = |scores: (f64, f64), bump_between: bool| {
+            let s = create_session(&mut e.conn, args(GameMode::Duel, &[a, b], &["s1"])).unwrap();
+            assert_eq!(s.duel, None, "no result before singing");
+            sing(&e.conn, &s.rounds[0], scores.0);
+            assert_eq!(
+                get_session(&e.conn, s.id).unwrap().duel,
+                None,
+                "one round left"
+            );
+            if bump_between {
+                e.conn
+                    .execute(
+                        "UPDATE melody_references SET revision = revision + 1 WHERE song_id = 's1'",
+                        [],
+                    )
+                    .unwrap();
+            }
+            sing(&e.conn, &s.rounds[1], scores.1);
+            get_session(&e.conn, s.id).unwrap().duel
+        };
+
+        assert_eq!(
+            duel((80.0, 70.0), false),
+            Some(DuelResult::Result {
+                winner: Some(a),
+                margin: 10.0
+            })
+        );
+        assert_eq!(
+            duel((75.0, 75.0), false),
+            Some(DuelResult::Result {
+                winner: None,
+                margin: 0.0
+            }),
+            "draw"
+        );
+        let Some(DuelResult::Incompatible { message }) = duel((90.0, 60.0), true) else {
+            panic!("different revision must be incompatible");
+        };
+        assert!(message.contains("não são comparáveis"));
+
+        let json = serde_json::to_value(DuelResult::Result {
+            winner: None,
+            margin: 0.0,
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"kind": "result", "winner": null, "margin": 0.0})
+        );
+        let json = serde_json::to_value(DuelResult::Incompatible {
+            message: "x".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"kind": "incompatible", "message": "x"})
+        );
     }
 
     #[test]
