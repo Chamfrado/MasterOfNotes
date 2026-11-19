@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+
+      # Law 03: no fake scoring. Math.random is forbidden in scoring code outside tests.
+      - name: Law 03 — no Math.random in scoring code
+        run: |
+          if git grep -n "Math\.random" -- \
+              ':(glob)apps/desktop/src/**/scor*' \
+              ':(glob)apps/desktop/src/**/scor*/**' \
+              ':(exclude,glob)**/*.test.*'; then
+            echo "::error::Math.random in scoring code (Law 03, docs/project-laws.md)"
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4 # version from package.json "packageManager"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter desktop typecheck
+      - run: pnpm --filter desktop test
+      # tauri::generate_context! needs frontendDist (../dist) to exist at compile time.
+      - run: pnpm --filter desktop build
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace

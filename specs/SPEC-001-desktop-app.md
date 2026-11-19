@@ -23,10 +23,11 @@ Critérios:
 | T-001-03 | `get_settings`/`update_settings` + validação | Agente 1 | todo |
 | T-001-04 | `AppError` serializável + tauri-plugin-log | Agente 1 | todo |
 | T-001-05 | Janela, ícone, CSP, capabilities mínimas | Agente 1 | todo |
-| T-001-06 | CI (`.github/workflows/ci.yml`) + verificação da Lei 03 | Agente 4 | doing |
+| T-001-06 | CI (`.github/workflows/ci.yml`) + verificação da Lei 03 | Agente 4 | review |
 
 ## TEST
 `db::tests::{migrates_fresh, reopen_preserves_data, backup_before_migration}`, `settings::tests::{roundtrip, rejects_invalid}`.
 
 ## STATUS
 Scaffold criado e `cargo check --workspace` verde (2026-11-19). Restante pendente.
+- T-001-06 em review (Agente 4, 2026-11-19): `.github/workflows/ci.yml` (windows-latest). Local ✅: grep Lei 03 (limpo + casos plantados), pnpm install/typecheck/test/build, cargo fmt --check, cargo test/clippy -p game. Só no CI ⏳: clippy/test --workspace.
