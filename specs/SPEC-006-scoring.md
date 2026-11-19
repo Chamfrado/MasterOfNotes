@@ -75,6 +75,14 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
 - **A4(b):** meta mantida em ≤ 10 por 10 cents (o QA mediu 10,7 entre 50 e 60 cents com frames ideais).
 - **Gatilho de calibração com amadores:** a curva do QA (amador típico 85–90 no Normal) fica registrada. As tolerâncias de pitch **não** mudam no v3 sem evidência de voz real; o N1 já deve elevar o amador com vibrato.
 
+## Algoritmo v4 (decisão do coordenador, 2026-11-19, a partir da 3ª rodada de QA)
+
+Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md). O v3 cumpriu todas as suas metas e **não** afrouxou a desafinação constante (o controle sem vibrato dá v2 ≈ v3). `ALGORITHM_VERSION = 4`.
+
+- **E1 (ALTA): oscilar em volta do alvo não é afinar.** O contorno de 190 ms premia quem oscila em torno da nota sem nunca acertá-la: trinado ±100 c a 6 Hz → 95,8; senoide ±150 c → 93,5. Correção: medir também o **espalhamento** em torno do contorno (ex.: média de |frame − contorno|) e reduzir o crédito de afinação quando ele passar do que um vibrato natural produz (formulação do Agente 2; o QA sugere começar a reduzir em ~70 c e zerar em ~140 c). **Metas (voz realista, Normal):** N1 preservado (vibrato centrado ±50/±75/±100 ≥ 95/92/88); trinado quadrado ±100 c a 6 Hz ≤ 50; senoide ±150 c a 5,5 Hz ≤ 50; oscilação aleatória até ±150 c ≤ 50; alternância +1 st/+11 st ≤ 50. Todas as metas v3 seguem valendo.
+- **E2 (BAIXA): frames descartados por ring cheio** (depois do callback) também entram no `missing_ratio`. Teste cruzando as duas camadas (scorer + performance.rs): "só os 100 ms iniciais de cada nota chegam" ⇒ treino.
+- **E3 (BAIXA, teórico): perda seletiva < 5%** não é controlável pelo usuário no fluxo real (a perda vem do driver). Risco aceito e registrado; não muda o v4.
+
 ## PLAN
 `scoring-engine` puro. `Scorer` incremental; `finish()` consolida. 5 min ≈ 30k frames em memória (ok). `performance.rs` (src-tauri) faz âncora/sync, aplica latência e decide `competitive`.
 
@@ -90,7 +98,8 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
 | T-006-07 | Medição de desempenho do caminho de áudio (CPU/memória 5 min, latência frame → LiveTick, estabilidade em 10 execuções, custo do finish) → `docs/testing/performance.md` | Agente 2 | done |
 | T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | done |
 | T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | done |
-| T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | review |
+| T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | done |
+| T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | todo |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -175,3 +184,4 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
   - Novo achado E1 (Alta): o contorno de 190 ms premia oscilar em torno do alvo. Trinado ±100 c a 6 Hz, sem nunca cantar o alvo: 95,8 pelo pipeline; senoide ±150 c: 93,5. Ambos acima de quem canta firme a +30 c (90,8).
   - E2 (Baixa): o A8 passou a depender do limite de 5 % do `performance.rs`; no scorer, "só os 100 ms iniciais" dá 91,1. E3 (Baixa): perda seletiva < 5 % rende +3,2.
   - Leniência: sem vibrato, v2 = v3. O Normal distingue 0/30/50 c → 100/90,8/72,9 com vibrato.
+- T-006-10 done (Agente 0, 2026-11-19): 3ª rodada integrada; v3 confirmado em todas as metas e sem afrouxar a desafinação constante. E1 (oscilação premiada) → v4, T-006-11.
