@@ -4,7 +4,7 @@
 //! sample indices). They do NOT validate pitch with a real voice — that is the
 //! manual checklist in docs/testing/evidence/.
 
-use audio_engine::{Capture, CaptureConfig, calibrate_noise, list_input_devices};
+use audio_engine::{Capture, CaptureConfig, calibrate_noise, hop_len, list_input_devices};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -30,6 +30,7 @@ fn captures_frames_from_the_default_device() {
     std::thread::sleep(Duration::from_secs(2));
     let err = cap.take_error();
     let sr = cap.sample_rate();
+    let captured = cap.captured_samples();
     drop(cap);
     let frames = frames.lock().unwrap();
     let cal = calibrate_noise(&frames);
@@ -38,16 +39,19 @@ fn captures_frames_from_the_default_device() {
         frames.len()
     );
     assert!(err.is_none());
-    assert!(
-        (150..=210).contains(&frames.len()),
-        "{} frames",
-        frames.len()
-    );
+    // Stream start-up latency varies (≈ 0.1–0.6 s measured), so do not bound the
+    // count by wall-clock time: require ≥ 1 s of audio, gap-free.
+    assert!(frames.len() >= 90, "{} frames", frames.len());
+    let hop = hop_len(sr) as u64;
     assert!(
         frames
             .windows(2)
-            .all(|w| w[1].sample_index > w[0].sample_index)
+            .all(|w| w[1].sample_index == w[0].sample_index + hop)
     );
+    // The callback-side counter is never behind what the analysis has seen.
+    let last = frames.last().map_or(0, |f| f.sample_index);
+    assert!(captured >= last, "captured {captured} < last frame {last}");
+    eprintln!("captured {captured} samples, last frame starts at {last}");
 }
 
 #[test]

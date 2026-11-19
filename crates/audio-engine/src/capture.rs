@@ -6,7 +6,7 @@ use crate::{AnalysisFrame, Analyzer, AudioError, CaptureConfig};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{FromSample, SizedSample};
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
@@ -57,6 +57,7 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>, AudioError> {
 pub struct Capture {
     stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
+    captured: Arc<AtomicU64>,
     thread: Option<JoinHandle<()>>,
     sample_rate: u32,
 }
@@ -70,17 +71,19 @@ impl Capture {
     ) -> Result<Capture, AudioError> {
         let stop = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
+        let captured = Arc::new(AtomicU64::new(0));
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
         let id = device_id.map(str::to_owned);
-        let (stop2, error2) = (stop.clone(), error.clone());
+        let (stop2, error2, captured2) = (stop.clone(), error.clone(), captured.clone());
         let thread = thread::Builder::new()
             .name("mic-analysis".into())
-            .spawn(move || run(id, cfg, on_frame, stop2, error2, ready_tx))
+            .spawn(move || run(id, cfg, on_frame, stop2, error2, captured2, ready_tx))
             .map_err(device_err)?;
         match ready_rx.recv() {
             Ok(Ok(sample_rate)) => Ok(Capture {
                 stop,
                 error,
+                captured,
                 thread: Some(thread),
                 sample_rate,
             }),
@@ -99,6 +102,14 @@ impl Capture {
 
     pub fn sample_rate(&self) -> u32 {
         self.sample_rate
+    }
+
+    /// Mono samples delivered by the driver so far, counted inside the audio
+    /// callback. Use it to anchor the music clock: unlike the `sample_index` of
+    /// the latest analysed frame, it carries no ring-buffer/analysis delay.
+    /// Sample `n` here is sample `n` of `AnalysisFrame::sample_index`.
+    pub fn captured_samples(&self) -> u64 {
+        self.captured.load(Ordering::Acquire)
     }
 
     /// Stream error reported by the driver (e.g. device unplugged), if any.
@@ -123,15 +134,17 @@ fn run(
     mut on_frame: impl FnMut(AnalysisFrame),
     stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
+    captured: Arc<AtomicU64>,
     ready: mpsc::SyncSender<Result<u32, AudioError>>,
 ) {
-    let (stream, mut consumer, sample_rate) = match open(device_id.as_deref(), error.clone()) {
-        Ok(v) => v,
-        Err(e) => {
-            let _ = ready.send(Err(e));
-            return;
-        }
-    };
+    let (stream, mut consumer, sample_rate) =
+        match open(device_id.as_deref(), error.clone(), captured) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = ready.send(Err(e));
+                return;
+            }
+        };
     if let Err(e) = stream.play() {
         let _ = ready.send(Err(device_err(e)));
         return;
@@ -160,7 +173,11 @@ fn run(
 
 type Opened = (cpal::Stream, rtrb::Consumer<f32>, u32);
 
-fn open(device_id: Option<&str>, error: Arc<Mutex<Option<String>>>) -> Result<Opened, AudioError> {
+fn open(
+    device_id: Option<&str>,
+    error: Arc<Mutex<Option<String>>>,
+    captured: Arc<AtomicU64>,
+) -> Result<Opened, AudioError> {
     let host = cpal::default_host();
     let device = match device_id {
         None => host.default_input_device(),
@@ -182,10 +199,10 @@ fn open(device_id: Option<&str>, error: Arc<Mutex<Option<String>>>) -> Result<Op
     };
     use cpal::SampleFormat as F;
     let stream = match supported.sample_format() {
-        F::F32 => build::<f32>(&device, &config, channels, producer, on_error),
-        F::I16 => build::<i16>(&device, &config, channels, producer, on_error),
-        F::U16 => build::<u16>(&device, &config, channels, producer, on_error),
-        F::I32 => build::<i32>(&device, &config, channels, producer, on_error),
+        F::F32 => build::<f32>(&device, &config, channels, producer, captured, on_error),
+        F::I16 => build::<i16>(&device, &config, channels, producer, captured, on_error),
+        F::U16 => build::<u16>(&device, &config, channels, producer, captured, on_error),
+        F::I32 => build::<i32>(&device, &config, channels, producer, captured, on_error),
         other => {
             return Err(AudioError::Device(format!(
                 "formato de amostra não suportado: {other}"
@@ -200,6 +217,7 @@ fn build<T>(
     config: &cpal::StreamConfig,
     channels: usize,
     mut producer: rtrb::Producer<f32>,
+    captured: Arc<AtomicU64>,
     on_error: impl FnMut(cpal::StreamError) + Send + 'static,
 ) -> Result<cpal::Stream, AudioError>
 where
@@ -218,6 +236,9 @@ where
                     let mono = frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * scale;
                     let _ = producer.push(mono);
                 }
+                // ponytail: a dropped push desyncs sample_index from this counter; only
+                // happens if analysis stalls > RING_SECONDS. Count drops if it ever does.
+                captured.fetch_add((data.len() / channels) as u64, Ordering::Release);
             },
             on_error,
             None,
