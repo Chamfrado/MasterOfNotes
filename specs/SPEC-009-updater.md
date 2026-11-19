@@ -13,9 +13,9 @@
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | done |
-| T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | review |
-| T-009-03 | Workflow de release (cria draft, não publica) | Agente 4 | review |
-| T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados (chave de TESTE descartável, servidor local) | Agente 1 | review |
+| T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | done |
+| T-009-03 | Workflow de release (cria draft, não publica) | Agente 4 | done |
+| T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados (chave de TESTE descartável, servidor local) | Agente 1 | done |
 
 ## STATUS
 - T-009-03 em review (Agente 4, 2026-11-19): `.github/workflows/release.yml` (tag `v*` ou manual → NSIS + `latest.json` → release **draft** via `tauri-apps/tauri-action`). Nunca executado no GitHub ⏳.
@@ -40,3 +40,5 @@
   - Erro de rede, assinatura ou falta de chave (R7): "Não foi possível verificar ou baixar a atualização. O app continua funcionando normalmente." + detalhe + "Tentar de novo".
   - Ao abrir: `UpdateWatcher` (App) só chama `check()` com `autoCheckUpdates=true` e só avisa por toast; nunca baixa nem instala sozinho.
   - ⏳ Depende do Agente 1: registrar `tauri-plugin-updater` no `lib.rs` e a capability `updater:default`. Sem isso, `check()` falha e a tela mostra o erro.
+- T-009-02 e T-009-04 done (Agente 0, 2026-11-19): integrado em main; `pnpm check` exit 0. AC-001 ✅ (instalado e executado no Windows 11, sem UAC), AC-014 ✅ (instalador NSIS), AC-015 ✅ **com chave de teste** (atualização assinada 0.1.0 → 0.1.1 com dados preservados; assinatura adulterada recusada). Evidência: docs/testing/evidence/update-test.md. ⏳ produção: chave do proprietário + secrets + primeiro release.
+- T-009-03 done no arquivo (workflow); a execução real no GitHub depende do push/secrets (⏳).
