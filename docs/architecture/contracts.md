@@ -99,7 +99,7 @@ Dono da implementação: Agente 1 (`src-tauri/migrations/001_init.sql`). Mudanç
 ```sql
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);           -- value = JSON
 CREATE TABLE songs (
-  id TEXT PRIMARY KEY,               -- content id: blake3(size ‖ primeiros 64KiB ‖ últimos 64KiB), hex 32
+  id TEXT PRIMARY KEY,               -- content id: blake3(size ‖ primeiros 64KiB ‖ últimos 64KiB), 32 primeiros caracteres hex (128 bits)
   path TEXT NOT NULL UNIQUE,
   file_name TEXT NOT NULL,
   title TEXT NOT NULL,               -- inicial = nome do arquivo sem extensão

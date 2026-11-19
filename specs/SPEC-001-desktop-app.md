@@ -2,7 +2,7 @@
 
 ## SPEC
 - R1. Janela 1280×800 (mín. 960×600), redimensionável, tela cheia (F11).
-- R2. Configurações (`AppSettings` em `ipc.ts`) persistem em SQLite e sobrevivem a reinício. Valores validados no Rust (faixas, enums).
+- R2. Configurações (`AppSettings` em `ipc.ts`) persistem em SQLite e sobrevivem a reinício. Valores validados no Rust (faixas, enums). `libraryFolder` só muda via `set_library_folder` (`update_settings` recusa com `invalid_setting`). `autoCheckUpdates` começa `false`; a UI pede consentimento no primeiro uso (Lei 10).
 - R3. Banco em `app_data_dir()/masterofnotes.db`; migrações aplicadas na inicialização por `PRAGMA user_version`; backup `masterofnotes.db.bak-v{N}` antes de migrar banco existente; `foreign_keys=ON`, `journal_mode=WAL`.
 - R4. Falha ao abrir/migrar banco: tela de erro com o caminho do arquivo; nada é apagado.
 - R5. Logs em `app_log_dir()` (tauri-plugin-log), sem áudio e sem dados pessoais desnecessários.
