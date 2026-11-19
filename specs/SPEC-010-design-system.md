@@ -18,6 +18,7 @@
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | done |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | done |
 | T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | done |
+| T-010-06 | Tela Detalhes da música (editar, arquivo, reprodução, referência, recordes, Cantar/Ranking) | Agente 3 | review |
 
 ## STATUS
 2026-11-19 (Agente 3):
@@ -38,3 +39,15 @@
   - Testes: `Settings.test.tsx` (8: ajustes, aplicação imediata, reversão em erro, consentimento ×2, Atualizações ×3).
 - T-010-04 done (Agente 0, 2026-11-19): integrado em main @ b3ed719; vitest 173/173, Playwright 44/44. Modo TV e consentimento migram do localStorage para AppSettings (tvMode, updateConsentAsked), contrato em main.
 - T-010-05, rodada 2 (Agente 4, 2026-11-19): telas Jogar, Participantes, Nova partida, Partida, Histórico, Referência e diálogos Encerrar, Qual trilha e Pular trecho. Zero violações axe; teclado, viewports e movimento ✅. A11Y-05 coberto por `e2e/spatial.e2e.ts` (5 casos ✅). Novo achado baixo: A11Y-06 (checkbox/rádio de 24 px no desenho). Detalhes em a11y-audit.md.
+- T-010-06 em review (Agente 3, 2026-11-19): `src/screens/SongDetails.tsx`, rota `song`.
+  - Na Biblioteca, o título do card abre os Detalhes (nome acessível "Detalhes de {título} {artista}"). O "Cantar" virou botão visível e continua direto para o Player, com o mesmo nome acessível de antes ("Cantar {título} {artista ou arquivo}"), então o E2E segue valendo.
+  - Conteúdo: título e artista editáveis (`updateSong`, "Salvar" só com mudança válida); arquivo, formato, duração e tamanho; reprodução (compatível / não verificado / a mesma mensagem de codec do Player com a sugestão MP4 H.264/AAC, e "Cantar" bloqueado); referência com selo, explicação e atalho "Importar" ou "Abrir referência".
+  - Recordes na dificuldade atual (`getLeaderboard`): recorde da música, top 5 (`RankingTable`) e "Recorde pessoal de" (seletor de cantor; melhor linha dele no ranking, que é top 50). Erro nos recordes não derruba a tela.
+  - Botões "Cantar" (com foco inicial) e "Ranking completo".
+  - "Suas apresentações" (SPEC-007 R6): `listPerformances({songId, limit: 10})`, com nota, cantor (ou "Anônimo"), dificuldade, data e os selos "Treino" (`competitive=false`) e "Versão anterior" (`isCurrentKey=false`). Se o command falhar, aparece um aviso discreto com a mensagem real e nenhuma linha.
+  - Cards da Biblioteca: os botões quebram linha (overflow de 9 px em 960×600, achado pelo E2E de viewports e corrigido).
+  - Testes: `SongDetails.test.tsx` (8) e `Library.test` atualizado.
+  - Também: fim do fallback localStorage; `tvMode`/`updateConsentAsked` vêm só de `AppSettings` (Rust @ dcdfa0f). Em Ajustes, `<html>` segue o valor salvo, então um valor recusado é desfeito na tela. Atualizações sem plugin (build sem pubkey: "plugin updater not found") mostram "Atualizações automáticas ainda não estão configuradas nesta versão."
+  - vitest: `maxWorkers: 1`. Com 2 workers, um não subiu no limite fixo de 60 s com a CPU a 88–100%. `isolate: false` (22 s) foi testado e descartado: vaza estado entre arquivos. Duas rodadas sob carga: 18/187, exit 0 (113 s e 316 s).
+  - ❓ Não há "usuário atual" no app, então o recorde pessoal é por cantor escolhido e se limita ao top 50 do ranking.
+

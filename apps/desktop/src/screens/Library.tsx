@@ -198,12 +198,11 @@ function SongItem({ song, compact, onEdit }: { song: Song; compact: boolean; onE
     >
       <button
         type="button"
-        disabled={unplayable}
-        onClick={() => navigate({ name: "player", songId: song.id })}
-        className="flex min-h-12 flex-1 cursor-pointer flex-col items-start gap-1 rounded-md text-left disabled:cursor-not-allowed disabled:opacity-60"
+        onClick={() => navigate({ name: "song", songId: song.id })}
+        className="flex min-h-12 flex-1 cursor-pointer flex-col items-start gap-1 rounded-md text-left"
       >
         <span className="line-clamp-2 font-display text-xl font-semibold">
-          <span className="sr-only">Cantar</span> {song.title}
+          <span className="sr-only">Detalhes de</span> {song.title}
         </span>{" "}
         <span className="text-muted">{song.artist ?? song.fileName}</span>
       </button>
@@ -214,7 +213,13 @@ function SongItem({ song, compact, onEdit }: { song: Song; compact: boolean; onE
           <Badge>{song.extension.toUpperCase()}</Badge>
           {duration && <Badge>{duration}</Badge>}
         </div>
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
+          <Button variant="primary" disabled={unplayable} onClick={() => navigate({ name: "player", songId: song.id })}>
+            Cantar{" "}
+            <span className="sr-only">
+              {song.title} {song.artist ?? song.fileName}
+            </span>
+          </Button>
           <Button variant="ghost" onClick={() => navigate({ name: "reference", songId: song.id })} aria-label={`Referência de ${song.title}`}>
             Referência
           </Button>

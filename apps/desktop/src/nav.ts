@@ -15,6 +15,7 @@ export type Route =
   | { name: "mic" }
   | { name: "player"; songId: string; round?: RoundContext }
   | { name: "reference"; songId: string }
+  | { name: "song"; songId: string }
   | { name: "result"; songId: string; outcome: PerformanceOutcome; round?: RoundContext }
   | { name: "ranking"; songId?: string }
   | { name: "modes" }
