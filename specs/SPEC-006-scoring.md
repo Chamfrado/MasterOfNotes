@@ -90,6 +90,7 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
 | T-006-07 | Medição de desempenho do caminho de áudio (CPU/memória 5 min, latência frame → LiveTick, estabilidade em 10 execuções, custo do finish) → `docs/testing/performance.md` | Agente 2 | done |
 | T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | done |
 | T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | done |
+| T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | review |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -169,3 +170,8 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
   - Golden com 12 fixtures. A música de teste T-003-05 foi congelada em `tests/fixtures/references/test-song.json`.
   - ⏳ As tolerâncias de pitch não mudaram. A curva do amador subiu (Normal: desvio 0 → 100,0; +20 c → 96,7; −40 c → 88,2). Confirmar com voz real antes da release.
 - T-006-09 done (Agente 0, 2026-11-19): algoritmo v3 integrado (`ALGORITHM_VERSION = 3`) + UI do motivo do treino; `pnpm check` exit 0 (regressão 29 com golden de 12 fixtures), Playwright 99/99. Todas as metas v3 cumpridas com voz realista (vibrato ±75 c: 77,4 → 99,9; 10% de perda: 90,6 → 100; ligadas de 50 ms com 25 ms de atraso: 2,0 → 100). ⏳ 3ª rodada de QA (Agente 4); voz real.
+- T-006-10 `review` (Agente 4, 2026-11-19): 3ª rodada de QA em [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md), com v2 × v3 no mesmo áudio.
+  - Metas do v3 atingidas: N1 (vibrato ±50/±75/±100 → 100/99,9/99,7), N2 (5–15 % de frames perdidos → 100), N3, N4 (50 ms +25 ms → 95,8; 100 ms +25 ms → 99,5), A3 simétrico, A4(b) (máx. 9,7).
+  - Novo achado E1 (Alta): o contorno de 190 ms premia oscilar em torno do alvo. Trinado ±100 c a 6 Hz, sem nunca cantar o alvo: 95,8 pelo pipeline; senoide ±150 c: 93,5. Ambos acima de quem canta firme a +30 c (90,8).
+  - E2 (Baixa): o A8 passou a depender do limite de 5 % do `performance.rs`; no scorer, "só os 100 ms iniciais" dá 91,1. E3 (Baixa): perda seletiva < 5 % rende +3,2.
+  - Leniência: sem vibrato, v2 = v3. O Normal distingue 0/30/50 c → 100/90,8/72,9 com vibrato.
