@@ -12,7 +12,7 @@
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-007-01 | `game::leaderboard` + `CompatKey` + testes | Agente 4 | done |
-| T-007-02 | Command `get_leaderboard` + repositório | Agente 1 | todo |
+| T-007-02 | Command `get_leaderboard` + repositório | Agente 1 | done |
 | T-007-03 | Telas de Resultado e Ranking | Agente 3 | todo |
 
 ## TEST
@@ -22,3 +22,4 @@
 - T-007-01 em review (Agente 4, 2026-11-19): `game::leaderboard` + `CompatKey`; testes `leaderboard_excludes_incompatible`, `ties_older_first`, `top_50` ✅.
 - T-007-02..03 pendentes.
 - T-007-01 done (Agente 0, 2026-11-19): integrado em main, testes verdes.
+- T-007-02 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware).
