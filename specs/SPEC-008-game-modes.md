@@ -19,7 +19,7 @@ Critérios:
 |---|---|---|---|
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
 | T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | done |
-| T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | todo |
+| T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | review |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | doing |
 
 ## TEST
@@ -43,3 +43,13 @@ Critérios:
   - Standings: `game::party_standings` sobre as rodadas concluídas, mais os participantes com 0 rodadas no fim, inelegíveis. Rodada `completed` só via performance competitiva (T-006-05).
   - Testes ✅ `sessions::tests::{participants_unique_case_insensitive, mode_rules, party_standings_average_and_zero_round_participants, shuffle_is_reproducible_from_saved_seed}`.
 - T-008-02 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware).
+- T-008-03 em review (Agente 3, 2026-11-19). Rotas `modes` (item "Jogar" na NavBar), `new-session`, `session`, `participants`, `history`.
+  - Jogar (`Modes.tsx`): cards Solo/Festa/Duelo/Desafio; "Continuar de onde parou" lista as sessões `active` com o nº de rodadas pendentes (retomar depois de fechar o app); atalhos Participantes e Histórico.
+  - Nova partida (`NewSession.tsx`): `validateSession` (pura) espelha `create_session`: festa com nome, ≥ 2 cantores e ≥ 1 música; duelo com 2 e 1; solo com 0–1 e 1; desafio com 0–1, ≥ 1 música e meta 0–100; `minRounds` inteiro ≥ 1 ou vazio (padrão do Rust). Fora do Solo, só aparecem músicas com referência `validated`, e um texto diz quantas ficaram de fora e por quê. Ordem sorteada ou manual (ordem de clique, numerada). Cadastro de cantor no próprio formulário; erros do Rust (nome repetido) aparecem sob o campo.
+  - Partida (`Session.tsx`): cartão "Rodada N de M: X canta Y" com Cantar (Player com `roundId`/`participantId`) e Pular; lista de rodadas com status, nota e "Voltar para a fila"; Encerrar pede confirmação se há rodadas pendentes.
+  - Festa: `StandingsTable` com média e total, elegíveis primeiro e inelegíveis com "falta N rodada(s)"; ranking parcial e, no fim, o vencedor (rank 1 elegível).
+  - Duelo: tela de confronto com o vencedor ou empate. Desafio: meta × média, progresso e cumprido/não cumprido.
+  - Player → Resultado usa `replace` (Voltar no Resultado não reabre o Player); numa rodada, "Voltar para a partida" recarrega a sessão.
+  - Histórico (`History.tsx`): sessões da mais recente para a mais antiga, com modo, data, status e vencedor.
+  - Testes: `Session.test` (8: `currentRound`, `duelResult`, `challengeStatus`, cantar com contexto, ranking parcial, pular, encerrar com confirmação e vencedor, erro), `NewSession.test` (5), `Modes.test` (1), `StandingsTable` (2, incluindo o critério A×B da spec).
+  - ⏳ Sem verificação com os commands reais nem no WebView2. O erro de CompatKey do duelo vem do Rust; a tela de confronto compara só as notas das duas rodadas.
