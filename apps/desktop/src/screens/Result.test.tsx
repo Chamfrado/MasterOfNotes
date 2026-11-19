@@ -17,7 +17,7 @@ describe("Result", () => {
     renderResult({
       performanceId: 1,
       competitive: true,
-      result: { score: 82.4, pitch: 90, rhythm: 80, sustain: 70, coverage: 60, notesTotal: 50, notesHit: 40, algorithmVersion: 1 },
+      result: { score: 82.4, pitch: 0.9, rhythm: 0.8, sustain: 0.7, coverage: 0.6, notesTotal: 50, notesHit: 40, algorithmVersion: 1 },
       exploratory: null,
       personalBest: 82.4,
       songRecord: 95,
@@ -25,6 +25,8 @@ describe("Result", () => {
     expect(screen.getByLabelText("82,4 pontos")).toBeInTheDocument();
     expect(screen.getByText("Novo recorde pessoal!")).toBeInTheDocument();
     expect(screen.getByText(/40 de 50 notas/)).toBeInTheDocument();
+    expect(screen.getByText("Afinação").nextElementSibling).toHaveTextContent("90%"); // 0..1 shown as %
+    expect(screen.getByText("Cobertura").nextElementSibling).toHaveTextContent("60%");
   });
 
   it("shows exploratory metrics, out of the ranking, when there is no reference", () => {

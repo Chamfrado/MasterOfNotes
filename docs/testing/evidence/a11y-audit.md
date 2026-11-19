@@ -69,3 +69,4 @@ Ajustes de medição (o critério não mudou):
 |---|---|---|
 | A11Y-06 | Baixa (10-foot) | Checkboxes e rádios da Nova partida desenhados com 24–42 px (de 960 a 4K). A linha inteira é clicável e focável, mas o indicador visual é pequeno para TV. Sugestão: no Modo TV, `size-8`. |
 
+**A11Y-06 corrigido (Agente 3), medido em 2026-11-19:** no Modo TV a 1920×1080, rádios e checkbox da Nova partida têm 56×56 px (critério ≥ 40 px; sem o Modo TV eram 31 px). Teste: `a11y.e2e.ts`, "Modo TV (A11Y-06)".

@@ -138,3 +138,9 @@ html[data-reduced-motion="on"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
+
+/* A11Y-06: in Modo TV, checkboxes/radios are drawn at 2rem (≥ 40 px at 1080p). Unlayered so it beats the size-6 utility. */
+html[data-tv="on"] input:is([type="checkbox"], [type="radio"]) {
+  width: 2rem;
+  height: 2rem;
+}

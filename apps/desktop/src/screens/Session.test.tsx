@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "../components/ui";
 import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
-import { Session, challengeStatus, currentRound, duelResult } from "./Session";
+import { Session, challengeStatus, currentRound } from "./Session";
 
 vi.mock("../lib/ipc", () => ({
   getSession: vi.fn(),
@@ -40,13 +40,6 @@ describe("pure helpers", () => {
     const s = session({ rounds: [round(3, 3, 1, "pending"), round(1, 1, 1, "completed", 80), round(2, 2, 2, "skipped")] });
     expect(currentRound(s)?.id).toBe(3);
     expect(currentRound({ ...s, status: "completed" })).toBeNull();
-  });
-
-  it("duelResult: pending, win, tie", () => {
-    expect(duelResult(session({ rounds: [round(1, 1, 1, "completed", 70), round(2, 2, 2, "pending")] }))).toEqual({ kind: "pending" });
-    const win = duelResult(session({ rounds: [round(1, 1, 1, "completed", 70), round(2, 2, 2, "completed", 85.5)] }));
-    expect(win).toMatchObject({ kind: "win", winnerId: 2 });
-    expect(duelResult(session({ rounds: [round(1, 1, 1, "completed", 70), round(2, 2, 2, "completed", 70)] }))).toEqual({ kind: "tie", score: 70 });
   });
 
   it("challengeStatus: running, success, failure (skips count as played)", () => {
@@ -135,3 +128,58 @@ describe("Session screen (party)", () => {
     expect(await screen.findByText("Partida não encontrada.")).toBeInTheDocument();
   });
 });
+
+describe("Session screen (duel, verdict from Rust only)", () => {
+  const people = [
+    { id: 1, name: "Ana" },
+    { id: 2, name: "Bia" },
+  ];
+  const duelSession = (duel: ipc.GameSession["duel"], scores: [number | null, number | null] = [80, 85.5]) =>
+    session({
+      mode: "duel",
+      name: null,
+      rounds: [
+        round(1, 1, 1, scores[0] == null ? "pending" : "completed", scores[0]),
+        round(2, 2, 2, scores[1] == null ? "pending" : "completed", scores[1]),
+      ],
+      duel,
+    });
+  const renderDuel = (s: ipc.GameSession) => {
+    vi.mocked(ipc.getSession).mockResolvedValue(s);
+    vi.mocked(ipc.listParticipants).mockResolvedValue(people);
+    vi.mocked(ipc.listSongs).mockResolvedValue([{ id: "s1", title: "Aquarela", available: true } as ipc.Song]);
+    return render(
+      <NavContext.Provider value={{ route: { name: "session", id: 5 }, navigate: vi.fn(), replace: vi.fn(), back: vi.fn() }}>
+        <ToastProvider>
+          <Session id={5} />
+        </ToastProvider>
+      </NavContext.Provider>,
+    );
+  };
+  const confronto = async () => within(await screen.findByRole("region", { name: "Confronto" }));
+
+  it("waits while session.duel is absent, even if both rounds have scores", async () => {
+    renderDuel(duelSession(undefined));
+    expect((await confronto()).getByText(/Aguardando/)).toBeInTheDocument();
+  });
+
+  it("shows the winner and margin from session.duel (not from comparing scores)", async () => {
+    // Scores say Bia is higher; Rust's verdict says Ana won: the UI must follow Rust.
+    renderDuel(duelSession({ kind: "result", winner: 1, margin: 2.5 }));
+    expect((await confronto()).getByText("Ana venceu o duelo por 2,5 pontos!")).toBeInTheDocument();
+  });
+
+  it("shows a draw", async () => {
+    renderDuel(duelSession({ kind: "result", winner: null, margin: 0 }));
+    expect((await confronto()).getByText("Empate!")).toBeInTheDocument();
+  });
+
+  it("explains an incompatible duel", async () => {
+    renderDuel(duelSession({ kind: "incompatible", message: "A referência mudou entre as apresentações." }));
+    const c = await confronto();
+    expect(c.getByText("Duelo sem vencedor")).toBeInTheDocument();
+    expect(c.getByText("A referência mudou entre as apresentações.")).toBeInTheDocument();
+    expect(c.getByText(/referência melódica, revisão, versão do algoritmo ou dificuldade diferentes/)).toBeInTheDocument();
+  });
+});
+

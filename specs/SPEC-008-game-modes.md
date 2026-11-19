@@ -20,7 +20,7 @@ Critérios:
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
 | T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | done |
 | T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | done |
-| T-008-05 | Duelo: `GameSession.duel` via `game::duel_outcome` (CompatKey); UI usa o resultado; E2E resultado + incompatível | Agente 1 + 3 + 4 | todo |
+| T-008-05 | Duelo: `GameSession.duel` via `game::duel_outcome` (CompatKey); UI usa o resultado; E2E resultado + incompatível | Agente 1 + 3 + 4 | done |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | done |
 
 ## TEST
@@ -57,3 +57,16 @@ Critérios:
   - ⏳ Sem verificação com os commands reais nem no WebView2. O erro de CompatKey do duelo vem do Rust; a tela de confronto compara só as notas das duas rodadas.
 - T-008-03 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
 - T-008-04 done (Agente 0, 2026-11-19): E2E da Festa integrado; suíte completa 95/95 em main. Lacuna encontrada pelo Agente 4: o Duelo não verificava CompatKey → T-008-05.
+- T-008-05, parte da UI (Agente 3, 2026-11-19), em review: o `DuelBoard` usa só `session.duel` e saiu o `duelResult` da UI, que comparava `round.score`.
+  - Sem `duel` (rodadas incompletas): "Aguardando: o duelo termina quando os dois cantarem."
+  - `{kind:"result"}`: "X venceu o duelo por N pontos!" com destaque no card do vencedor, ou "Empate!" com `winner=null`.
+  - `{kind:"incompatible"}`: "Duelo sem vencedor", a `message` do Rust e a explicação (referência melódica, revisão, versão do algoritmo ou dificuldade diferentes).
+  - As notas de cada rodada continuam no card, mas sem decidir nada.
+  - Testes: `Session.test.tsx` (+4: aguardando com notas presentes, vencedor contrariando as notas, empate, incompatível).
+- T-008-05, parte backend (Agente 1, 2026-11-19), `review`: `GameSession.duel` no `get_session`.
+  - Com o duelo e as 2 rodadas `completed`, monta os `PerformanceRecord` da última performance competitiva de cada rodada e chama `game::duel_outcome`.
+  - Resultado: `{kind:"result", winner, margin}` ou `{kind:"incompatible", message}` (Display pt-BR do GameError); senão `null`.
+  - Teste ✅ `sessions::tests::duel_result_same_key_and_incompatible` (vencedor, empate, revisão diferente → incompatível, formato JSON).
+- T-008-05 (Agente 0, 2026-11-19): backend (Agente 1) e UI (Agente 3) integrados; `pnpm check` exit 0, Playwright 95/95. ⏳ E2E do Duelo (Agente 4).
+- T-008-05, E2E (Agente 4, 2026-11-19): `apps/desktop/e2e/duel.e2e.ts`, com o backend falso devolvendo `session.duel` no formato de `game::duel_outcome`. Casos ✅: (a) vencedor, "Bruno venceu o duelo por 12,5 pontos!"; (b) empate após arredondar a 0,1 (77,04 × 76,96); (c) incompatível: "Duelo sem vencedor" + mensagem do backend + explicação, e nenhum vencedor nem empate mesmo com 90 × 60; (d) "Aguardando" depois da 1ª rodada, em todos os casos.
+- T-008-05 done (Agente 0, 2026-11-19): E2E do Duelo (resultado, empate, incompatível, aguardando) integrado; Playwright 99/99.

@@ -19,16 +19,6 @@ import { useAsync } from "../useAsync";
 export const currentRound = (s: GameSession): Round | null =>
   s.status !== "active" ? null : ([...s.rounds].sort((a, b) => a.position - b.position).find((r) => r.status === "pending") ?? null);
 
-export type DuelResult = { kind: "pending" } | { kind: "tie"; score: number } | { kind: "win"; winnerId: number; scores: Map<number, number> };
-export function duelResult(s: GameSession): DuelResult {
-  const done = s.rounds.filter((r) => r.status === "completed" && r.score != null && r.participantId != null);
-  if (done.length < 2) return { kind: "pending" };
-  const [a, b] = done;
-  if (a.score === b.score) return { kind: "tie", score: a.score! };
-  const win = a.score! > b.score! ? a : b;
-  return { kind: "win", winnerId: win.participantId!, scores: new Map(done.map((r) => [r.participantId!, r.score!])) };
-}
-
 export interface ChallengeStatus {
   played: number; // completed + skipped
   total: number;
@@ -211,8 +201,10 @@ function PartyBoard({ s, names }: { s: GameSession; names: Map<number, string> }
         {s.status === "active" ? "Ranking parcial" : "Classificação final"}
       </h2>
       <p className="text-sm text-muted">
-        Classificação pela média. Para entrar, são necessárias pelo menos {s.config.minRounds ?? 1}{" "}
-        {(s.config.minRounds ?? 1) === 1 ? "rodada" : "rodadas"}.
+        Classificação pela média.{" "}
+        {(s.config.minRounds ?? 1) === 1
+          ? "Para entrar, é preciso pelo menos 1 rodada."
+          : `Para entrar, são necessárias pelo menos ${s.config.minRounds} rodadas.`}
       </p>
       <StandingsTable caption="Ranking da festa" standings={s.standings} names={names} minRounds={s.config.minRounds} />
     </section>
@@ -220,8 +212,10 @@ function PartyBoard({ s, names }: { s: GameSession; names: Map<number, string> }
 }
 
 function DuelBoard({ s, who }: { s: GameSession; who: (id: number | null) => string }) {
-  const result = duelResult(s);
+  // T-008-05: the verdict comes only from Rust (session.duel), which checks the CompatKey; the UI never compares scores.
+  const duel = s.duel ?? null;
   const sides = [...s.rounds].sort((a, b) => a.position - b.position);
+  const winner = duel?.kind === "result" ? duel.winner : null;
   return (
     <section aria-label="Confronto" className="flex flex-col gap-4">
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-6">
@@ -233,7 +227,7 @@ function DuelBoard({ s, who }: { s: GameSession; who: (id: number | null) => str
               </span>
             )}
             <Card
-              className={`flex flex-col items-center gap-3 text-center ${result.kind === "win" && result.winnerId === r.participantId ? "border-accent shadow-glow" : ""}`}
+              className={`flex flex-col items-center gap-3 text-center ${winner != null && winner === r.participantId ? "border-accent shadow-glow" : ""}`}
             >
               <p className="font-display text-3xl font-bold">{who(r.participantId)}</p>
               {r.score != null ? <ScoreBadge score={r.score} /> : <Badge>{roundText[r.status].text}</Badge>}
@@ -241,11 +235,26 @@ function DuelBoard({ s, who }: { s: GameSession; who: (id: number | null) => str
           </Fragment>
         ))}
       </div>
-      <p aria-live="polite" className="text-center font-display text-2xl font-semibold">
-        {result.kind === "win" && `${who(result.winnerId)} venceu o duelo!`}
-        {result.kind === "tie" && `Empate em ${formatScore(result.score)}!`}
-        {result.kind === "pending" && "O duelo termina quando os dois cantarem."}
-      </p>
+      <div aria-live="polite" className="text-center">
+        {!duel && <p className="font-display text-2xl font-semibold">Aguardando: o duelo termina quando os dois cantarem.</p>}
+        {duel?.kind === "result" && (
+          <p className="font-display text-2xl font-semibold">
+            {duel.winner == null
+              ? "Empate!"
+              : `${who(duel.winner)} venceu o duelo por ${formatScore(duel.margin)} ${duel.margin === 1 ? "ponto" : "pontos"}!`}
+          </p>
+        )}
+        {duel?.kind === "incompatible" && (
+          <div role="status" className="mx-auto flex max-w-2xl flex-col gap-2">
+            <p className="font-display text-2xl font-semibold text-warning">Duelo sem vencedor</p>
+            <p>{duel.message}</p>
+            <p className="text-muted">
+              As duas apresentações não podem ser comparadas: usaram referência melódica, revisão, versão do algoritmo ou
+              dificuldade diferentes.
+            </p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

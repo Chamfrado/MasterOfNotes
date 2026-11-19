@@ -90,6 +90,7 @@ pub fn run() {
             sessions::cmd::set_round_status,
             sessions::cmd::complete_session,
             sessions::cmd::get_leaderboard,
+            sessions::cmd::list_performances,
             live::start_performance,
             live::sync_performance,
             live::finish_performance,

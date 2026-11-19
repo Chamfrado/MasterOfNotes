@@ -57,6 +57,18 @@ pub struct GameSession {
     pub completed_ms: Option<i64>,
     pub rounds: Vec<Round>,
     pub standings: Vec<Standing>,
+    /// Duel only, once both rounds are completed (T-008-05).
+    pub duel: Option<DuelResult>,
+}
+
+/// Mirrors `DuelResult` in ipc.ts.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum DuelResult {
+    /// `winner` = participant id; `None` = draw.
+    Result { winner: Option<i64>, margin: f32 },
+    /// The two performances have different CompatKeys (pt-BR message).
+    Incompatible { message: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
@@ -382,6 +394,10 @@ pub fn get_session(conn: &Connection, id: i64) -> AppResult<GameSession> {
         }
     }
 
+    let duel = match mode {
+        GameMode::Duel => duel_result(conn, &rounds)?,
+        _ => None,
+    };
     Ok(GameSession {
         id,
         mode,
@@ -392,7 +408,54 @@ pub fn get_session(conn: &Connection, id: i64) -> AppResult<GameSession> {
         completed_ms,
         rounds,
         standings,
+        duel,
     })
+}
+
+/// Compares the latest competitive performance of each duel round (game::duel_outcome).
+fn duel_result(conn: &Connection, rounds: &[Round]) -> AppResult<Option<DuelResult>> {
+    if rounds.len() != 2 || rounds.iter().any(|r| r.status != "completed") {
+        return Ok(None);
+    }
+    let mut records = Vec::with_capacity(2);
+    for round in rounds {
+        let record = conn
+            .query_row(
+                "SELECT participant_id, song_id, score, reference_id, reference_revision,
+                        algorithm_version, difficulty, created_ms
+                 FROM performances WHERE round_id = ?1 AND competitive = 1
+                 ORDER BY id DESC LIMIT 1",
+                [round.id],
+                |r| {
+                    Ok(PerformanceRecord {
+                        participant_id: r.get(0)?,
+                        song_id: r.get(1)?,
+                        score: r.get::<_, f64>(2)? as f32,
+                        compat: CompatKey {
+                            reference_id: r.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                            reference_revision: r.get::<_, Option<i64>>(4)?.unwrap_or(0),
+                            algorithm_version: r.get(5)?,
+                            difficulty: r.get(6)?,
+                        },
+                        created_ms: r.get(7)?,
+                    })
+                },
+            )
+            .optional()?;
+        let Some(record) = record else {
+            return Ok(None);
+        };
+        records.push(record);
+    }
+    Ok(Some(match game::duel_outcome(&records[0], &records[1]) {
+        Ok(o) => DuelResult::Result {
+            winner: o.winner,
+            margin: o.margin,
+        },
+        Err(e) => DuelResult::Incompatible {
+            message: e.to_string(),
+        },
+    }))
 }
 
 pub fn list_sessions(conn: &Connection) -> AppResult<Vec<GameSession>> {
@@ -551,6 +614,87 @@ pub fn leaderboard(
         .collect())
 }
 
+// ---------- Performance history (SPEC-007 R6, T-007-04) ----------
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceRow {
+    pub performance_id: i64,
+    pub song_id: String,
+    pub song_title: String,
+    pub participant_name: Option<String>,
+    pub score: f32,
+    pub competitive: bool,
+    pub algorithm_version: u32,
+    pub reference_revision: i64,
+    pub difficulty: String,
+    pub created_ms: i64,
+    /// Same CompatKey as the song has today (active reference + revision + current
+    /// algorithm); `false` = "versão anterior".
+    pub is_current_key: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListPerformances {
+    pub song_id: Option<String>,
+    pub participant_id: Option<i64>,
+    pub limit: u32,
+}
+
+const MAX_HISTORY: u32 = 500;
+
+/// Newest first; competitive and training; songs whose file vanished stay (history).
+pub fn list_performances(
+    conn: &Connection,
+    args: &ListPerformances,
+) -> AppResult<Vec<PerformanceRow>> {
+    if !(1..=MAX_HISTORY).contains(&args.limit) {
+        return Err(AppError::invalid_input(format!(
+            "O limite deve estar entre 1 e {MAX_HISTORY}."
+        )));
+    }
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.song_id, s.title, pa.name, p.score, p.competitive, p.algorithm_version,
+                COALESCE(p.reference_revision, 0), p.difficulty, p.created_ms,
+                r.id IS NOT NULL AND r.id = p.reference_id AND r.revision = p.reference_revision
+                    AND p.algorithm_version = ?3
+         FROM performances p
+         JOIN songs s ON s.id = p.song_id
+         LEFT JOIN participants pa ON pa.id = p.participant_id
+         LEFT JOIN melody_references r ON r.song_id = p.song_id AND r.active = 1
+         WHERE (?1 IS NULL OR p.song_id = ?1) AND (?2 IS NULL OR p.participant_id = ?2)
+         ORDER BY p.created_ms DESC, p.id DESC
+         LIMIT ?4",
+    )?;
+    let rows = stmt
+        .query_map(
+            (
+                &args.song_id,
+                args.participant_id,
+                scoring_engine::ALGORITHM_VERSION,
+                args.limit,
+            ),
+            |r| {
+                Ok(PerformanceRow {
+                    performance_id: r.get(0)?,
+                    song_id: r.get(1)?,
+                    song_title: r.get(2)?,
+                    participant_name: r.get(3)?,
+                    score: r.get::<_, f64>(4)? as f32,
+                    competitive: r.get(5)?,
+                    algorithm_version: r.get(6)?,
+                    reference_revision: r.get(7)?,
+                    difficulty: r.get(8)?,
+                    created_ms: r.get(9)?,
+                    is_current_key: r.get(10)?,
+                })
+            },
+        )?
+        .collect::<Result<_, _>>()?;
+    Ok(rows)
+}
+
 /// Tauri commands; names match ipc.ts.
 pub mod cmd {
     use super::*;
@@ -607,6 +751,14 @@ pub mod cmd {
         difficulty: Difficulty,
     ) -> AppResult<Vec<LeaderboardRow>> {
         super::leaderboard(&lock(state.db()?), &song_id, difficulty)
+    }
+
+    #[tauri::command]
+    pub async fn list_performances(
+        state: State<'_, AppState>,
+        args: ListPerformances,
+    ) -> AppResult<Vec<PerformanceRow>> {
+        super::list_performances(&lock(state.db()?), &args)
     }
 }
 
@@ -679,6 +831,141 @@ mod tests {
             [round.id],
         )
         .unwrap();
+    }
+
+    #[test]
+    fn performance_history_filters_and_flags_old_keys() {
+        let mut e = env();
+        let ana = create_participant(&e.conn, "Ana").unwrap().id;
+        let hist = |e: &Env, song: Option<&str>, participant: Option<i64>, limit: u32| {
+            list_performances(
+                &e.conn,
+                &ListPerformances {
+                    song_id: song.map(str::to_owned),
+                    participant_id: participant,
+                    limit,
+                },
+            )
+        };
+        let s1 = create_session(&mut e.conn, args(GameMode::Solo, &[ana], &["s1"])).unwrap();
+        sing(&e.conn, &s1.rounds[0], 70.0);
+        let anon = create_session(&mut e.conn, args(GameMode::Solo, &[], &["s1"])).unwrap();
+        sing(&e.conn, &anon.rounds[0], 85.0);
+        let s2 = create_session(&mut e.conn, args(GameMode::Solo, &[ana], &["s2"])).unwrap();
+        sing(&e.conn, &s2.rounds[0], 60.0);
+
+        let all = hist(&e, None, None, 50).unwrap();
+        let view: Vec<_> = all
+            .iter()
+            .map(|r| (r.song_id.as_str(), r.participant_name.as_deref(), r.score))
+            .collect();
+        assert_eq!(
+            view,
+            [
+                ("s2", Some("Ana"), 60.0),
+                ("s1", None, 85.0),
+                ("s1", Some("Ana"), 70.0)
+            ],
+            "newest first"
+        );
+        assert!(
+            all.iter()
+                .all(|r| r.is_current_key && r.competitive && r.reference_revision == 1)
+        );
+        assert_eq!(all[0].song_title, "s2");
+        assert_eq!(hist(&e, Some("s1"), None, 50).unwrap().len(), 2);
+        assert_eq!(hist(&e, None, Some(ana), 50).unwrap().len(), 2);
+        assert_eq!(hist(&e, Some("s1"), Some(ana), 50).unwrap().len(), 1);
+        assert_eq!(hist(&e, None, None, 1).unwrap()[0].song_id, "s2");
+        assert!(hist(&e, Some("nope"), None, 50).unwrap().is_empty());
+
+        // New reference revision → s1 rows become "versão anterior"; s2 untouched.
+        e.conn
+            .execute(
+                "UPDATE melody_references SET revision = 2 WHERE song_id = 's1'",
+                [],
+            )
+            .unwrap();
+        let all = hist(&e, None, None, 50).unwrap();
+        let current: Vec<_> = all
+            .iter()
+            .map(|r| (r.song_id.as_str(), r.is_current_key))
+            .collect();
+        assert_eq!(current, [("s2", true), ("s1", false), ("s1", false)]);
+        // Song file gone: history stays.
+        e.conn
+            .execute("UPDATE songs SET available = 0 WHERE id = 's2'", [])
+            .unwrap();
+        assert_eq!(hist(&e, Some("s2"), None, 50).unwrap().len(), 1);
+
+        for bad in [0, 501] {
+            assert_eq!(hist(&e, None, None, bad).unwrap_err().code, "invalid_input");
+        }
+    }
+
+    #[test]
+    fn duel_result_same_key_and_incompatible() {
+        let mut e = env();
+        let a = create_participant(&e.conn, "A").unwrap().id;
+        let b = create_participant(&e.conn, "B").unwrap().id;
+        let mut duel = |scores: (f64, f64), bump_between: bool| {
+            let s = create_session(&mut e.conn, args(GameMode::Duel, &[a, b], &["s1"])).unwrap();
+            assert_eq!(s.duel, None, "no result before singing");
+            sing(&e.conn, &s.rounds[0], scores.0);
+            assert_eq!(
+                get_session(&e.conn, s.id).unwrap().duel,
+                None,
+                "one round left"
+            );
+            if bump_between {
+                e.conn
+                    .execute(
+                        "UPDATE melody_references SET revision = revision + 1 WHERE song_id = 's1'",
+                        [],
+                    )
+                    .unwrap();
+            }
+            sing(&e.conn, &s.rounds[1], scores.1);
+            get_session(&e.conn, s.id).unwrap().duel
+        };
+
+        assert_eq!(
+            duel((80.0, 70.0), false),
+            Some(DuelResult::Result {
+                winner: Some(a),
+                margin: 10.0
+            })
+        );
+        assert_eq!(
+            duel((75.0, 75.0), false),
+            Some(DuelResult::Result {
+                winner: None,
+                margin: 0.0
+            }),
+            "draw"
+        );
+        let Some(DuelResult::Incompatible { message }) = duel((90.0, 60.0), true) else {
+            panic!("different revision must be incompatible");
+        };
+        assert!(message.contains("não são comparáveis"));
+
+        let json = serde_json::to_value(DuelResult::Result {
+            winner: None,
+            margin: 0.0,
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"kind": "result", "winner": null, "margin": 0.0})
+        );
+        let json = serde_json::to_value(DuelResult::Incompatible {
+            message: "x".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"kind": "incompatible", "message": "x"})
+        );
     }
 
     #[test]

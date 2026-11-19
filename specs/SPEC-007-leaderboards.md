@@ -14,7 +14,7 @@
 | T-007-01 | `game::leaderboard` + `CompatKey` + testes | Agente 4 | done |
 | T-007-02 | Command `get_leaderboard` + repositório | Agente 1 | done |
 | T-007-03 | Telas de Resultado e Ranking | Agente 3 | todo |
-| T-007-04 | Command `list_performances` (histórico com versões anteriores, R6) | Agente 1 | doing |
+| T-007-04 | Command `list_performances` (histórico com versões anteriores, R6) | Agente 1 | done |
 
 ## TEST
 `game` testes: `leaderboard_excludes_incompatible`, `ties_older_first`, `top_50`.
@@ -25,3 +25,8 @@
 - T-007-01 done (Agente 0, 2026-11-19): integrado em main, testes verdes.
 - T-007-02 `review` (Agente 1, 2026-11-19): `get_leaderboard(songId, difficulty)` em `src-tauri/src/sessions.rs`, usando `game::leaderboard` com a CompatKey atual (referência ativa + revisão + `ALGORITHM_VERSION` + dificuldade). Sem referência → lista vazia. Nome "Anônimo" para participante nulo. `performanceId` é remapeado a partir de (participante, score, data). Testes ✅ `sessions::tests::leaderboard_current_key_only`.
 - T-007-02 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware).
+- T-007-04 `review` (Agente 1, 2026-11-19): `list_performances({songId?, participantId?, limit 1..500})` em `sessions.rs`.
+  - Inclui competitivas e treino, em ordem `createdMs` desc (desempate id desc), e mantém músicas com arquivo sumido.
+  - `isCurrentKey` = referência ativa + revisão + `ALGORITHM_VERSION` iguais aos atuais, para a dificuldade da própria linha.
+  - Teste ✅ `sessions::tests::performance_history_filters_and_flags_old_keys`.
+- T-007-04 done (Agente 0, 2026-11-19): list_performances integrado.
