@@ -19,8 +19,8 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-003-01 | Reducer da máquina de estados + testes | Agente 3 | done |
-| T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | doing |
-| T-003-03 | Integração com `syncPerformance` | Agente 3 | todo |
+| T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | review |
+| T-003-03 | Integração com `syncPerformance` | Agente 3 | review |
 | T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | doing |
 
 ## TEST
@@ -29,6 +29,12 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 ## STATUS
 - T-003-04 em andamento (Agente 4, 2026-11-19): checklist e roteiro de fixtures sintéticas prontos em `docs/testing/evidence/codecs.md`; execução ⏳ aguarda o Player (T-003-02).
 - T-003-01 em review (Agente 3, 2026-11-19): `src/player/playerMachine.ts`; `playerMachine.test.ts` cobre a tabela completa estado × evento (8 × 9: válidas checam o estado resultante, inválidas checam identidade do objeto) + contagem 3-2-1 + fluxo completo.
-- T-003-02 em andamento (Agente 3): esqueleto do Player com `<video>`, contagem, Espaço, F (tela cheia da janela Tauri), Esc, overlay no topo, R3/R4 (`updateSong`), `syncPerformance` em play/pause/seeked + `requestVideoFrameCallback` a cada 250 ms. Faltam: volume, barra de progresso, seek/treino, tecla H.
+- T-003-02/03 em review (Agente 3, 2026-11-19): `src/screens/Player.tsx`.
+  - Controles: Espaço (pausar/continuar), F (tela cheia da janela Tauri, desfeita ao sair), H (overlay full → compact → hidden, persistido em `feedbackOverlay`), ↑/↓ (volume em passos de 5%, persistido em `videoVolume`), ←/→ (±5 s), barra de posição, Esc (sair; a desmontagem chama `abortPerformance`). Os controles somem após 3 s cantando e voltam com mouse ou tecla.
+  - R2 seek: em partida competitiva, um diálogo avisa que a partida vira treino. Ao confirmar, aparece o selo "Treino — fora do ranking" e os próximos seeks não perguntam mais. A conversão em si é do Rust (`seeked=true`).
+  - R6/R8: `syncPerformance` em play (playing=true), pause (false), seeking (false, seeked) e seeked (estado real, seeked), mais `requestVideoFrameCallback` com `mediaTime` a cada 250 ms durante playing.
+  - SPEC-004 R9 no player: `src/player/leak.ts` avisa "o microfone está captando a música — use fones" se mais de 20% dos últimos 300 frames fora de notas (`feedback == null`) tiverem voz.
+  - Testes: `Player.test.tsx` (9, jsdom com mídia simulada) e `leak.test.ts` (4).
+  - ⏳ Não executado no WebView2 real: `requestVideoFrameCallback`, tela cheia, codecs (T-003-04 do Agente 4 pode rodar agora).
 - Demais pendentes.
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.

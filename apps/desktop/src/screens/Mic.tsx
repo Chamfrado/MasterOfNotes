@@ -95,6 +95,10 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
         />
         <div className="flex flex-col gap-2">
           <h2 className="font-semibold">Nível ao vivo</h2>
+          <p className="text-muted">
+            Cante uma nota: o selo “Voz detectada” deve acender e a nota aparecer. Use fones de ouvido — se o microfone
+            captar a música durante a partida, avisamos na tela.
+          </p>
           {monitorError ? (
             <p role="alert" className="text-danger">
               {errorMessage(monitorError)}
@@ -137,6 +141,9 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
           }}
           format={(v) => `${v > 0 ? "+" : ""}${v} ms`}
         />
+        <p className="-mt-3 text-sm text-muted">
+          Se a pontuação parece atrasada em relação ao que você canta, aumente; se parece adiantada, diminua.
+        </p>
       </Card>
     </div>
   );
