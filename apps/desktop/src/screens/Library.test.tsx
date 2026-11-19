@@ -67,7 +67,7 @@ describe("Library", () => {
     expect(screen.getByText("Referência validada")).toBeInTheDocument();
     expect(screen.getByText("3:05")).toBeInTheDocument();
     expect(screen.getByText("Formato incompatível")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Cantar Night Song" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cantar Night Song noite_feliz.mp4" })).toBeDisabled();
 
     const search = screen.getByRole("searchbox", { name: "Buscar músicas" });
     await userEvent.type(search, "CANCAO");
@@ -88,7 +88,7 @@ describe("Library", () => {
     vi.mocked(ipc.listSongs).mockResolvedValue([song({ id: "1", title: "Aquarela" })]);
     vi.mocked(ipc.getSettings).mockResolvedValue(settings("C:/k"));
     renderLibrary();
-    await userEvent.click(await screen.findByRole("button", { name: "Cantar Aquarela" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cantar Aquarela x.mp4" }));
     expect(navigate).toHaveBeenCalledWith({ name: "player", songId: "1" });
   });
 

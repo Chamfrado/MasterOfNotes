@@ -7,6 +7,7 @@ export type Route =
   | { name: "library" }
   | { name: "mic" }
   | { name: "player"; songId: string }
+  | { name: "reference"; songId: string }
   | { name: "result"; songId: string; outcome: PerformanceOutcome }
   | { name: "ranking"; songId?: string };
 

@@ -42,6 +42,9 @@ export function Result({ songId, outcome }: { songId: string; outcome: Performan
       ) : (
         <Card className="flex max-w-xl flex-col gap-4">
           <p>Esta música ainda não tem referência melódica, então não há pontuação. Importe uma referência para competir.</p>
+          <Button className="self-center" onClick={() => navigate({ name: "reference", songId })}>
+            Importar referência
+          </Button>
           {outcome.exploratory && (
             <section aria-labelledby="exploratory-title" className="flex flex-col gap-3">
               <h2 id="exploratory-title" className="font-semibold">
