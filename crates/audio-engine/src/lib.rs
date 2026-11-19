@@ -5,7 +5,12 @@
 //! threshold 0.15 + parabolic interpolation, 70–1100 Hz. Volume never changes
 //! pitch or confidence; it only matters through the noise gate.
 
+mod calibration;
+mod capture;
 mod yin;
+
+pub use calibration::{CalibrationIssue, NoiseCalibration, calibrate_noise, check_voice};
+pub use capture::{Capture, InputDevice, list_input_devices};
 
 use serde::{Deserialize, Serialize};
 
@@ -21,7 +26,7 @@ pub const SILENCE_DBFS: f32 = -120.0;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AudioError {
-    #[error("audio device error: {0}")]
+    #[error("erro no dispositivo de áudio: {0}")]
     Device(String),
 }
 

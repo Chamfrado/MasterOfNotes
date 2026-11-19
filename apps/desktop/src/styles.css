@@ -1,0 +1,120 @@
+/* Design tokens (SPEC-010). Components use only these tokens — no loose values. */
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "tailwindcss";
+
+@theme {
+  /* Graphite surfaces, one vibrant accent. fg/muted pass AA on every surface. */
+  --color-bg: #0d0e12;
+  --color-surface: #16181e;
+  --color-surface-2: #1f222a;
+  --color-surface-3: #2a2e38;
+  --color-line: #343946;
+  --color-fg: #f3f4f7;
+  --color-muted: #a6abb8;
+  --color-accent: #ff4f8b;
+  --color-accent-strong: #ff7aa8;
+  --color-accent-fg: #17050c; /* text on accent: 7:1 */
+  --color-accent-2: #ffa94d; /* only inside --gradient-accent */
+  --color-success: #3ddc97;
+  --color-warning: #ffc145;
+  --color-danger: #ff6b6b;
+  --color-info: #6cb8ff;
+  --color-focus: #ffe066;
+
+  --font-sans: "Inter Variable", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Inter Variable", system-ui, sans-serif;
+
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 2rem;
+
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 12px 32px -12px rgb(0 0 0 / 0.6);
+  --shadow-glow: 0 0 0 1px rgb(255 79 139 / 0.35), 0 12px 40px -8px rgb(255 79 139 / 0.45);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 400ms;
+
+  --animate-enter: enter var(--duration-slow) var(--ease-out) both;
+  --animate-pulse-soft: pulse-soft 1.6s ease-in-out infinite;
+
+  @keyframes enter {
+    from { opacity: 0; transform: translateY(0.75rem); }
+  }
+  @keyframes pulse-soft {
+    50% { opacity: 0.45; }
+  }
+}
+
+:root {
+  --gradient-accent: linear-gradient(120deg, var(--color-accent), var(--color-accent-2));
+  --gradient-stage: radial-gradient(80rem 40rem at 85% -10%, rgb(255 79 139 / 0.12), transparent 60%);
+  color-scheme: dark;
+}
+
+@layer base {
+/* 10-foot scale: the whole rem grid grows with the viewport (notebook ≈ 17px, 1080p TV ≈ 21px, 4K capped). */
+html {
+  font-size: clamp(16px, 0.55vw + 10px, 28px);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--gradient-stage), var(--color-bg);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible, high-contrast focus everywhere (keyboard / TV remote). */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+progress {
+  appearance: none;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-3);
+}
+progress::-webkit-progress-bar {
+  background: var(--color-surface-3);
+}
+progress::-webkit-progress-value {
+  background: var(--gradient-accent);
+  transition: width var(--duration-base) var(--ease-out);
+}
+progress:indeterminate::-webkit-progress-bar {
+  animation: var(--animate-pulse-soft);
+  background: var(--color-accent);
+}
+
+input[type="range"] {
+  accent-color: var(--color-accent);
+}
+}
+
+/* System preference OR the in-app setting (data-reduced-motion="on" on <html>) disable non-essential motion. */
+@media (prefers-reduced-motion: reduce) {
+  html:not([data-reduced-motion="off"]) *,
+  html:not([data-reduced-motion="off"]) *::before,
+  html:not([data-reduced-motion="off"]) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+html[data-reduced-motion="on"] *,
+html[data-reduced-motion="on"] *::before,
+html[data-reduced-motion="on"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
