@@ -67,7 +67,28 @@ impl Capture {
     pub fn start(
         device_id: Option<&str>,
         cfg: CaptureConfig,
-        on_frame: impl FnMut(AnalysisFrame) + Send + 'static,
+        mut on_frame: impl FnMut(AnalysisFrame) + Send + 'static,
+    ) -> Result<Capture, AudioError> {
+        Self::spawn(device_id, move |sample_rate| {
+            let mut analyzer = Analyzer::new(sample_rate, cfg);
+            move |_: u64, block: &[f32]| analyzer.push(block, &mut on_frame)
+        })
+    }
+
+    /// Same device, ring and thread, without analysis: delivers mono blocks with
+    /// the index of their first sample (same numbering as `captured_samples`).
+    pub fn start_raw(
+        device_id: Option<&str>,
+        on_samples: impl FnMut(u64, &[f32]) + Send + 'static,
+    ) -> Result<Capture, AudioError> {
+        Self::spawn(device_id, move |_| on_samples)
+    }
+
+    /// `make` builds the block consumer on the capture thread once the sample
+    /// rate is known.
+    fn spawn<P: FnMut(u64, &[f32])>(
+        device_id: Option<&str>,
+        make: impl FnOnce(u32) -> P + Send + 'static,
     ) -> Result<Capture, AudioError> {
         let stop = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
@@ -77,7 +98,7 @@ impl Capture {
         let (stop2, error2, captured2) = (stop.clone(), error.clone(), captured.clone());
         let thread = thread::Builder::new()
             .name("mic-analysis".into())
-            .spawn(move || run(id, cfg, on_frame, stop2, error2, captured2, ready_tx))
+            .spawn(move || run(id, make, stop2, error2, captured2, ready_tx))
             .map_err(device_err)?;
         match ready_rx.recv() {
             Ok(Ok(sample_rate)) => Ok(Capture {
@@ -128,10 +149,9 @@ impl Drop for Capture {
     }
 }
 
-fn run(
+fn run<P: FnMut(u64, &[f32])>(
     device_id: Option<String>,
-    cfg: CaptureConfig,
-    mut on_frame: impl FnMut(AnalysisFrame),
+    make: impl FnOnce(u32) -> P,
     stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
     captured: Arc<AtomicU64>,
@@ -151,7 +171,8 @@ fn run(
     }
     let _ = ready.send(Ok(sample_rate));
 
-    let mut analyzer = Analyzer::new(sample_rate, cfg);
+    let mut process = make(sample_rate);
+    let mut consumed = 0u64;
     while !stop.load(Ordering::Relaxed) {
         if error.lock().map(|e| e.is_some()).unwrap_or(true) {
             break;
@@ -163,8 +184,10 @@ fn run(
         }
         if let Ok(chunk) = consumer.read_chunk(n) {
             let (a, b) = chunk.as_slices();
-            analyzer.push(a, &mut on_frame);
-            analyzer.push(b, &mut on_frame);
+            for block in [a, b].into_iter().filter(|b| !b.is_empty()) {
+                process(consumed, block);
+                consumed += block.len() as u64;
+            }
             chunk.commit_all();
         }
     }

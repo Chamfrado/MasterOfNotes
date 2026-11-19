@@ -114,3 +114,9 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 - T-006-03 e T-006-05 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware). ⏳ start→sync→finish via IPC real ainda não exercitado no app.
 
 - T-006-06 done (Agente 0, 2026-11-19): integrado em main @ 94fecbe; 70 testes de áudio/pontuação (golden incluído) + 40 do app verdes, clippy limpo. Emendas aceitas registradas na seção v2. ⏳ Re-revisão do Agente 4 e validação com voz real.
+- T-004-06 parte Agente 1 `review` (2026-11-19):
+  - `settings.leakCheck {deviceId, videoVolume, passed, atMs}`. É só leitura em `update_settings` (`invalid_setting`) e é gravado só pela execução de teste.
+  - `start_performance` com `leakCheck: true`: recusa rodada/participante; exige referência ativa experimental ou validated; `PerformanceConfig.leak_check`.
+  - No finish: nada vai para `performances`; o veredito vai para as settings (um veredito reprovado substitui uma aprovação anterior) e é devolvido em `outcome.leak`.
+  - Gate competitivo: `leakCheck.passed && deviceId == inputDeviceId && videoVolume ≤ leakCheck.videoVolume + 0,05`. Senão é treino, com o reason "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking.".
+  - Testes ✅ `live::tests::{leak_check_gates_competitive, leak_check_run_saves_verdict_only, leak_check_is_read_only_for_update_settings}`.

@@ -30,6 +30,19 @@ pub enum FeedbackOverlay {
     Hidden,
 }
 
+/// Last microphone leak check (SPEC-004 R9, T-004-06). Written only by a leak-check run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct LeakCheck {
+    pub device_id: Option<String>,
+    pub video_volume: f64,
+    pub passed: bool,
+    pub at_ms: i64,
+}
+
+/// Volume may rise this much above the checked level and still count as checked.
+const LEAK_VOLUME_TOLERANCE: f64 = 0.05;
+
 /// Mirrors `AppSettings` in `apps/desktop/src/lib/ipc.ts`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -45,6 +58,8 @@ pub struct AppSettings {
     pub feedback_overlay: FeedbackOverlay,
     /// Off by default: the network is used only with consent (Law 10).
     pub auto_check_updates: bool,
+    /// Read-only for `update_settings`; written by a leak-check performance run.
+    pub leak_check: Option<LeakCheck>,
 }
 
 impl Default for AppSettings {
@@ -60,11 +75,22 @@ impl Default for AppSettings {
             reduced_motion: ReducedMotion::System,
             feedback_overlay: FeedbackOverlay::Full,
             auto_check_updates: false,
+            leak_check: None,
         }
     }
 }
 
 impl AppSettings {
+    /// Competitive gate (SPEC-006 A2): a passed leak check for the current device,
+    /// done at a video volume no lower than the current one (minus a small tolerance).
+    pub fn leak_check_ok(&self) -> bool {
+        self.leak_check.as_ref().is_some_and(|c| {
+            c.passed
+                && c.device_id == self.input_device_id
+                && self.video_volume <= c.video_volume + LEAK_VOLUME_TOLERANCE
+        })
+    }
+
     fn validate(&self) -> AppResult<()> {
         if !(0.0..=1.0).contains(&self.video_volume) {
             return Err(AppError::invalid_setting(
@@ -117,6 +143,11 @@ pub fn update(conn: &mut Connection, patch: Map<String, Value>) -> AppResult<App
     if patch.contains_key("libraryFolder") {
         return Err(AppError::invalid_setting(
             "A pasta da biblioteca deve ser escolhida pela tela da biblioteca.",
+        ));
+    }
+    if patch.contains_key("leakCheck") {
+        return Err(AppError::invalid_setting(
+            "O teste de vazamento é gravado só pelo próprio teste.",
         ));
     }
     write(conn, patch)
