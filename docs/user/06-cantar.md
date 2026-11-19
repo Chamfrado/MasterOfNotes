@@ -16,7 +16,7 @@ O player ocupa a janela toda (o menu some). Aparece o nome da música e o botão
 
 ![Animação: na Biblioteca, clique em Cantar; o player mostra o título e o botão Começar; contagem 3-2-1; o vídeo começa com o painel de afinação e a pontuação no alto.](media/cantar-comecar.gif)
 
-*Animação com música de teste própria do projeto e notas ilustrativas.* Vídeo opcional do fluxo completo, do Começar ao Resultado: [cantar-fluxo-completo.webm](media/cantar-fluxo-completo.webm) (o GitHub não toca o vídeo na página; baixe ou abra o arquivo).
+*Animação com música de teste própria do projeto e notas ilustrativas.* Vídeo opcional do fluxo completo, do Começar ao Resultado: [cantar-fluxo-completo.webm](media/cantar-fluxo-completo.webm) (3 MB). O GitHub não toca o vídeo na própria página: clique em **View raw** ou no botão de download e abra o arquivo no navegador ou num reprodutor de vídeo.
 
 ## Durante a música
 
