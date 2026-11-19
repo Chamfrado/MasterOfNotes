@@ -52,12 +52,21 @@ pub fn list_input_devices() -> Result<Vec<InputDevice>, AudioError> {
         .collect())
 }
 
+/// Shared with the audio callback.
+#[derive(Default)]
+struct Counters {
+    /// Mono samples delivered by the driver.
+    captured: AtomicU64,
+    /// Of those, samples dropped because the ring was full.
+    dropped: AtomicU64,
+}
+
 /// Running capture. Analysis runs on its own thread (which also owns the cpal
 /// stream, so `Capture` is `Send`). Drop = stop.
 pub struct Capture {
     stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
-    captured: Arc<AtomicU64>,
+    counters: Arc<Counters>,
     thread: Option<JoinHandle<()>>,
     sample_rate: u32,
 }
@@ -92,19 +101,19 @@ impl Capture {
     ) -> Result<Capture, AudioError> {
         let stop = Arc::new(AtomicBool::new(false));
         let error = Arc::new(Mutex::new(None));
-        let captured = Arc::new(AtomicU64::new(0));
+        let counters = Arc::new(Counters::default());
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
         let id = device_id.map(str::to_owned);
-        let (stop2, error2, captured2) = (stop.clone(), error.clone(), captured.clone());
+        let (stop2, error2, counters2) = (stop.clone(), error.clone(), counters.clone());
         let thread = thread::Builder::new()
             .name("mic-analysis".into())
-            .spawn(move || run(id, make, stop2, error2, captured2, ready_tx))
+            .spawn(move || run(id, make, stop2, error2, counters2, ready_tx))
             .map_err(device_err)?;
         match ready_rx.recv() {
             Ok(Ok(sample_rate)) => Ok(Capture {
                 stop,
                 error,
-                captured,
+                counters,
                 thread: Some(thread),
                 sample_rate,
             }),
@@ -130,7 +139,14 @@ impl Capture {
     /// the latest analysed frame, it carries no ring-buffer/analysis delay.
     /// Sample `n` here is sample `n` of `AnalysisFrame::sample_index`.
     pub fn captured_samples(&self) -> u64 {
-        self.captured.load(Ordering::Acquire)
+        self.counters.captured.load(Ordering::Acquire)
+    }
+
+    /// Samples the callback counted in `captured_samples` but could not hand to
+    /// the analysis (ring full: analysis stalled > RING_SECONDS). They were never
+    /// analysed: count them as missing audio.
+    pub fn dropped_samples(&self) -> u64 {
+        self.counters.dropped.load(Ordering::Acquire)
     }
 
     /// Stream error reported by the driver (e.g. device unplugged), if any.
@@ -154,11 +170,11 @@ fn run<P: FnMut(u64, &[f32])>(
     make: impl FnOnce(u32) -> P,
     stop: Arc<AtomicBool>,
     error: Arc<Mutex<Option<String>>>,
-    captured: Arc<AtomicU64>,
+    counters: Arc<Counters>,
     ready: mpsc::SyncSender<Result<u32, AudioError>>,
 ) {
     let (stream, mut consumer, sample_rate) =
-        match open(device_id.as_deref(), error.clone(), captured) {
+        match open(device_id.as_deref(), error.clone(), counters) {
             Ok(v) => v,
             Err(e) => {
                 let _ = ready.send(Err(e));
@@ -199,7 +215,7 @@ type Opened = (cpal::Stream, rtrb::Consumer<f32>, u32);
 fn open(
     device_id: Option<&str>,
     error: Arc<Mutex<Option<String>>>,
-    captured: Arc<AtomicU64>,
+    counters: Arc<Counters>,
 ) -> Result<Opened, AudioError> {
     let host = cpal::default_host();
     let device = match device_id {
@@ -222,10 +238,10 @@ fn open(
     };
     use cpal::SampleFormat as F;
     let stream = match supported.sample_format() {
-        F::F32 => build::<f32>(&device, &config, channels, producer, captured, on_error),
-        F::I16 => build::<i16>(&device, &config, channels, producer, captured, on_error),
-        F::U16 => build::<u16>(&device, &config, channels, producer, captured, on_error),
-        F::I32 => build::<i32>(&device, &config, channels, producer, captured, on_error),
+        F::F32 => build::<f32>(&device, &config, channels, producer, counters, on_error),
+        F::I16 => build::<i16>(&device, &config, channels, producer, counters, on_error),
+        F::U16 => build::<u16>(&device, &config, channels, producer, counters, on_error),
+        F::I32 => build::<i32>(&device, &config, channels, producer, counters, on_error),
         other => {
             return Err(AudioError::Device(format!(
                 "formato de amostra não suportado: {other}"
@@ -240,7 +256,7 @@ fn build<T>(
     config: &cpal::StreamConfig,
     channels: usize,
     mut producer: rtrb::Producer<f32>,
-    captured: Arc<AtomicU64>,
+    counters: Arc<Counters>,
     on_error: impl FnMut(cpal::StreamError) + Send + 'static,
 ) -> Result<cpal::Stream, AudioError>
 where
@@ -255,13 +271,20 @@ where
             // Real-time callback: downmix + push only. A full ring drops samples
             // (analysis lagging > RING_SECONDS) instead of blocking the driver.
             move |data: &[T], _: &cpal::InputCallbackInfo| {
+                let mut lost = 0u64;
                 for frame in data.chunks_exact(channels) {
                     let mono = frame.iter().map(|s| s.to_sample::<f32>()).sum::<f32>() * scale;
-                    let _ = producer.push(mono);
+                    lost += u64::from(producer.push(mono).is_err());
                 }
-                // ponytail: a dropped push desyncs sample_index from this counter; only
-                // happens if analysis stalls > RING_SECONDS. Count drops if it ever does.
-                captured.fetch_add((data.len() / channels) as u64, Ordering::Release);
+                // ponytail: a dropped push also desyncs sample_index from `captured`
+                // (frames after it map earlier); only if analysis stalls > RING_SECONDS.
+                // Drops are counted so the session can treat them as missing audio.
+                if lost > 0 {
+                    counters.dropped.fetch_add(lost, Ordering::Release);
+                }
+                counters
+                    .captured
+                    .fetch_add((data.len() / channels) as u64, Ordering::Release);
             },
             on_error,
             None,

@@ -197,8 +197,13 @@ impl LivePerformance {
     /// Call on play, pause, seeking/seeked and every ~250 ms with the video's
     /// media time. Non-finite or negative times are ignored.
     pub fn sync(&self, video_time_s: f64, playing: bool, seeked: bool) {
-        let now = self.capture.captured_samples();
-        lock(&self.session).sync(video_time_s, playing, seeked, now);
+        let (now, dropped) = (
+            self.capture.captured_samples(),
+            self.capture.dropped_samples(),
+        );
+        let mut session = lock(&self.session);
+        session.dropped = dropped;
+        session.sync(video_time_s, playing, seeked, now);
     }
 
     /// Driver error (e.g. microphone unplugged); the run stops receiving frames.
@@ -209,10 +214,15 @@ impl LivePerformance {
     }
 
     pub fn finish(self) -> PerformanceSummary {
-        let now = self.capture.captured_samples();
+        let (now, dropped) = (
+            self.capture.captured_samples(),
+            self.capture.dropped_samples(),
+        );
         let Self { capture, session } = self;
         drop(capture); // joins the analysis thread: no frame arrives after this
-        lock(&session).summary(now)
+        let mut session = lock(&session);
+        session.dropped = dropped;
+        session.summary(now)
     }
 }
 
@@ -264,6 +274,10 @@ struct Session {
     /// Callback samples delivered over the same played stretches (N2).
     played_samples: u64,
     last_sync_sample: u64,
+    /// Callback samples the ring dropped so far (`Capture::dropped_samples`):
+    /// counted by the callback but never analysed, so missing too (E2).
+    dropped: u64,
+    last_sync_dropped: u64,
     /// Competitive at start: a later loss of competitiveness gets a reason.
     started_competitive: bool,
     frames_seen: u64,
@@ -306,6 +320,8 @@ impl Session {
             started_competitive: competitive,
             played_samples: 0,
             last_sync_sample: 0,
+            dropped: 0,
+            last_sync_dropped: 0,
             scorer,
             spans,
             voice: Vec::new(),
@@ -350,6 +366,12 @@ impl Session {
         }
     }
 
+    /// Callback samples since the last sync that reached the analysis (N2, E2).
+    fn delivered_since_sync(&self, now: u64) -> u64 {
+        now.saturating_sub(self.last_sync_sample)
+            .saturating_sub(self.dropped.saturating_sub(self.last_sync_dropped))
+    }
+
     /// Song (video) time at callback sample `n`, extrapolated from the anchor.
     fn video_ms_at(&self, a: Anchor, n: u64) -> f64 {
         a.video_ms + self.samples_to_ms(n as f64 - a.sample as f64)
@@ -371,10 +393,11 @@ impl Session {
         if self.anchor.is_some() {
             let reached = if seeked { position } else { video_ms };
             self.played_ms += (reached - self.last_video_ms).max(0.0);
-            self.played_samples += now.saturating_sub(self.last_sync_sample);
+            self.played_samples += self.delivered_since_sync(now);
         }
         self.last_video_ms = video_ms;
         self.last_sync_sample = now;
+        self.last_sync_dropped = self.dropped;
         if seeked {
             // Seek = training (overview §6). Notes jumped over are ignored, not zeroed.
             // ponytail: a backward seek re-sings notes on top of their first pass;
@@ -542,7 +565,7 @@ impl Session {
         if self.anchor.is_some() {
             // Tail since the last sync, estimated on the mic clock (≤ one sync period).
             self.played_ms += (end_ms - self.last_video_ms).max(0.0);
-            self.played_samples += now.saturating_sub(self.last_sync_sample);
+            self.played_samples += self.delivered_since_sync(now);
         }
         self.close_segment();
         let mut covered = 0u32;
@@ -762,6 +785,40 @@ mod tests {
         assert_eq!((r.notes_total, r.notes_hit), (2, 2));
         assert!(r.score >= 99.0, "{r:?}");
         assert_eq!(sum.played_ms, 1200);
+    }
+
+    #[test]
+    fn ring_drops_count_as_missing_audio_across_scorer_and_session() {
+        // SPEC-006 v4 E2: the callback counts every sample, but the ring drops all
+        // but the first 100 ms of each note. The scorer alone leaves the missing
+        // frames out (high score); the session must make the run training.
+        let notes: Vec<(u32, u32, f32)> = (0..5)
+            .map(|i| (500 + i * 1200, 1000, 60.0 + 2.0 * i as f32))
+            .collect();
+        let mut s = session(Some(&notes), true, 0.0);
+        s.sync(0.0, true, false, 0);
+        let total: u64 = 7000 * 48; // 7 s of callback samples
+        let mut delivered = 0u64;
+        for k in 0..total / HOP {
+            let t = (k * HOP) as f64 / 48.0 + HALF / 48.0;
+            let sung = notes
+                .iter()
+                .find(|&&(st, _, _)| t >= st as f64 && t < st as f64 + 100.0);
+            if let Some(&(_, _, m)) = sung {
+                s.on_frame(&frame(k * HOP, Some(midi_hz(m))));
+                delivered += HOP;
+            }
+        }
+        s.dropped = total - delivered;
+        let sum = s.summary(total);
+        let r = sum.result.unwrap();
+        assert!(
+            r.score >= 80.0,
+            "the scorer alone does not see the loss: {r:?}"
+        );
+        assert!(sum.capture.missing_ratio > 0.8, "{:?}", sum.capture);
+        assert!(!sum.competitive);
+        assert!(sum.reason.is_some_and(|m| m.contains("falhas")));
     }
 
     #[test]
