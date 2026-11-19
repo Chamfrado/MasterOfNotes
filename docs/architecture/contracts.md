@@ -47,6 +47,7 @@ pub fn hop_len(sample_rate: u32) -> usize;
 pub const YIN_THRESHOLD, MIN_F0_HZ, MAX_F0_HZ, MIN_CONFIDENCE, CLIP_LEVEL, SILENCE_DBFS /* -120 */;
 pub enum AudioError { Device(String), /* ... */ }        // thiserror, Display pt-BR
 impl Capture { pub fn take_error(&self) -> Option<AudioError>; }
+impl Capture { pub fn dropped_samples(&self) -> u64; /* descartadas com ring cheio; entram no missing_ratio (v4 E2) */ }
 impl Capture { pub fn captured_samples(&self) -> u64; /* contador do callback (âncora) */ pub fn start_raw(device_id: Option<&str>, on_samples: impl FnMut(u64, &[f32]) + Send + 'static) -> Result<Capture, AudioError>; /* sem análise; T-004-07 */ }
 // Latência (T-004-07), puras:
 pub struct LatencyResult { pub offset_ms: f32, pub jitter_ms: f32, pub detected: u32, pub expected: u32 }
