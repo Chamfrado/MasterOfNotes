@@ -10,10 +10,11 @@
 //!   and between the same onsets (this note's and the next one's); values
 //!   farther than 250 cents from the frame are not averaged in, so short
 //!   ornaments stay local.
-//! - Pitch error (cents) = |contour − target| (octave-folded)
-//!   + 2.5·max(0, spread − 60) + |contour 100 ms later − contour 100 ms earlier|
-//!   (E1: spread = mean |median − contour| in the window, ≤ ~62 for a ±100 c
-//!   vibrato; a trill or a wobble around the target is not singing it).
+//! - Pitch error in cents (E1, v4):
+//!   `|contour − target| + 2.5·max(0, spread − 60) + 2·max(0, movement − 20)`.
+//!   Spread = mean `|median − contour|` in the window (≈ 62 for a ±100 c
+//!   vibrato); movement = `|contour(+100 ms) − contour(−100 ms)|` (a vibrato's
+//!   centre stays put). A trill or a wobble around the target is not singing it.
 //! - `p(frame)` = 1 within T_full cents, 0 beyond T_zero, linear between
 //!   (unvoiced = 0).
 //! - `pitch_i` = Σp / frames that arrived (+ the frames after the last one
@@ -52,8 +53,11 @@ const VIBRATO_SPREAD_CENTS: f64 = 60.0;
 const SPREAD_WEIGHT: f64 = 2.5;
 /// E1 (v4): a vibrato's centre stays put; an unstable voice's centre moves.
 /// Movement of the centre between −100 and +100 ms counts as pitch error.
+/// Movement up to `WANDER_FREE_CENTS` is free (slow drift, a 4 Hz vibrato's
+/// residual); beyond it, `WANDER_WEIGHT` cents of error per cent.
 const WANDER_FRAMES: usize = 10;
-const WANDER_WEIGHT: f64 = 1.0;
+const WANDER_FREE_CENTS: f64 = 20.0;
+const WANDER_WEIGHT: f64 = 2.0;
 /// Onset search starts at max(start − 300 ms, end of the previous note + guard).
 const ONSET_EARLY_MS: f64 = 300.0;
 /// Right after a note ends the analysis window (≈ 43 ms, dated at its centre)
@@ -453,7 +457,7 @@ impl Scorer {
             };
             let err = cents(centre, n.midi).abs()
                 + SPREAD_WEIGHT * (100.0 * spread - VIBRATO_SPREAD_CENTS).max(0.0)
-                + WANDER_WEIGHT * wander;
+                + WANDER_WEIGHT * (wander - WANDER_FREE_CENTS).max(0.0);
             let p = pitch_credit(err, self.tol);
             c.p_sum += p;
             c.held += u32::from(p > 0.0);

@@ -825,6 +825,8 @@ fn trill(t: f64, hz: f64, lo: f64, hi: f64) -> f64 {
 
 /// E1 cases: deviation (cents) from the target over time. None of them is a vibrato.
 type Deviation = Box<dyn Fn(f64) -> f64>;
+/// Pitch offset (cents) by time since the note start (ms).
+type Drift = fn(f64) -> f64;
 
 fn e1_cases() -> Vec<(&'static str, Deviation)> {
     let mut w = Wobble::new(0x5EED, 8); // a new random value every 80 ms
@@ -870,6 +872,71 @@ fn e1_oscillating_around_the_target_is_not_singing_it() {
         let r = ideal(&s, Difficulty::Normal, |_, _| true, pitch);
         report(&format!("E1 {label}, frames ideais"), &r);
         assert!(r.score <= 50.0, "{label} (ideal): {r:?}");
+    }
+}
+
+/// Coordinator check for the E1 terms: legitimate pitch movement inside a note
+/// (realistic voice, Normal) must not cost much more than in v3.
+#[test]
+fn e1_legitimate_movement_is_not_penalised() {
+    let ts = test_song();
+    let voice = |s: &Song, f: &dyn Fn(f64) -> Option<f64>| {
+        score(
+            s,
+            &render(
+                song_end(s),
+                f,
+                AMP,
+                Voice {
+                    drift_cents: 0.0,
+                    ..HUMAN
+                },
+            ),
+        )
+    };
+    let vib = |t: f64, a: f64, hz: f64| a * (TAU * hz * t / 1000.0).sin();
+    // Scoop: every note starts 150 c low and glides up over 100 ms (+ vibrato ±50).
+    let plain = voice(&ts, &|t| at(&ts, t).map(|m| m + vib(t, 50.0, 5.5) / 100.0));
+    let scoop = voice(&ts, &|t| {
+        let (s0, _, m) = ts
+            .iter()
+            .copied()
+            .find(|&(st, d, _)| t >= st && t < st + d)?;
+        Some(m + (-150.0 * (1.0 - ((t - s0) / 100.0).min(1.0)) + vib(t, 50.0, 5.5)) / 100.0)
+    });
+    report("E1 legítimo: scoop 150 c em 100 ms + vibrato ±50", &scoop);
+    assert!(plain.score - scoop.score <= 4.0, "{plain:?} vs {scoop:?}");
+    // Slow vibrato: period longer than the 190 ms contour window.
+    for hz in [4.0, 4.5] {
+        let r = voice(&ts, &|t| at(&ts, t).map(|m| m + vib(t, 75.0, hz) / 100.0));
+        report(&format!("E1 legítimo: vibrato lento ±75 c a {hz} Hz"), &r);
+        assert!(r.score >= 92.0, "{hz} Hz: {r:?}");
+    }
+    // Slow drift inside 2 s notes (a tiring amateur).
+    let long: Song = [60.0, 62.0, 64.0, 65.0, 67.0, 65.0, 64.0, 62.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &m)| (500.0 + i as f64 * 2200.0, 2000.0, m))
+        .collect();
+    let drifts: [(&str, Drift); 3] = [
+        ("cai 30 c ao longo da nota", |x| -30.0 * x / 2000.0),
+        ("ondula ±30 c, período 2 s", |x| {
+            30.0 * (TAU * x / 2000.0).sin()
+        }),
+        ("ondula ±30 c, período 1 s", |x| {
+            30.0 * (TAU * x / 1000.0).sin()
+        }),
+    ];
+    for (label, f) in drifts {
+        let r = voice(&long, &|t| {
+            let (s0, _, m) = long
+                .iter()
+                .copied()
+                .find(|&(st, d, _)| t >= st && t < st + d)?;
+            Some(m + f(t - s0) / 100.0)
+        });
+        report(&format!("E1 legítimo: notas de 2 s, {label}"), &r);
+        assert!(r.score >= 94.0, "{label}: {r:?}");
     }
 }
 
@@ -974,14 +1041,14 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         ("perfect", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
             "plus_75_cents",
-            r(51.7, 0.6421261, 0.2842521, 0.2842521, 1.0, 10, 10),
+            r(51.7, 0.6424838, 0.28496748, 0.28496748, 1.0, 10, 10),
         ),
         (
             "delay_200",
             r(73.1, 0.80178905, 0.44848484, 0.804, 1.0, 10, 10),
         ),
         ("vibrato", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
-        ("siren", r(0.7, 0.010397418, 0.0, 0.0, 0.0, 0, 10)),
+        ("siren", r(0.6, 0.009253586, 0.0, 0.0, 0.0, 0, 10)),
         ("tied_repeated", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         ("human_voice", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
@@ -999,11 +1066,11 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         ("missing_10_percent", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
             "e1_trill_100",
-            r(36.9, 0.5131205, 0.10098894, 0.10098894, 0.6, 6, 10),
+            r(44.2, 0.5735026, 0.19838846, 0.19768271, 0.7, 7, 10),
         ),
         (
             "e1_random_150",
-            r(45.0, 0.5846856, 0.19911356, 0.20294175, 0.7, 7, 10),
+            r(44.5, 0.576917, 0.20021741, 0.20219181, 0.6, 6, 10),
         ),
         ("early_400", r(68.1, 0.8470751, 0.0, 0.867, 1.0, 10, 10)),
     ]
