@@ -19,16 +19,17 @@ Critérios:
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-001-01 | Workspace, scaffold Tauri, crates vazios | Agente 0 | done |
-| T-001-02 | `db` + migração 001 + backup + testes | Agente 1 | todo |
-| T-001-03 | `get_settings`/`update_settings` + validação | Agente 1 | todo |
-| T-001-04 | `AppError` serializável + tauri-plugin-log | Agente 1 | todo |
-| T-001-05 | Janela, ícone, CSP, capabilities mínimas | Agente 1 | todo |
+| T-001-02 | `db` + migração 001 + backup + testes | Agente 1 | review |
+| T-001-03 | `get_settings`/`update_settings` + validação | Agente 1 | review |
+| T-001-04 | `AppError` serializável + tauri-plugin-log | Agente 1 | review |
+| T-001-05 | Janela, ícone, CSP, capabilities mínimas | Agente 1 | review |
 | T-001-06 | CI (`.github/workflows/ci.yml`) + verificação da Lei 03 | Agente 4 | done |
 
 ## TEST
 `db::tests::{migrates_fresh, reopen_preserves_data, backup_before_migration}`, `settings::tests::{roundtrip, rejects_invalid}`.
 
 ## STATUS
-Scaffold criado e `cargo check --workspace` verde (2026-11-19). Restante pendente.
+Scaffold criado e `cargo check --workspace` verde (2026-11-19).
 - T-001-06 em review (Agente 4, 2026-11-19): `.github/workflows/ci.yml` (windows-latest). Local ✅: grep Lei 03 (limpo + casos plantados), pnpm install/typecheck/test/build, cargo fmt --check, cargo test/clippy -p game. Só no CI ⏳: clippy/test --workspace.
 - T-001-06 done (Agente 0, 2026-11-19): em main, os mesmos passos do CI rodaram localmente e passaram: build do front, fmt, clippy --workspace -D warnings e cargo test --workspace (game 15/15). Ainda não executado no GitHub (sem push) ⏳.
+- 2026-11-19 (Agente 1): T-001-02..05 em review. `db.rs` (migrações por `user_version`, WAL, FK, backup `masterofnotes.db.bak-v{N}` via `VACUUM INTO`, N = versão anterior; banco mais novo que o app → `db_too_new`), `settings.rs` (defaults no Rust, `invalid_setting`, `libraryFolder` só via `set_library_folder`, `autoCheckUpdates` padrão false), `error.rs`, tauri-plugin-log (Stdout + LogDir), janela 1280×800 mín. 960×600, CSP restritiva (prod; `devCsp` nulo), asset protocol com escopo vazio liberado em runtime, capabilities `core:default`, fullscreen, `dialog:allow-open`, `opener:default`. R4: falha ao abrir o banco não derruba o app; todo command devolve `db_open_failed` com o caminho. Testes: `db::tests::{migrates_fresh, reopen_preserves_data, backup_before_migration, refuses_newer_database}`, `settings::tests::{roundtrip, rejects_invalid, null_clears_optional, defaults_when_empty}` verdes. Smoke: binário inicia, cria e migra o banco em `%APPDATA%/com.masterofnotes.app`, grava log. Pendente: F11 (UI, Agente 3), tela de erro de R4 (UI).
