@@ -407,6 +407,22 @@ for (const s of screens) {
   });
 }
 
+test("Modo TV (A11Y-06): checkbox e rádio desenhados com ≥ 40 px a 1080p", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  const nova = screens.find((x) => x.name === "Nova partida");
+  if (!nova) throw new Error("tela Nova partida não definida");
+  await open(page, nova, { get_settings: { ok: settings("C:/Karaoke", { tvMode: true }) } });
+  const sizes = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLInputElement>("input[type=checkbox], input[type=radio]")].map((el) => {
+      const r = el.getBoundingClientRect();
+      return { type: el.type, w: Math.round(r.width), h: Math.round(r.height) };
+    }),
+  );
+  console.log("[tv] controles:", JSON.stringify(sizes));
+  expect(sizes.length).toBeGreaterThan(0);
+  for (const s of sizes) expect(Math.min(s.w, s.h), `${s.type} ${s.w}×${s.h}`).toBeGreaterThanOrEqual(40);
+});
+
 // ---------- (d) reduced motion ----------
 
 /** Animations/transitions longer than the 0.01ms reset used by styles.css (keeps animationend firing). */

@@ -1,4 +1,5 @@
 // Shared e2e data. Invented titles and names (Law 19): no third-party content.
+import { expect, type Page } from "@playwright/test";
 import type { AppSettings, InputDevice, LeaderboardRow, PerformanceOutcome, Song } from "../src/lib/ipc";
 import type { MockSpec } from "./tauri-mock";
 
@@ -80,3 +81,25 @@ export const fullSpec = (extra: MockSpec = {}): MockSpec => ({
   abort_performance: { ok: null },
   ...extra,
 });
+
+// ---------- game flows (party.e2e.ts, duel.e2e.ts) ----------
+
+export const partySongs = [
+  ...songs, // a1, b2: no reference; c3: validated; d4: unavailable
+  song("e5", "Estrela Cadente", "Banda Aurora", { referenceStatus: "validated" }),
+  song("f6", "Rua da Chuva", null, { referenceStatus: "validated" }),
+];
+// A passed leak check for this device/volume, so validated songs start as competitive ("Começar").
+export const competitiveSettings = settings("C:/Karaoke", { leakCheck: { deviceId: null, videoVolume: 0.8, passed: true, atMs: 0 } });
+
+export const nav = (page: Page, label: string) =>
+  page.getByRole("navigation", { name: "Principal" }).getByRole("button", { name: label }).click();
+
+/** Sings the current round of the open session; the fake scores it with the next queued score. */
+export async function singCurrentRound(page: Page, who: string, title: string) {
+  await expect(page.getByRole("heading", { level: 2, name: `${who} canta ${title}` })).toBeVisible();
+  await page.getByRole("button", { name: "Cantar", exact: true }).click();
+  await page.getByRole("button", { name: "Começar", exact: true }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Resultado" })).toBeVisible({ timeout: 15_000 }); // 3 s countdown + video
+  await page.getByRole("button", { name: "Voltar para a partida" }).click();
+}
