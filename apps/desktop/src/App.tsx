@@ -1,51 +1,88 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { NavBar, ToastProvider } from "./components/ui";
+import { getSettings } from "./lib/ipc";
+import { NavContext, type Nav, type Route } from "./nav";
+import { Home } from "./screens/Home";
+import { Library } from "./screens/Library";
+import { Mic } from "./screens/Mic";
+import { Player } from "./screens/Player";
+import { Ranking } from "./screens/Ranking";
+import { Result } from "./screens/Result";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type TopLevel = "home" | "library" | "mic" | "ranking";
+const navItems: { key: TopLevel; label: string }[] = [
+  { key: "home", label: "Início" },
+  { key: "library", label: "Biblioteca" },
+  { key: "mic", label: "Microfone" },
+  { key: "ranking", label: "Ranking" },
+];
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
+function Screen({ route }: { route: Route }) {
+  switch (route.name) {
+    case "home":
+      return <Home />;
+    case "library":
+      return <Library />;
+    case "mic":
+      return <Mic />;
+    case "player":
+      return <Player songId={route.songId} />;
+    case "result":
+      return <Result songId={route.songId} outcome={route.outcome} />;
+    case "ranking":
+      return <Ranking songId={route.songId} />;
   }
-
-  return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
-  );
 }
 
-export default App;
+export default function App() {
+  const [stack, setStack] = useState<Route[]>([{ name: "home" }]);
+  const route = stack[stack.length - 1];
+  const main = useRef<HTMLElement>(null);
+
+  const navigate = useCallback((to: Route) => setStack((s) => [...s, to]), []);
+  const back = useCallback(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), []);
+  const nav = useMemo<Nav>(() => ({ route, navigate, back }), [route, navigate, back]);
+
+  // In-app reduced-motion setting overrides the OS preference (styles.css reads data-reduced-motion).
+  useEffect(() => {
+    getSettings().then(
+      (s) => {
+        if (s.reducedMotion !== "system") document.documentElement.dataset.reducedMotion = s.reducedMotion;
+      },
+      () => {}, // screens surface settings errors themselves; the OS preference still applies
+    );
+  }, []);
+
+  // Move focus to the new screen so keyboard and screen-reader users start at its top.
+  useEffect(() => {
+    main.current?.focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  }, [route]);
+
+  // Esc = back, unless a native dialog is open (it consumes Esc itself).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("dialog[open]")) back();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [back]);
+
+  const fullscreen = route.name === "player";
+  return (
+    <NavContext.Provider value={nav}>
+      <ToastProvider>
+        {!fullscreen && (
+          <NavBar
+            items={navItems}
+            current={navItems.some((i) => i.key === route.name) ? (route.name as TopLevel) : null}
+            onNavigate={(key) => setStack([{ name: "home" }, ...(key === "home" ? [] : [{ name: key }])])}
+          />
+        )}
+        <main ref={main} tabIndex={-1} className={fullscreen ? "outline-none" : "mx-auto max-w-7xl p-8 outline-none"}>
+          <Screen route={route} />
+        </main>
+      </ToastProvider>
+    </NavContext.Provider>
+  );
+}
