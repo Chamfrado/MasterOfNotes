@@ -57,3 +57,7 @@ Critérios:
   - ⏳ Sem verificação com os commands reais nem no WebView2. O erro de CompatKey do duelo vem do Rust; a tela de confronto compara só as notas das duas rodadas.
 - T-008-03 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
 - T-008-04 done (Agente 0, 2026-11-19): E2E da Festa integrado; suíte completa 95/95 em main. Lacuna encontrada pelo Agente 4: o Duelo não verificava CompatKey → T-008-05.
+- T-008-05, parte backend (Agente 1, 2026-11-19), `review`: `GameSession.duel` no `get_session`.
+  - Com o duelo e as 2 rodadas `completed`, monta os `PerformanceRecord` da última performance competitiva de cada rodada e chama `game::duel_outcome`.
+  - Resultado: `{kind:"result", winner, margin}` ou `{kind:"incompatible", message}` (Display pt-BR do GameError); senão `null`.
+  - Teste ✅ `sessions::tests::duel_result_same_key_and_incompatible` (vencedor, empate, revisão diferente → incompatível, formato JSON).
