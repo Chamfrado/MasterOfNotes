@@ -2,8 +2,12 @@
 //! Pure: no I/O, no randomness, no threads.
 
 mod reference;
+mod scorer;
 
 pub use reference::{
     MelodyReference, MidiTrackInfo, Note, REFERENCE_FORMAT_VERSION, RefError, import_midi,
     midi_tracks, parse_reference_json, to_reference_json,
+};
+pub use scorer::{
+    ALGORITHM_VERSION, Difficulty, FeedbackLabel, LiveFeedback, ScoreResult, Scorer, VoiceFrame,
 };
