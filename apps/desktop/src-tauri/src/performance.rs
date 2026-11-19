@@ -29,6 +29,7 @@ const LEAK_MARGIN_MS: f64 = 300.0;
 const LEAK_MIN_FRAMES: u32 = 100;
 const LEAK_RATIO: f32 = 0.2;
 
+#[derive(Debug, Clone)]
 pub struct PerformanceConfig {
     /// Active reference and its offset (ms). `None` = exploratory metrics only.
     pub reference: Option<(MelodyReference, i32)>,
@@ -479,7 +480,9 @@ mod tests {
 
     #[test]
     fn seek_makes_training_and_ignores_jumped_notes() {
-        let notes = [(0, 500, 60.0), (1000, 500, 62.0), (5000, 500, 64.0)];
+        // Notes start after a short lead-in (the first analysis frame is centred
+        // ~21 ms after capture starts; v2 counts frames that cannot exist as missing).
+        let notes = [(100, 400, 60.0), (1000, 500, 62.0), (5100, 400, 64.0)];
         let mut s = session(Some(&notes), true, 0.0);
         s.sync(0.0, true, false, 0);
         feed(&mut s, 0, 28_800, Some(midi_hz(60.0))); // sing 0–0.6 s

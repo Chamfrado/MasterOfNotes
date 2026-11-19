@@ -1,10 +1,10 @@
 //! Microphone commands (SPEC-004, T-004-04): device list, live meter, noise calibration.
 
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use audio_engine::{AnalysisFrame, Capture, CaptureConfig, InputDevice, NoiseCalibration};
-use serde::Serialize;
 use serde_json::json;
 use tauri::ipc::Channel;
 use tauri::{AppHandle, Manager, State};
@@ -12,49 +12,27 @@ use tauri::{AppHandle, Manager, State};
 use crate::commands::{AppState, blocking};
 use crate::error::{AppError, AppResult};
 use crate::library::lock;
+use crate::live::spawn_error_watch;
+use crate::performance::MicFrame;
 use crate::settings;
 
-/// Mirrors `MicFrame` in ipc.ts.
-// TODO(T-006-05): replace with crate::performance::MicFrame once Agent 2 delivers it.
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MicFrame {
-    pub rms_dbfs: f32,
-    pub f0_hz: Option<f32>,
-    pub confidence: f32,
-    pub voiced: bool,
-    pub clipped: bool,
-}
-
-impl From<&AnalysisFrame> for MicFrame {
-    fn from(f: &AnalysisFrame) -> Self {
-        Self {
-            rms_dbfs: f.rms_dbfs,
-            f0_hz: f.f0_hz,
-            confidence: f.confidence,
-            voiced: f.voiced,
-            clipped: f.clipped,
-        }
-    }
-}
-
-/// The running meter, if any. Drop = stop capturing.
+/// The running meter, if any (generation, capture). Drop = stop capturing.
 #[derive(Default)]
-pub struct MicMonitor(Mutex<Option<Capture>>);
+pub struct MicMonitor {
+    capture: Mutex<Option<(u64, Capture)>>,
+    generation: AtomicU64,
+}
 
 impl MicMonitor {
-    /// Stops the meter (also used before a performance takes the microphone).
-    pub fn stop(&self) {
-        let capture = self
-            .0
+    fn slot(&self) -> MutexGuard<'_, Option<(u64, Capture)>> {
+        self.capture
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .take();
-        if let Some(c) = capture
-            && let Some(e) = c.take_error()
-        {
-            log::warn!("mic monitor stopped after device error: {e}");
-        }
+    }
+
+    /// Stops the meter (also used before a performance takes the microphone).
+    pub fn stop(&self) {
+        self.slot().take();
     }
 }
 
@@ -110,10 +88,17 @@ pub async fn start_mic_monitor(
             }
         })
         .map_err(audio_err)?;
-        *monitor
-            .0
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(capture);
+        let generation = monitor.generation.fetch_add(1, Ordering::Relaxed) + 1;
+        *monitor.slot() = Some((generation, capture));
+        // Device failure (e.g. unplugged) → stop the meter and emit `audio://error`.
+        spawn_error_watch(app.clone(), move |app| {
+            let monitor = app.state::<MicMonitor>();
+            let mut slot = monitor.slot();
+            let (_, capture) = slot.as_ref().filter(|(g, _)| *g == generation)?;
+            let err = audio_err(capture.take_error()?);
+            slot.take();
+            Some(Some(err))
+        });
         Ok(())
     })
     .await

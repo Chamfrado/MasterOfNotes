@@ -1,43 +1,7 @@
 // UI smoke flows against the Vite dev server with a test-only IPC mock (docs/testing/strategy.md).
 import { expect, test, type Page } from "@playwright/test";
-import type { AppSettings, Song } from "../src/lib/ipc";
+import { appError, settings, songs } from "./fixtures";
 import { ipcCalls, mockTauri, setReply, type MockSpec } from "./tauri-mock";
-
-const settings = (libraryFolder: string | null): AppSettings => ({
-  libraryFolder,
-  recursiveScan: true,
-  inputDeviceId: null,
-  noiseFloorDbfs: null,
-  latencyOffsetMs: 0,
-  difficulty: "normal",
-  videoVolume: 0.8,
-  reducedMotion: "on",
-  feedbackOverlay: "full",
-  autoCheckUpdates: false,
-});
-
-// Invented titles (Law 19): no third-party content in fixtures.
-const song = (id: string, title: string, artist: string | null, extra: Partial<Song> = {}): Song => ({
-  id,
-  path: `C:/Karaoke/${id}.mp4`,
-  fileName: `${id}.mp4`,
-  title,
-  artist,
-  extension: "mp4",
-  sizeBytes: 1_000_000,
-  durationMs: 185_000,
-  playable: "unknown",
-  available: true,
-  referenceStatus: "none",
-  ...extra,
-});
-const songs: Song[] = [
-  song("a1", "Canção da Manhã", "Banda Aurora"),
-  song("b2", "Saudade Elétrica", null),
-  song("c3", "Pôr do Sol em Óculos", "Zé Mirante", { referenceStatus: "validated" }),
-  song("d4", "Arquivo Sumido", null, { available: false }),
-];
-const appError = (message: string) => ({ err: { code: "TEST", message } });
 
 async function openLibrary(page: Page, spec: MockSpec) {
   const tracker = await mockTauri(page, { get_settings: { ok: settings("C:/Karaoke") }, ...spec });

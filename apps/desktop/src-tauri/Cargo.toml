@@ -29,3 +29,4 @@ game = { path = "../../../crates/game" }
 
 [dev-dependencies]
 tempfile = "3"
+tauri = { version = "2", features = ["test"] }

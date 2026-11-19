@@ -1,19 +1,72 @@
-# Precisão da análise e da pontuação (algoritmo v1)
+# Precisão da análise e da pontuação
 
 Dono: Agente 2. Specs: [SPEC-004](../../specs/SPEC-004-microphone.md), [SPEC-006](../../specs/SPEC-006-scoring.md).
-Medido em 2026-11-19 · `ALGORITHM_VERSION = 1` · Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1.
+Ambiente: Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1. Medido em 2026-11-19.
 
 Todos os números abaixo vêm de testes executados e reproduzíveis (áudio gerado em código, sem arquivos binários).
 Com microfone físico, só o caminho da captura foi exercitado (seção "Dispositivo real"). Pitch com voz real está pendente (⏳).
 
-## Pontuação: tabela de aceite da SPEC-006 (pipeline completo)
+## Algoritmo v2 (`ALGORITHM_VERSION = 2`, atual)
+
+Reproduzir: `cargo test -p scoring-engine --test regression -- --nocapture --test-threads=1` (≈ 35 s).
+Pipeline completo, Normal salvo indicação. Os casos marcados "A*" vêm da revisão de QA do Agente 4 ([scoring-review.md](evidence/scoring-review.md)). O modelo de voz humana também vem das sondas dele.
+O teste `golden_results_are_exact` fixa o `ScoreResult` exato de 7 fixtures: qualquer mudança de resultado quebra o teste.
+
+### Tabela v1 (continua valendo)
+
+| Caso | Meta | Score | P | R | S | Notas | ✅ |
+|---|---|---|---|---|---|---|---|
+| Perfeito (senoide) | ≥ 98 | 100,0 | 1,000 | 1,000 | 1,000 | 10/10 | ✅ |
+| Perfeito uma oitava abaixo | ≥ 98 | 100,0 | 1,000 | 1,000 | 1,000 | 10/10 | ✅ |
+| +100 cents | P ∈ [0,45; 0,55] | 30,1 | 0,464 | 0,000 | 0,000 | 0/10 | ✅ |
+| +200 cents | P = 0, ≤ 25 | 0,0 | 0,000 | 0,000 | 0,000 | 0/10 | ✅ |
+| Silêncio | 0 | 0,0 | 0 | 0 | 0 | 0/10 | ✅ |
+| Ruído branco | ≤ 5 | 0,0 | 0 | 0 | 0 | 0/10 | ✅ |
+| Atraso de 200 ms | R ∈ [0,3; 0,6], P ≥ 0,7 | 72,3 | 0,802 | 0,431 | 0,772 | 10/10 | ✅ |
+| Só 1 de 10 notas | ≤ 15 | 10,0 | 0,100 | 0,100 | 0,100 | 1/10 | ✅ |
+| Volume 4× | idêntico | 100,0 | 1,000 | 1,000 | 1,000 | 10/10 | ✅ |
+| Vibrato ±50 cents a 6 Hz | ≥ 90 | 91,6 | 0,938 | 0,876 | 0,876 | 10/10 | ✅ |
+| Voz + acompanhamento −12 dB | ≥ 85 | 99,7 | 0,997 | 0,998 | 0,995 | 10/10 | ✅ |
+| Glissando de 80 ms | ≥ 92 | 94,5 | 0,960 | 0,920 | 0,909 | 10/10 | ✅ |
+
+### Metas do v2
+
+| Achado | Caso | Meta | Score | P | R | S | ✅ |
+|---|---|---|---|---|---|---|---|
+| A1 | Ligadas repetidas aos pares (500 ms) | R ≥ 0,95 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ (v1: R 0,844) |
+| A1 | Ligadas em semitons alternados | R ≥ 0,95 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ |
+| A3 | Atrasado / adiantado 100 ms | R simétrico | 90,1 / 91,9 | 0,900 / 0,920 | 0,903 / 0,915 | | ✅ |
+| A3 | Atrasado / adiantado 200 ms | R simétrico | 73,0 / 74,8 | 0,800 / 0,820 | 0,448 / 0,461 | | ✅ |
+| A3 | Atrasado / adiantado 300 ms | R simétrico | 56,0 / 57,7 | 0,700 / 0,720 | 0,000 / 0,006 | | ✅ |
+| A3 | Entra 190 ms antes e segura | (v1: 93,8, R 0,688) | 90,1 | 1,000 | 0,506 | 1,000 | ✅ |
+| A4 | +50 / +75 / +90 / +100 / +125 cents | monótono; +90 ≤ 40 | 74,5 / 51,1 / **37,1** / 30,1 / 18,5 | | | | ✅ |
+| A4 | Curva 0–300 cents de 1 em 1 (só Scorer) | monótona; salto ≤ 10 pontos em 10 cents | máx. 9,7; +90 = 37,3 | | | | ✅ (meta original ≤ 5: inviável, ver abaixo) |
+| A5 | Sirene de 1 oitava, período 400 ms | ≤ 15 | 9,5 | 0,147 | 0,000 | 0,000 | ✅ (v1: 29,9) |
+| A5 | Nota fixa contínua (melhor: F4) | ≤ 15 | 24,4 | 0,293 | 0,119 | 0,200 | ❌ meta inviável com justiça, ver abaixo |
+| A6 | Ligadas de 50 ms | ≥ 85 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ (v1: 73,7) |
+| A6 | Ligadas de 100 ms | ≥ 92 | 100,0 | 1,000 | 1,000 | 1,000 | ✅ (v1: 82,6) |
+| A6 | Ligadas de 250 ms | — | 100,0 | | | | ✅ |
+| A6 | Ligadas de 30 ms | — (abaixo da resolução: janela de 43 ms) | 34,1 | 0,444 | 0,136 | 0,173 | informativo |
+| A8 | Só os 100 ms iniciais de cada nota chegam (só Scorer) | denominador fixo | P = 0,1 | | | | ✅ (v1: 100) |
+| A9 | Voz humana (formantes, jitter 1%, shimmer 10%, drift 15 cents), 3 registros, Normal e Hard | ≥ 95 | 99,6 a 100,0 | | | | ✅ |
+| A9 | Idem + sopro SNR 10 dB | ≥ 95 | 99,7 a 100,0 | | | | ✅ |
+| A2 | Voz-guia vazando −20 / −30 / −40 dB, usuário calado | (T-004-06) | **99,7** / 0,0 / 0,0 | | | | informativo: o scorer não resolve isso |
+
+
+Evidências sobre as metas que não fecham:
+- **(b) "salto ≤ 5 pontos em 10 cents" é incompatível com (c) "+90 ≤ 40" e com perfeito ≈ 100.** De 0 a 90 cents há 9 passos de 10 cents, e cair de 100 para ≤ 40 exige ≥ 60 pontos, ou seja, ≥ 6,7 por passo. Com o limite em 10 pontos o degrau some (era de 35 pontos em 1 cent), e a curva medida tem salto máximo de 9,7.
+- **"Nota fixa ≤ 15":** quem sustenta F4 canta de fato as 2 notas F4 da música (20% da duração) com afinação perfeita. Qualquer pontuação justa dá crédito a essas notas. O resto do score vem das notas vizinhas a 1 semitom (P = 0,46 por nota). Para baixar dos 24,4 seria preciso tirar crédito de notas bem cantadas, o que contradiz "Só 1 de 10 notas" = 10. O v2 já tira o ritmo dessas notas quando o cantor não "chega" nelas (ele já estava na altura antes da nota). A regressão afirma ≤ 25.
+
+## Algoritmo v1 (histórico; vale para performances gravadas com `algorithmVersion = 1`)
+
+### Tabela de aceite da SPEC-006 (pipeline completo)
 
 Caminho completo: áudio sintético a 48 kHz → `audio_engine::analyze_buffer` → `Scorer` (Normal).
 Tempo de cada frame = centro da janela de análise.
 Música de teste: 10 notas de 1000 ms com pausas de 200 ms, começando em 500 ms, melodia C4 D4 E4 F4 G4 A4 G4 F4 E4 D4.
 Voz em amplitude 0,2 (≈ −17 dBFS RMS), gate padrão (piso −60 dBFS + 10 dB).
 
-Reproduzir: `cargo test -p scoring-engine --test regression -- --nocapture --test-threads=1`
+Reproduzir: mesmo comando, no commit `ee22736` (código v1).
 
 | Caso | Esperado (SPEC-006) | Score | P | R | S | Notas acertadas | ✅ |
 |---|---|---|---|---|---|---|---|

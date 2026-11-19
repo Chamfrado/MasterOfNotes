@@ -16,6 +16,7 @@ declare global {
   interface Window {
     __E2E_CALLS__?: IpcCall[];
     __E2E_SPEC__?: MockSpec;
+    __E2E_VIDEO_URL__?: string;
   }
 }
 
@@ -71,7 +72,7 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
           },
           unregisterCallback,
           runCallback: (id: number, data: unknown) => callbacks.get(id)?.(data),
-          convertFileSrc: (path: string) => `${assetOrigin}/${encodeURIComponent(path)}`,
+          convertFileSrc: (path: string) => window.__E2E_VIDEO_URL__ ?? `${assetOrigin}/${encodeURIComponent(path)}`,
         },
         __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: (_event: string, id: number) => unregisterCallback(id) },
       });
@@ -81,7 +82,32 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
   return { pageErrors };
 }
 
-export const setReply = (page: Page, cmd: string, reply: MockReply) =>
+/** Records a short synthetic WebM in the page (canvas + MediaRecorder, no binary fixture, Law 19)
+ * and makes every video src resolve to it. Call after `page.goto`. */
+export const useSyntheticVideo = (page: Page, ms = 800) =>
+  page.evaluate(async (ms) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas 2d unavailable");
+    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: "video/webm;codecs=vp8" });
+    const chunks: Blob[] = [];
+    rec.ondataavailable = (e) => chunks.push(e.data);
+    const stopped = new Promise((resolve) => (rec.onstop = resolve));
+    let frame = 0;
+    const draw = setInterval(() => {
+      ctx.fillStyle = frame++ % 2 ? "#202020" : "#404040";
+      ctx.fillRect(0, 0, 64, 64);
+    }, 33);
+    rec.start();
+    await new Promise((resolve) => setTimeout(resolve, ms));
+    rec.stop();
+    clearInterval(draw);
+    await stopped;
+    window.__E2E_VIDEO_URL__ = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
+  }, ms);
+
+export const setReply =(page: Page, cmd: string, reply: MockReply) =>
   page.evaluate(([cmd, reply]) => void ((window.__E2E_SPEC__ ??= {})[cmd] = reply), [cmd, reply] as const);
 
 export const ipcCalls = (page: Page, cmd: string) =>
