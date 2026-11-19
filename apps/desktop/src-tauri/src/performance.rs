@@ -28,6 +28,12 @@ const TICK_EVERY: u64 = 3;
 const LEAK_MARGIN_MS: f64 = 300.0;
 const LEAK_MIN_FRAMES: u32 = 100;
 const LEAK_RATIO: f32 = 0.2;
+/// Leak check (T-004-06, SPEC-004 R9): the user stays silent while the song
+/// plays; whatever pitch credit the scorer finds came from the speakers.
+/// Threshold and evidence: SPEC-004 R9 / `leak_threshold_evidence` below.
+const LEAK_MAX_GUIDE_SCORE: f32 = 0.05;
+const LEAK_MIN_PLAYED_MS: u64 = 8000;
+const LEAK_MIN_NOTES: u32 = 3;
 
 #[derive(Debug, Clone)]
 pub struct PerformanceConfig {
@@ -41,6 +47,19 @@ pub struct PerformanceConfig {
     pub latency_offset_ms: f64,
     pub device_id: Option<String>,
     pub capture: CaptureConfig,
+    /// Leak check run (user silent): never competitive, yields `PerformanceSummary::leak`.
+    pub leak_check: bool,
+}
+
+/// Outcome of a leak check run.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LeakVerdict {
+    pub passed: bool,
+    /// Pitch component P over the reference notes fully played (0..1).
+    pub guide_score: f32,
+    /// pt-BR, why it did not pass; `None` when passed.
+    pub reason: Option<String>,
 }
 
 /// Meter data for the UI; also used by the mic monitor command.
@@ -101,6 +120,8 @@ pub struct PerformanceSummary {
     /// Set when there is no reference.
     pub exploratory: Option<ExploratoryMetrics>,
     pub capture: CaptureStats,
+    /// Set for leak check runs only.
+    pub leak: Option<LeakVerdict>,
 }
 
 /// Running performance: microphone capture + session state. Drop = abort.
@@ -191,6 +212,10 @@ struct Session {
     outside_frames: u32,
     outside_voiced: u32,
     feedback: Option<LiveFeedback>,
+    leak_check: bool,
+    /// Video time where playback first started (leak check coverage).
+    play_from: Option<f64>,
+    seeked: bool,
 }
 
 impl Session {
@@ -209,7 +234,7 @@ impl Session {
             None => (None, Vec::new()),
         };
         Self {
-            competitive: cfg.competitive && scorer.is_some(),
+            competitive: cfg.competitive && scorer.is_some() && !cfg.leak_check,
             scorer,
             spans,
             voice: Vec::new(),
@@ -228,6 +253,9 @@ impl Session {
             outside_frames: 0,
             outside_voiced: 0,
             feedback: None,
+            leak_check: cfg.leak_check,
+            play_from: None,
+            seeked: false,
         }
     }
 
@@ -272,6 +300,7 @@ impl Session {
             // ponytail: a backward seek re-sings notes on top of their first pass;
             // fine for training, revisit if seeks ever count.
             self.competitive = false;
+            self.seeked = true;
             if video_ms > position
                 && let Some(s) = &mut self.scorer
             {
@@ -299,6 +328,7 @@ impl Session {
                     sample: now,
                 });
                 self.discard_before = now;
+                self.play_from.get_or_insert(video_ms);
             }
         }
     }
@@ -345,12 +375,33 @@ impl Session {
     }
 
     fn summary(&mut self, now: u64) -> PerformanceSummary {
-        if let Some(a) = self.anchor {
+        let end_ms = match self.anchor {
+            Some(a) => self.video_ms_at(a, now),
+            None => self.last_video_ms,
+        };
+        if self.anchor.is_some() {
             // Tail since the last sync, estimated on the mic clock (≤ one sync period).
-            self.played_ms += (self.video_ms_at(a, now) - self.last_video_ms).max(0.0);
+            self.played_ms += (end_ms - self.last_video_ms).max(0.0);
         }
         self.close_segment();
+        let mut covered = 0u32;
+        if self.leak_check
+            && let Some(scorer) = &mut self.scorer
+        {
+            // Judge only the notes that were played in full.
+            let from = self.play_from.unwrap_or(f64::INFINITY);
+            for &(s, e) in &self.spans {
+                if s >= from && e <= end_ms {
+                    covered += 1;
+                } else {
+                    scorer.skip(s, s + 0.5);
+                }
+            }
+        }
         let result = self.scorer.take().map(Scorer::finish);
+        let leak = self
+            .leak_check
+            .then(|| self.leak_verdict(result.as_ref(), covered));
         let ratio = |n: u32, d: u32| if d == 0 { 0.0 } else { n as f32 / d as f32 };
         PerformanceSummary {
             competitive: self.competitive && result.is_some(),
@@ -367,6 +418,30 @@ impl Session {
                 leak_suspected: self.outside_frames >= LEAK_MIN_FRAMES
                     && ratio(self.outside_voiced, self.outside_frames) > LEAK_RATIO,
             },
+            leak,
+        }
+    }
+
+    fn leak_verdict(&self, result: Option<&ScoreResult>, covered: u32) -> LeakVerdict {
+        let guide_score = result.map_or(0.0, |r| r.pitch);
+        let played = self.played_ms.round() as u64;
+        let reason = if result.is_none() {
+            Some("O teste precisa de uma música com referência melódica.")
+        } else if self.seeked {
+            Some("O teste foi interrompido: deixe a música tocar sem avançar ou voltar.")
+        } else if played < LEAK_MIN_PLAYED_MS || covered < LEAK_MIN_NOTES {
+            Some("Teste curto demais: deixe tocar pelo menos 8 segundos com 3 notas da melodia.")
+        } else if guide_score > LEAK_MAX_GUIDE_SCORE {
+            Some(
+                "O microfone está captando a voz ou a melodia da música. Use fones de ouvido ou abaixe o volume.",
+            )
+        } else {
+            None
+        };
+        LeakVerdict {
+            passed: reason.is_none(),
+            guide_score,
+            reason: reason.map(str::to_owned),
         }
     }
 }
@@ -419,6 +494,7 @@ mod tests {
             latency_offset_ms: latency,
             device_id: Some("mic".into()),
             capture: CaptureConfig::default(),
+            leak_check: false,
         });
         s.set_sample_rate(SR);
         s
@@ -554,6 +630,7 @@ mod tests {
             latency_offset_ms: 0.0,
             device_id: None,
             capture: CaptureConfig::default(),
+            leak_check: false,
         };
         let p = LivePerformance::start(cfg, move |_| {
             *counter.lock().unwrap_or_else(|e| e.into_inner()) += 1
@@ -587,5 +664,217 @@ mod tests {
         assert!(json.contains("\"playedMs\":0"));
         assert!(json.contains("\"leakSuspected\":false"));
         assert!(json.contains("\"latencyOffsetMs\":12.5"));
+    }
+
+    // ---------- Leak check (T-004-06) ----------
+
+    /// Regression song (scoring-engine): 10 × 1000 ms notes, 200 ms rests, from 500 ms.
+    fn leak_song() -> Vec<(u32, u32, f32)> {
+        [60.0, 62.0, 64.0, 65.0, 67.0, 69.0, 67.0, 65.0, 64.0, 62.0]
+            .iter()
+            .enumerate()
+            .map(|(i, &m)| (500 + i as u32 * 1200, 1000, m))
+            .collect()
+    }
+
+    fn leak_session(notes: &[(u32, u32, f32)], leak_check: bool) -> Session {
+        let mut s = session(Some(notes), true, 0.0);
+        s.leak_check = leak_check;
+        s.competitive = !leak_check;
+        s
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum Source {
+        /// Sung vowel /a/ (formants F1 700, F2 1220, F3 2600 Hz) on the melody.
+        GuideVocal,
+        /// Piano-like melody line: 1/k² harmonics, 300 ms decay per note.
+        MelodyInstrument,
+        /// Accompaniment without melody: root and fifth one octave below, held.
+        ChordsOnly,
+    }
+
+    /// Speaker sound reaching the mic at `rms_dbfs` (RMS while sounding; −120 =
+    /// none) plus room noise at −60 dBFS RMS. Deterministic.
+    fn speakers(notes: &[(u32, u32, f32)], src: Source, rms_dbfs: f64) -> Vec<f32> {
+        use std::f64::consts::TAU;
+        let end_ms = notes.last().map_or(0, |n| n.0 + n.1) as f64 + 700.0;
+        let n = (end_ms / 1000.0 * SR as f64) as usize;
+        let hz = |m: f64| 440.0 * 2f64.powf((m - 69.0) / 12.0);
+        let formant = |f: f64| {
+            [
+                (700.0, 8.0, 130.0),
+                (1220.0, 6.0, 150.0),
+                (2600.0, 3.0, 250.0),
+            ]
+            .iter()
+            .map(|&(fc, a, bw)| a * (-((f - fc) / bw).powi(2)).exp())
+            .sum::<f64>()
+                + 1.0
+        };
+        let mut raw = vec![0.0f64; n];
+        let silent = rms_dbfs <= -100.0;
+        for (i, x) in raw.iter_mut().enumerate().filter(|_| !silent) {
+            let t = i as f64 * 1000.0 / SR as f64;
+            let Some(&(start, dur, m)) = notes.iter().rev().find(|nt| t >= nt.0 as f64) else {
+                continue;
+            };
+            let (m, since) = (m as f64, t - start as f64);
+            let in_note = since < dur as f64;
+            let ts = i as f64 / SR as f64;
+            *x = match src {
+                Source::GuideVocal if in_note => (1..=20)
+                    .map(|k| {
+                        let f = hz(m) * k as f64;
+                        formant(f) / k as f64 * (TAU * f * ts).sin()
+                    })
+                    .sum(),
+                Source::MelodyInstrument if in_note => {
+                    (1..=8)
+                        .map(|k| (TAU * hz(m) * k as f64 * ts).sin() / (k * k) as f64)
+                        .sum::<f64>()
+                        * (-since / 300.0).exp()
+                }
+                Source::ChordsOnly => [m - 12.0, m - 5.0]
+                    .iter()
+                    .map(|&c| (TAU * hz(c) * ts).sin())
+                    .sum(),
+                _ => 0.0,
+            };
+        }
+        let sounding: Vec<f64> = raw.iter().copied().filter(|v| *v != 0.0).collect();
+        let rms =
+            (sounding.iter().map(|v| v * v).sum::<f64>() / sounding.len().max(1) as f64).sqrt();
+        let gain = if rms > 0.0 {
+            10f64.powf(rms_dbfs / 20.0) / rms
+        } else {
+            0.0
+        };
+        let noise_amp = 10f64.powf(-60.0 / 20.0) * 3f64.sqrt(); // uniform: RMS = amp/√3
+        let mut seed = 0x5EED_u64;
+        raw.iter()
+            .map(|v| {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                let u = 2.0 * ((seed >> 11) as f64 / (1u64 << 53) as f64) - 1.0;
+                (v * gain + noise_amp * u) as f32
+            })
+            .collect()
+    }
+
+    /// Runs the audio through the real analysis and a session from video time 0.
+    fn run_audio(mut s: Session, audio: &[f32]) -> PerformanceSummary {
+        s.sync(0.0, true, false, 0);
+        for f in audio_engine::analyze_buffer(audio, SR, &CaptureConfig::default()) {
+            s.on_frame(&f);
+        }
+        s.summary(audio.len() as u64)
+    }
+
+    /// Evidence for LEAK_MAX_GUIDE_SCORE (SPEC-004 R9). User silent; only the
+    /// speakers reach the mic (gate: default noise floor −60 + 10 dB). For each
+    /// case: the leak check verdict and the score the leak alone would earn in a
+    /// normal run. Invariant: a passed check never lets the leak earn > 5 points.
+    /// ~60 s in a debug build (audio synthesis), so manual:
+    /// `cargo test -p master-of-notes leak_threshold_evidence -- --ignored --nocapture`
+    #[test]
+    #[ignore = "slow evidence sweep; numbers are in SPEC-004 R9"]
+    fn leak_threshold_evidence() {
+        let notes = leak_song();
+        eprintln!("| Fonte | Nível (dBFS RMS) | guide_score | Passou | Score só com o vazamento |");
+        eprintln!("|---|---|---|---|---|");
+        let mut rows = Vec::new();
+        for src in [
+            Source::GuideVocal,
+            Source::MelodyInstrument,
+            Source::ChordsOnly,
+        ] {
+            for level in [-20.0, -30.0, -40.0, -45.0, -50.0, -55.0, -120.0] {
+                let audio = speakers(&notes, src, level);
+                let check = run_audio(leak_session(&notes, true), &audio);
+                let normal = run_audio(leak_session(&notes, false), &audio);
+                let v = check.leak.clone().expect("leak verdict");
+                let leak_score = normal.result.map_or(0.0, |r| r.score);
+                eprintln!(
+                    "| {src:?} | {level} | {:.3} | {} | {leak_score:.1} |",
+                    v.guide_score, v.passed
+                );
+                rows.push((src, level, v, leak_score));
+            }
+        }
+        for (src, level, v, leak_score) in &rows {
+            if v.passed {
+                assert!(
+                    *leak_score <= 5.0,
+                    "{src:?} at {level} passed but leaks {leak_score}"
+                );
+            }
+        }
+        // Room noise alone (no speaker sound) must pass.
+        assert!(rows.iter().filter(|r| r.1 == -120.0).all(|r| r.2.passed));
+        // A guide vocal well above the gate must fail.
+        assert!(
+            rows.iter()
+                .any(|r| matches!(r.0, Source::GuideVocal) && r.1 == -20.0 && !r.2.passed)
+        );
+    }
+
+    #[test]
+    fn leak_check_needs_8s_and_3_notes_and_no_seek() {
+        let notes = leak_song();
+        let audio = speakers(&notes, Source::GuideVocal, -120.0);
+        // Full run with no speaker leak: passes, never competitive.
+        let ok = run_audio(leak_session(&notes, true), &audio);
+        assert!(ok.leak.as_ref().is_some_and(|v| v.passed), "{:?}", ok.leak);
+        assert!(!ok.competitive);
+        // 5 s only: too short.
+        let short = run_audio(leak_session(&notes, true), &audio[..5 * SR as usize]);
+        let v = short.leak.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("curto"));
+        // Seek during the check: invalid.
+        let mut s = leak_session(&notes, true);
+        s.sync(0.0, true, false, 0);
+        s.sync(6.0, true, true, 48_000);
+        let v = s.summary(20 * 48_000).leak.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("interrompido"));
+        // No reference: cannot judge.
+        let mut no_ref = session(None, false, 0.0);
+        no_ref.leak_check = true;
+        let v = no_ref.summary(0).leak.unwrap();
+        assert!(!v.passed && v.reason.unwrap().contains("referência"));
+        // Normal runs have no verdict.
+        assert!(
+            run_audio(leak_session(&notes, false), &audio)
+                .leak
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn leak_threshold_separates_a_silent_room_from_a_leak() {
+        // Fast guard (ideal frames): the guide melody reaching the mic is caught;
+        // a few stray in-tune frames (40 ms per 1000 ms note) are tolerated.
+        let notes = leak_song();
+        let run = |voiced_ms: u32| {
+            let mut s = leak_session(&notes, true);
+            s.sync(0.0, true, false, 0);
+            for k in 0..(13_000 * 48 / HOP) {
+                let centre_ms = (k as f64 * HOP as f64 + HALF) / 48.0;
+                let f0 = notes
+                    .iter()
+                    .find(|n| centre_ms >= n.0 as f64 && centre_ms < (n.0 + voiced_ms) as f64)
+                    .map(|n| midi_hz(n.2));
+                s.on_frame(&frame(k * HOP, f0));
+            }
+            s.summary(13_000 * 48).leak.unwrap()
+        };
+        let leak = run(1000);
+        assert!(!leak.passed && leak.guide_score > 0.99, "{leak:?}");
+        let stray = run(40);
+        assert!(
+            stray.passed && stray.guide_score <= LEAK_MAX_GUIDE_SCORE,
+            "{stray:?}"
+        );
     }
 }

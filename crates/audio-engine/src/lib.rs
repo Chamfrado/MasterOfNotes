@@ -7,10 +7,12 @@
 
 mod calibration;
 mod capture;
+mod latency;
 mod yin;
 
 pub use calibration::{CalibrationIssue, NoiseCalibration, calibrate_noise, check_voice};
 pub use capture::{Capture, InputDevice, list_input_devices};
+pub use latency::{LatencyResult, detect_onsets, latency_from};
 
 use serde::{Deserialize, Serialize};
 

@@ -63,3 +63,20 @@ Critérios:
   - Testes: `Mic.test.tsx` (5).
   - ⏳ O "teste de palmas sobre clique" do R7 não foi feito. Os frames do monitor chegam a ~30 Hz pelo Channel, resolução insuficiente para medir latência na UI sem enganar; precisa de um command que meça no Rust (proposta ao coordenador). Dispositivo real não testado.
 - T-004-05 done (Agente 0, 2026-11-19): integrado em main; vitest 124/124. R7 assistido vira T-004-07.
+- T-004-06, parte do Agente 2 `review` (2026-11-19): checagem de vazamento em `performance.rs`. `PerformanceConfig.leak_check` e `PerformanceSummary.leak: Option<LeakVerdict { passed, guide_score, reason }>` (`reason` em pt-BR quando reprova).
+  - **Método:** com o usuário calado, a música toca e o Scorer roda normalmente. `guide_score` = componente P só nas notas da referência tocadas **inteiras** (as outras são excluídas com `Scorer::skip`).
+  - **R9, limiar `passed`: `guide_score ≤ 0,05`**, e ainda: ≥ 8 s tocados, ≥ 3 notas cobertas, sem seek e com referência. Senão `passed = false` com motivo ("Teste curto demais…", "O teste foi interrompido…", "O teste precisa de uma música com referência…", "O microfone está captando a voz ou a melodia da música…"). A execução de checagem nunca é competitiva.
+  - **Evidência** (`performance::tests::leak_threshold_evidence`, `--ignored`, ≈ 60 s): análise real, usuário calado, ruído de sala −60 dBFS, gate padrão −50 dBFS, música de 10 notas (12,5 s). "Score só com o vazamento" = nota que esse vazamento daria numa performance normal.
+
+    | Fonte nas caixas | −20 | −30 | −40 | −45 | −50 | −55 dBFS | só ruído de sala |
+    |---|---|---|---|---|---|---|---|
+    | Voz-guia (vogal com formantes): guide_score / score | 0,998 / 99,7 | 0,998 / 99,7 | 0,998 / 99,7 | 0,998 / 99,8 | 0,590 / 59,2 | 0 / 0 | 0 / 0 |
+    | Melodia instrumental (piano, decaimento 300 ms) | 1,000 / 100 | 0,990 / 99,2 | 0,650 / 72,0 | 0,479 / 57,1 | 0,302 / 34,4 | 0,131 / 14,3 | 0 / 0 |
+    | Só acordes (fundamental e quinta uma oitava abaixo) | 0,891 / 89,2 | 0,891 / 89,2 | 0,891 / 89,2 | 0,891 / 89,2 | 0,878 / 88,2 | 0 / 0 | 0 / 0 |
+
+  - **Leitura da evidência:**
+    - O vazamento é quase binário: acima do gate do VAD ele dá a nota inteira; abaixo, nada.
+    - Todos os casos aprovados têm `guide_score` 0, e o menor reprovado tem 0,131. O score do vazamento fica em ≈ 110·P, então 0,05 ≈ 5 pontos, que é o máximo que um dispositivo aprovado pode ganhar de graça (invariante do teste).
+    - O acompanhamento sozinho também vaza quando a fundamental coincide com a melodia (89 pontos), então a checagem deve rodar com a música normal, com ou sem voz-guia.
+  - Guarda rápido no CI: `leak_threshold_separates_a_silent_room_from_a_leak` e `leak_check_needs_8s_and_3_notes_and_no_seek`.
+  - ❓ Com microfone físico e caixas reais ainda não foi medido. O gate depende da calibração de ruído: com o piso real mais alto, o vazamento precisa ser mais forte para passar do gate.
