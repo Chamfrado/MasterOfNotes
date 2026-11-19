@@ -75,6 +75,7 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 | T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | done |
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
+| T-006-07 | Medição de desempenho do caminho de áudio (CPU/memória 5 min, latência frame → LiveTick, estabilidade em 10 execuções, custo do finish) → `docs/testing/performance.md` | Agente 2 | review |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -129,3 +130,8 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 
 - T-004-06 (Agente 0, 2026-11-19): partes dos Agentes 2 e 1 integradas em main @ 2cef2b0 (140 testes Rust verdes). Decisão: qualquer veredito reprovado (inclusive inconclusivo) substitui uma aprovação anterior, que é o lado conservador. A UI (Agente 3) entra no próximo merge.
 - T-004-06 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes. Ponta a ponta: Rust (gate + verdict) + UI (assistente + aviso no Player). ⏳ medição real com caixas.
+- T-006-07 `review` (Agente 2, 2026-11-19): medição de desempenho em [performance.md](../docs/testing/performance.md), com os testes `perf_*` (`#[ignore]`) no `performance.rs`.
+  - Análise: 2,0–2,3% de um núcleo (meta < 15%). Processo ao vivo: 3,8% (release).
+  - Callback → `on_tick`: p95 5,6 ms, p99 8,0 ms. Som → `on_tick` do feedback: p99 ≈ 49 ms.
+  - 10 performances seguidas: sem crescimento de threads nem de memória.
+  - `finish`: cálculo 0,03–0,15 ms, mas liberar o dispositivo leva 43–503 ms (cpal/WASAPI). Há uma proposta, aguardando o coordenador.
