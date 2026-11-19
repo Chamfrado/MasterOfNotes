@@ -26,9 +26,9 @@ Critérios:
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-004-01 | YIN + VAD + `analyze_buffer` + testes sintéticos | Agente 2 | done |
-| T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | review |
-| T-004-03 | Calibração de ruído | Agente 2 | review |
-| T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | todo |
+| T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | done |
+| T-004-03 | Calibração de ruído | Agente 2 | done |
+| T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | done |
 | T-004-05 | Tela de microfone e calibração | Agente 3 | todo |
 
 ## TEST
@@ -50,3 +50,7 @@ Critérios:
   - ❓ o piso medido foi −104,8 dBFS, baixo demais para um microfone de notebook (provável microfone mudo ou bloqueado pela privacidade do Windows);
   - ⏳ validação com voz real (pitch, gate, clipping) depende do proprietário e entra no checklist manual.
 - T-004-01 review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
+- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
+- ⏳ Microfone real: o Realtek padrão mediu −104,8 dBFS (provavelmente mudo ou bloqueado pela privacidade do Windows). Teste com voz pendente com o proprietário.
+- T-004-04 `review` (Agente 1, 2026-11-19): `src-tauri/src/mic.rs`. `list_input_devices`; `start_mic_monitor` envia 1 de cada 3 frames (~33 Hz) pelo Channel, com `clipped` somado (OR) sobre os frames pulados; usa o `noiseFloorDbfs` salvo como gate; reiniciar substitui o medidor anterior. `stop_mic_monitor`; `calibrate_noise` aceita 1–10 s, roda `audio_engine::calibrate_noise` e grava `noiseFloorDbfs` nas settings. Erros de dispositivo viram `audio_device` com mensagem pt-BR. `MicFrame` é local até o `performance.rs` existir. ⏳ Sem teste automatizado com dispositivo (precisa de microfone); validado só por compilação e clippy.
+- T-004-04 done (Agente 0, 2026-11-19): integrado em main; clippy --workspace e cargo test --workspace (92) verdes. Pendente: emitir `audio://error` (contrato novo).
