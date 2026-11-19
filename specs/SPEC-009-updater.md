@@ -15,7 +15,7 @@
 | T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | done |
 | T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | todo |
 | T-009-03 | Workflow de release (cria draft, não publica) | Agente 4 | review |
-| T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados | Agente 4 | todo |
+| T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados (chave de TESTE descartável, servidor local) | Agente 1 | todo |
 
 ## STATUS
 - T-009-03 em review (Agente 4, 2026-11-19): `.github/workflows/release.yml` (tag `v*` ou manual → NSIS + `latest.json` → release **draft** via `tauri-apps/tauri-action`). Nunca executado no GitHub ⏳.
