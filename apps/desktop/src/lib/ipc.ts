@@ -285,4 +285,27 @@ export const completeSession = (id: number) => invoke<GameSession>("complete_ses
 export const getLeaderboard = (songId: string, difficulty: Difficulty) =>
   invoke<LeaderboardRow[]>("get_leaderboard", { songId, difficulty });
 
+/** Performance history incl. older algorithm/reference versions (SPEC-007 R6). Newest first. */
+export interface PerformanceRow {
+  performanceId: number;
+  songId: string;
+  songTitle: string;
+  participantName: string | null; // null = Anônimo
+  score: number;
+  competitive: boolean;
+  algorithmVersion: number;
+  referenceRevision: number;
+  difficulty: Difficulty;
+  createdMs: number;
+  /** Same CompatKey as the song's current one (active reference + revision + ALGORITHM_VERSION), for this row's difficulty. false = "versão anterior". */
+  isCurrentKey: boolean;
+}
+export interface ListPerformances {
+  songId?: string;
+  participantId?: number;
+  limit: number; // 1..500
+}
+export const listPerformances = (args: ListPerformances) =>
+  invoke<PerformanceRow[]>("list_performances", { args });
+
 // Updates (SPEC-009) use @tauri-apps/plugin-updater directly; no custom commands.

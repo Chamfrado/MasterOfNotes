@@ -60,6 +60,10 @@ pub struct AppSettings {
     pub auto_check_updates: bool,
     /// Read-only for `update_settings`; written by a leak-check performance run.
     pub leak_check: Option<LeakCheck>,
+    /// Larger root scale for TVs (A11Y-03).
+    pub tv_mode: bool,
+    /// The first-run "check for updates?" consent card was answered.
+    pub update_consent_asked: bool,
 }
 
 impl Default for AppSettings {
@@ -76,6 +80,8 @@ impl Default for AppSettings {
             feedback_overlay: FeedbackOverlay::Full,
             auto_check_updates: false,
             leak_check: None,
+            tv_mode: false,
+            update_consent_asked: false,
         }
     }
 }
@@ -258,5 +264,29 @@ mod tests {
         let s = update(&mut conn, patch(json!({"noiseFloorDbfs": null}))).unwrap();
         assert_eq!(s.noise_floor_dbfs, None);
         assert_eq!(load(&conn).unwrap().noise_floor_dbfs, None);
+    }
+
+    #[test]
+    fn tv_mode_and_update_consent_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("t.db");
+        {
+            let mut conn = crate::db::open(&path).unwrap();
+            let s = load(&conn).unwrap();
+            assert!(!s.tv_mode && !s.update_consent_asked, "defaults false");
+            update(
+                &mut conn,
+                patch(json!({"tvMode": true, "updateConsentAsked": true})),
+            )
+            .unwrap();
+            assert_eq!(
+                update(&mut conn, patch(json!({"tvMode": "yes"})))
+                    .unwrap_err()
+                    .code,
+                "invalid_setting"
+            );
+        }
+        let s = load(&crate::db::open(&path).unwrap()).unwrap();
+        assert!(s.tv_mode && s.update_consent_asked);
     }
 }

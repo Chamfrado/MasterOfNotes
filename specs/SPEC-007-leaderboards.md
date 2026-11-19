@@ -14,6 +14,7 @@
 | T-007-01 | `game::leaderboard` + `CompatKey` + testes | Agente 4 | done |
 | T-007-02 | Command `get_leaderboard` + repositório | Agente 1 | done |
 | T-007-03 | Telas de Resultado e Ranking | Agente 3 | todo |
+| T-007-04 | Command `list_performances` (histórico com versões anteriores, R6) | Agente 1 | doing |
 
 ## TEST
 `game` testes: `leaderboard_excludes_incompatible`, `ties_older_first`, `top_50`.
