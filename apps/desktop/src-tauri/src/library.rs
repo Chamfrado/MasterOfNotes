@@ -741,4 +741,94 @@ mod tests {
             "not_found"
         );
     }
+
+    /// Synthetic library for T-001-07: `n` files in 20 folders; every 10th is a sparse
+    /// 50–200 MB file (real bytes only at head and tail), the rest 4–256 KiB. Contents
+    /// are unique per file. Returns the total logical size in bytes.
+    pub fn gen_library(root: &Path, n: usize) -> u64 {
+        use std::io::Write;
+        let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed
+        };
+        let mut total = 0;
+        for i in 0..n {
+            let dir = root.join(format!("pasta-{:02}", i % 20));
+            std::fs::create_dir_all(&dir).unwrap();
+            let ext = EXTENSIONS[i % EXTENSIONS.len()];
+            let path = dir.join(format!("video-{i:04}.{ext}"));
+            let chunk: Vec<u8> = (0..64 * 1024).map(|_| next() as u8).collect();
+            let mut f = File::create(&path).unwrap();
+            if i % 10 == 0 {
+                #[cfg(windows)]
+                {
+                    let ok = std::process::Command::new("fsutil")
+                        .args(["sparse", "setflag"])
+                        .arg(&path)
+                        .output()
+                        .unwrap()
+                        .status
+                        .success();
+                    assert!(ok, "fsutil sparse setflag failed");
+                }
+                let size = (50 + next() % 151) * 1024 * 1024;
+                f.write_all(&chunk).unwrap();
+                f.seek(SeekFrom::Start(size - chunk.len() as u64)).unwrap();
+                f.write_all(&chunk).unwrap();
+                total += size;
+            } else {
+                let size = 4 * 1024 + (next() % (252 * 1024)) as usize;
+                let mut left = size;
+                while left > 0 {
+                    let k = left.min(chunk.len());
+                    f.write_all(&chunk[..k]).unwrap();
+                    left -= k;
+                }
+                total += size as u64;
+            }
+        }
+        total
+    }
+
+    /// T-001-07 benchmark (not run in CI): `cargo test -p master-of-notes perf_index -- --ignored --nocapture`.
+    /// `MON_PERF_DIR=<dir>` keeps the generated library there (reused by the app measurement).
+    #[test]
+    #[ignore]
+    fn perf_index_1000_files() {
+        const N: usize = 1000;
+        let tmp = tempfile::tempdir().unwrap();
+        let root = std::env::var_os("MON_PERF_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| tmp.path().join("lib"));
+        let generated = Instant::now();
+        let bytes = if root.join("pasta-00").exists() {
+            0
+        } else {
+            gen_library(&root, N)
+        };
+        let gen_ms = generated.elapsed().as_millis();
+        let db_dir = tempfile::tempdir().unwrap();
+        let db = Mutex::new(crate::db::open(&db_dir.path().join("t.db")).unwrap());
+
+        let t = Instant::now();
+        let (first, _) = scan(&db, &root, true).unwrap();
+        let first_ms = t.elapsed().as_millis();
+        let t = Instant::now();
+        let (again, change) = scan(&db, &root, true).unwrap();
+        let again_ms = t.elapsed().as_millis();
+        let t = Instant::now();
+        let songs = list_songs(&lock(&db)).unwrap();
+        let list_ms = t.elapsed().as_micros() as f64 / 1000.0;
+
+        assert_eq!((first.found, first.added), (N as u32, N as u32));
+        assert!(change.is_empty() && again.added == 0 && again.updated == 0);
+        assert_eq!(songs.len(), N);
+        println!(
+            "generated {N} files ({:.1} GB logical) in {gen_ms} ms\nfirst scan: {first_ms} ms\nrescan (no changes): {again_ms} ms\nlist_songs ({N}): {list_ms:.1} ms",
+            bytes as f64 / 1e9
+        );
+    }
 }
