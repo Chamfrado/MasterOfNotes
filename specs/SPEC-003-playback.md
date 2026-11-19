@@ -22,12 +22,14 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 | T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | review |
 | T-003-03 | Integração com `syncPerformance` | Agente 3 | review |
 | T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | doing |
+| T-003-05 | Gerador de música de teste (webm com/sem guia + referência exata) para validar o app real | Agente 4 | review |
 
 ## TEST
 `playerMachine.test.ts` (todas as transições válidas e inválidas); checklist em `docs/testing/evidence/codecs.md`.
 
 ## STATUS
 - T-003-04 em andamento (Agente 4, 2026-11-19): checklist e roteiro de fixtures sintéticas prontos em `docs/testing/evidence/codecs.md`; execução ⏳ aguarda o Player (T-003-02).
+- T-003-05 em review (Agente 4, 2026-11-19): `apps/desktop/e2e/tools/gen-test-song.ts` gera `mon-test-song.webm`, `mon-test-song-karaoke.webm` e `mon-test-song.mon-melody.json` (31 s, sem ffmpeg, Lei 19). Verificado por `crates/game/tests/test_song.rs` (parse real) e `e2e/test-song.e2e.ts` (toca, duração, seek com quadro correto, altura de cada nota, karaokê sem guia, onsets ≤ 30 ms). Uso e medidas em [vertical-flow.md](../docs/testing/evidence/vertical-flow.md).
 - T-003-01 em review (Agente 3, 2026-11-19): `src/player/playerMachine.ts`; `playerMachine.test.ts` cobre a tabela completa estado × evento (8 × 9: válidas checam o estado resultante, inválidas checam identidade do objeto) + contagem 3-2-1 + fluxo completo.
 - T-003-02/03 em review (Agente 3, 2026-11-19): `src/screens/Player.tsx`.
   - Controles: Espaço (pausar/continuar), F (tela cheia da janela Tauri, desfeita ao sair), H (overlay full → compact → hidden, persistido em `feedbackOverlay`), ↑/↓ (volume em passos de 5%, persistido em `videoVolume`), ←/→ (±5 s), barra de posição, Esc (sair; a desmontagem chama `abortPerformance`). Os controles somem após 3 s cantando e voltam com mouse ou tecla.

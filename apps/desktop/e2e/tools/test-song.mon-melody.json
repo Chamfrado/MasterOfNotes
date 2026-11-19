@@ -1,0 +1,31 @@
+{
+  "format": "mon-melody",
+  "version": 1,
+  "notes": [
+    { "startMs": 2000, "durMs": 600, "midi": 60, "lyric": "Mas" },
+    { "startMs": 2600, "durMs": 600, "midi": 62, "lyric": "ter" },
+    { "startMs": 3200, "durMs": 900, "midi": 64, "lyric": "Of" },
+    { "startMs": 4100, "durMs": 400, "midi": 65, "lyric": "No" },
+    { "startMs": 4500, "durMs": 1000, "midi": 67, "lyric": "tes," },
+    { "startMs": 5700, "durMs": 500, "midi": 67, "lyric": "can" },
+    { "startMs": 6200, "durMs": 500, "midi": 67, "lyric": "te" },
+    { "startMs": 6700, "durMs": 150, "midi": 69, "lyric": "a" },
+    { "startMs": 6850, "durMs": 1150, "midi": 67, "lyric": "qui" },
+    { "startMs": 8200, "durMs": 700, "midi": 65, "lyric": "co" },
+    { "startMs": 8900, "durMs": 700, "midi": 64, "lyric": "mi" },
+    { "startMs": 9600, "durMs": 1600, "midi": 62, "lyric": "go," },
+    { "startMs": 11400, "durMs": 1200, "midi": 60, "lyric": "oh!" },
+    { "startMs": 16000, "durMs": 500, "midi": 64, "lyric": "Su" },
+    { "startMs": 16500, "durMs": 500, "midi": 65, "lyric": "ba" },
+    { "startMs": 17000, "durMs": 1000, "midi": 67, "lyric": "no" },
+    { "startMs": 18200, "durMs": 800, "midi": 72, "lyric": "ran" },
+    { "startMs": 19000, "durMs": 800, "midi": 71, "lyric": "king," },
+    { "startMs": 19800, "durMs": 1200, "midi": 69, "lyric": "a" },
+    { "startMs": 21200, "durMs": 600, "midi": 67, "lyric": "fi" },
+    { "startMs": 21800, "durMs": 600, "midi": 65, "lyric": "na" },
+    { "startMs": 22400, "durMs": 600, "midi": 64, "lyric": "do" },
+    { "startMs": 23000, "durMs": 1500, "midi": 62, "lyric": "e" },
+    { "startMs": 24700, "durMs": 700, "midi": 64, "lyric": "fe" },
+    { "startMs": 25400, "durMs": 2600, "midi": 60, "lyric": "liz!" }
+  ]
+}
