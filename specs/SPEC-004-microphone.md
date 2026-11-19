@@ -30,6 +30,7 @@ Critérios:
 | T-004-03 | Calibração de ruído | Agente 2 | done |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | done |
 | T-004-05 | Tela de microfone e calibração | Agente 3 | done |
+| T-004-07 | Medição assistida de latência (sonda de cliques pelo pipeline do vídeo) | Agente 2 + Agente 1 + Agente 3 | doing (backend done; UI pendente) |
 
 ## TEST
 `audio-engine/tests/synthetic.rs`: senoides, oitavas, glissando, silêncio, ruído, clipping, invariância a volume, harmônicos. Dispositivo real = teste manual registrado em `docs/testing/evidence/`.
@@ -92,3 +93,4 @@ Critérios:
     - hardware (`--ignored`): `start_raw` com blocos contíguos no microfone Realtek; `live_probe_on_the_default_microphone` roda ponta a ponta (sem cliques tocados → detected 0 com motivo).
   - ⏳ Medida real com cliques nas caixas e palmas não foi feita. O microfone desta máquina parece mudo (piso de −105 a −109 dBFS); depende do proprietário.
 - T-004-07 parte Agente 1 `review` (2026-11-19): `start_performance` com `latencyProbe` (1–500 cliques; recusa junto com leakCheck, rodada ou participante) monta `PerformanceConfig.latency_probe` com `latency_offset_ms = 0`, sem referência. No finish, nada vai para `performances`; se `passed`, grava `latencyOffsetMs = round(offsetMs)` pelo caminho validado das settings; devolve `outcome.latency` (achatado, como no ipc.ts). Teste ✅ `live::tests::latency_probe_saves_offset_only_when_passed`. ❓ `songId` continua obrigatório e precisa existir (a UI passa a música atual).
+- T-004-07 (Agente 0, 2026-11-19): sonda integrada em main @ 2cef2b0. Sintético: atraso de 87 ms medido com erro ≤ 1 ms. ⏳ UI (trilha de cliques) e medição real com caixas e palmas.
