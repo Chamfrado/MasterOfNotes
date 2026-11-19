@@ -11,7 +11,7 @@
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-007-01 | `game::leaderboard` + `CompatKey` + testes | Agente 4 | todo |
+| T-007-01 | `game::leaderboard` + `CompatKey` + testes | Agente 4 | review |
 | T-007-02 | Command `get_leaderboard` + repositório | Agente 1 | todo |
 | T-007-03 | Telas de Resultado e Ranking | Agente 3 | todo |
 
@@ -19,4 +19,5 @@
 `game` testes: `leaderboard_excludes_incompatible`, `ties_older_first`, `top_50`.
 
 ## STATUS
-Pendente.
+- T-007-01 em review (Agente 4, 2026-11-19): `game::leaderboard` + `CompatKey`; testes `leaderboard_excludes_incompatible`, `ties_older_first`, `top_50` ✅.
+- T-007-02..03 pendentes.
