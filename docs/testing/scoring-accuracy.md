@@ -4,7 +4,7 @@ Dono: Agente 2. Specs: [SPEC-004](../../specs/SPEC-004-microphone.md), [SPEC-006
 Medido em 2026-11-19 · `ALGORITHM_VERSION = 1` · Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1.
 
 Todos os números abaixo vêm de testes executados e reproduzíveis (áudio gerado em código, sem arquivos binários).
-Nenhum foi medido com microfone físico: esse teste está pendente (⏳, ver o fim deste documento).
+Com microfone físico, só o caminho da captura foi exercitado (seção "Dispositivo real"). Pitch com voz real está pendente (⏳).
 
 ## Pontuação: tabela de aceite da SPEC-006 (pipeline completo)
 
@@ -65,7 +65,14 @@ Reproduzir: `cargo test -p audio-engine`
 `analyze_buffer` sobre 300 s de áudio a 48 kHz (29 996 frames): 8,0 s, ou seja **≈ 2,7% de um núcleo** (meta < 15%).
 Medido em build de testes (`opt-level = 3` no perfil dev para este crate) e em release. Os dois deram o mesmo número.
 
+## Dispositivo real (2026-11-19)
+
+`cargo test -p audio-engine --test device -- --ignored --nocapture --test-threads=1`
+- ✅ Listagem: "Grupo de microfones (Realtek(R) Audio)" (padrão, 48 kHz, 2 canais), "Microfone (Steam Streaming Microphone)" e "Headset Microphone (Oculus Virtual Audio Device)".
+- ✅ Captura de 2 s no dispositivo padrão: 173 frames (≈ 100/s depois da partida do stream), `sample_index` monotônico, sem erro de driver.
+- ❓ Piso de ruído medido: −104,8 dBFS. É baixo demais para um microfone embutido, o que sugere microfone mudo ou bloqueado pela privacidade do Windows. Não serve como calibração real.
+
 ## Pendente ⏳
 
-- Validação com microfone físico e voz real (T-004-02/03): exige hardware e será registrada em `docs/testing/evidence/` quando feita.
+- Validação com voz real no microfone (pitch, gate, clipping, calibração): exige o proprietário e entra no checklist em `docs/testing/evidence/`.
 - Calibração de latência real (SPEC-004 R7) e vazamento da música para o microfone (R9).
