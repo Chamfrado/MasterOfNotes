@@ -21,10 +21,11 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 | T-003-01 | Reducer da máquina de estados + testes | Agente 3 | todo |
 | T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | todo |
 | T-003-03 | Integração com `syncPerformance` | Agente 3 | todo |
-| T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | todo |
+| T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | doing |
 
 ## TEST
 `playerMachine.test.ts` (todas as transições válidas e inválidas); checklist em `docs/testing/evidence/codecs.md`.
 
 ## STATUS
-Pendente.
+- T-003-04 em andamento (Agente 4, 2026-11-19): checklist e roteiro de fixtures sintéticas prontos em `docs/testing/evidence/codecs.md`; execução ⏳ aguarda o Player (T-003-02).
+- Demais pendentes.
