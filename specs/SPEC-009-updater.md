@@ -12,7 +12,7 @@
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | todo |
+| T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | review |
 | T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | todo |
 | T-009-03 | Workflow de release (cria draft, não publica) | Agente 4 | review |
 | T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados | Agente 4 | todo |
@@ -24,3 +24,4 @@
   2. Criar os secrets `TAURI_SIGNING_PRIVATE_KEY` e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` no GitHub.
   3. Chave pública em `plugins.updater.pubkey` e `bundle.createUpdaterArtifacts: true` no `tauri.conf.json` (Agente 1, T-009-01/02).
 - Demais tarefas pendentes.
+- T-009-01 `review` (Agente 1, 2026-11-19): `bundle.targets = ["nsis"]`, `installMode: "currentUser"` (sem admin), idiomas PortugueseBR + English. `pnpm build` local verde (release com LTO em 19m50s) → `target/release/bundle/nsis/Master Of Notes_0.1.0_x64-setup.exe` (2,79 MiB). O exe release inicia sem erro (smoke de 12 s). `createUpdaterArtifacts`/`pubkey` aguardam a chave do proprietário. ⏳ Instalação/desinstalação do instalador não testada (fica com T-009-04).
