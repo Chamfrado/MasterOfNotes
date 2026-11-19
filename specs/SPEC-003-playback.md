@@ -18,7 +18,7 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-003-01 | Reducer da máquina de estados + testes | Agente 3 | review |
+| T-003-01 | Reducer da máquina de estados + testes | Agente 3 | done |
 | T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | doing |
 | T-003-03 | Integração com `syncPerformance` | Agente 3 | todo |
 | T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | doing |
@@ -31,3 +31,4 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 - T-003-01 em review (Agente 3, 2026-11-19): `src/player/playerMachine.ts`; `playerMachine.test.ts` cobre a tabela completa estado × evento (8 × 9: válidas checam o estado resultante, inválidas checam identidade do objeto) + contagem 3-2-1 + fluxo completo.
 - T-003-02 em andamento (Agente 3): esqueleto do Player com `<video>`, contagem, Espaço, F (tela cheia da janela Tauri), Esc, overlay no topo, R3/R4 (`updateSong`), `syncPerformance` em play/pause/seeked + `requestVideoFrameCallback` a cada 250 ms. Faltam: volume, barra de progresso, seek/treino, tecla H.
 - Demais pendentes.
+- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.

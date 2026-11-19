@@ -13,8 +13,8 @@
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | review |
-| T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | review |
+| T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | done |
+| T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | done |
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | doing |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | todo |
 
@@ -24,3 +24,4 @@
 - T-010-02 em review. `components/ui.tsx` (Button, Input, Select, Slider, Card, Badge, Progress, Dialog, Toast, NavBar, Loading/ErrorState) e `components/game.tsx` (MicMeter, PitchIndicator, ScoreBadge, RankingTable). Nativos: `<dialog>`, `<select>`, `<progress>`, `<input type=range>`, `<table>`. Sem Radix/motion. Testes: `ui.test.tsx`, `game.test.tsx`.
 - T-010-03 em andamento: Início, Biblioteca, Microfone, Player, Resultado, Ranking navegáveis e ligados ao `ipc.ts` real; erros do backend aparecem como estado de erro com "Tentar de novo".
 - Pendente: componente `List` (não houve consumidor além da Biblioteca, que usa `<ul>`); navegação espacial por setas para controle remoto de TV; 60 FPS não medido; contraste verificado por cálculo dos tokens, não por ferramenta.
+- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
