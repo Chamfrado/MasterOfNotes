@@ -113,6 +113,28 @@ pub fn challenge_progress(scores: &[f32], target: f32, rounds: u32) -> Challenge
 pub fn leaderboard(records: &[PerformanceRecord], compat: &CompatKey) -> Vec<LeaderboardRow>;
 ```
 
+### 2.4 `src-tauri/src/performance.rs` (Agente 2) — sessão ao vivo, sem acesso ao banco
+
+```rust
+pub struct PerformanceConfig { pub reference: Option<(MelodyReference, i32 /*offset_ms*/)>, pub competitive: bool /* ref validated */, pub difficulty: Difficulty, pub latency_offset_ms: f64, pub device_id: Option<String>, pub capture: CaptureConfig }
+pub struct MicFrame { rms_dbfs, f0_hz, confidence, voiced, clipped }   // camelCase; From<&AnalysisFrame>; reusado pelo start_mic_monitor
+pub struct LiveTick { pub mic: MicFrame, pub feedback: Option<LiveFeedback> } // enviado à UI a ~30 Hz; o Scorer recebe todos os frames
+pub struct LivePerformance;
+impl LivePerformance {
+    /// Abre o mic; frames são descartados até o 1º sync(playing=true).
+    pub fn start(cfg: PerformanceConfig, on_tick: impl Fn(LiveTick) + Send + 'static) -> Result<Self, AppError>;
+    /// Âncora = (video_time, contador de amostras do CALLBACK). Resync se deriva > 40 ms; pausa descarta; seek → competitive=false + Scorer::skip.
+    pub fn sync(&self, video_time_s: f64, playing: bool, seeked: bool);
+    pub fn take_error(&self) -> Option<AppError>;   // mic desconectado
+    pub fn finish(self) -> PerformanceSummary;      // drop = abort
+}
+pub struct PerformanceSummary { pub competitive: bool, pub played_ms: u64, pub result: Option<ScoreResult>, pub exploratory: Option<ExploratoryMetrics>, pub capture: CaptureStats }
+// CaptureStats → performances.capture_json: device, noiseFloorDbfs, latencyOffsetMs, clippedRatio, leakSuspected (só indicativo)
+```
+
+Os commands (Agente 1) carregam a referência ativa e as configurações, criam `PerformanceConfig`, guardam `Mutex<Option<LivePerformance>>` no `AppState`, repassam `LiveTick` ao `Channel` e, no `finish`, decidem a persistência: `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (SPEC-007 R2). Também calculam os recordes.
+`scoring-engine` ganha `Scorer::skip(from_ms, to_ms)`: exclui da agregação as notas que começam no trecho pulado (só em treino; não altera `ALGORITHM_VERSION`).
+
 ## 3. Esquema SQLite (migração 001)
 
 Dono da implementação: Agente 1 (`src-tauri/migrations/001_init.sql`). Mudanças de esquema = nova migração, nunca editar migração já integrada.
