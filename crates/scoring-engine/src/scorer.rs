@@ -1,5 +1,5 @@
-//! Deterministic vocal scoring, algorithm v3 (SPEC-006 "Algoritmo v3", on top of
-//! v2). Every constant below is quoted from the spec; changing any result
+//! Deterministic vocal scoring, algorithm v4 (SPEC-006 "Algoritmo v4", on top of
+//! v3 and v2). Every constant below is quoted from the spec; changing any result
 //! requires bumping `ALGORITHM_VERSION` and the golden values in
 //! `tests/regression.rs`.
 //!
@@ -7,10 +7,15 @@
 //! once its frames are in:
 //! - Pitch is judged on the vibrato-free contour: each voiced frame's in-note
 //!   5-frame median, averaged over ~190 ms (one vibrato period) inside the note
-//!   and on the same side of the onset; values farther than 250 cents from the
-//!   frame are not averaged in, so short ornaments stay local.
+//!   and between the same onsets (this note's and the next one's); values
+//!   farther than 250 cents from the frame are not averaged in, so short
+//!   ornaments stay local.
+//! - Pitch error (cents) = |contour − target| (octave-folded)
+//!   + 2.5·max(0, spread − 60) + |contour 100 ms later − contour 100 ms earlier|
+//!   (E1: spread = mean |median − contour| in the window, ≤ ~62 for a ±100 c
+//!   vibrato; a trill or a wobble around the target is not singing it).
 //! - `p(frame)` = 1 within T_full cents, 0 beyond T_zero, linear between
-//!   (octave-folded; unvoiced = 0).
+//!   (unvoiced = 0).
 //! - `pitch_i` = Σp / frames that arrived (+ the frames after the last one
 //!   received, which count 0). Frames that never arrived are left out (N2).
 //! - `accuracy_i` = mean p over the voiced frames from the onset (or start +
@@ -28,7 +33,7 @@ use crate::MelodyReference;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
-pub const ALGORITHM_VERSION: u32 = 3;
+pub const ALGORITHM_VERSION: u32 = 4;
 
 /// Frame period of the analysis (contract: one frame every 10 ms).
 const HOP_MS: f64 = 10.0;
@@ -40,6 +45,15 @@ const CONTOUR_HALF: usize = 9;
 /// Only values within this distance (semitones) of the frame enter its contour:
 /// covers a ±125 cent vibrato, keeps note changes and ornaments out.
 const CONTOUR_RANGE_ST: f64 = 2.5;
+/// E1 (v4): oscillating around the target is not singing it. A natural vibrato
+/// up to ±100 c spreads ≤ ~65 c around its centre (mean |frame − centre|); the
+/// excess counts as pitch error, `SPREAD_WEIGHT` cents per cent.
+const VIBRATO_SPREAD_CENTS: f64 = 60.0;
+const SPREAD_WEIGHT: f64 = 2.5;
+/// E1 (v4): a vibrato's centre stays put; an unstable voice's centre moves.
+/// Movement of the centre between −100 and +100 ms counts as pitch error.
+const WANDER_FRAMES: usize = 10;
+const WANDER_WEIGHT: f64 = 1.0;
 /// Onset search starts at max(start − 300 ms, end of the previous note + guard).
 const ONSET_EARLY_MS: f64 = 300.0;
 /// Right after a note ends the analysis window (≈ 43 ms, dated at its centre)
@@ -48,6 +62,10 @@ const ONSET_GUARD_MS: f64 = 25.0;
 /// Rhythm ramp (symmetric): full credit ≤ 80 ms, zero ≥ 300 ms.
 const RHYTHM_FULL_MS: f64 = 80.0;
 const RHYTHM_ZERO_MS: f64 = 300.0;
+/// A3 walk-back limit. Rhythm is already 0 at 300 ms, but the onset also splits
+/// the contour (N3, E1), so it should land on the real change; the limit only
+/// bounds the cost of a voice held through many notes.
+const ONSET_BACK_MS: f64 = 1000.0;
 /// Notes closer than this are "tied": the boundary gets a transition zone.
 const TIED_GAP_MS: f64 = 30.0;
 /// Transition zone length: min(25 ms, d/4).
@@ -381,10 +399,15 @@ impl Scorer {
         let lo = self.raw.partition_point(|f| f.t_ms < r0);
         let hi = self.raw.partition_point(|f| f.t_ms < r1);
         let m: Vec<Option<f64>> = (lo..hi).map(|i| self.smoothed_midi(i, a, b)).collect();
-        // The contour never mixes frames from both sides of the onset (N3).
-        let split = onset
-            .filter(|&o| o > r0 && o < r1)
-            .map_or(0, |o| self.raw[lo..hi].partition_point(|f| f.t_ms < o));
+        // The contour never mixes frames across this note's onset (N3) or the
+        // next note's onset (moving on early): one segment per sung pitch.
+        let split_at = |t: f64| {
+            Some(t)
+                .filter(|&o| o > r0 && o < r1)
+                .map(|o| self.raw[lo..hi].partition_point(|f| f.t_ms < o))
+        };
+        let split = onset.and_then(split_at).unwrap_or(0);
+        let split2 = split_at(acc_to).unwrap_or(hi - lo).max(split);
         let mut c = Tally {
             frames: (hi - lo) as u32 + unreceived_after(r0, r1, last),
             ..Tally::default()
@@ -392,15 +415,46 @@ impl Scorer {
         if c.frames == 0 {
             return None;
         }
-        for (k, own) in m.iter().enumerate() {
-            let Some(own) = *own else { continue };
-            let (s0, s1) = if k < split {
+        let segment = |k: usize| {
+            if k < split {
                 (0, split)
+            } else if k < split2 {
+                (split, split2)
             } else {
-                (split, m.len())
+                (split2, m.len())
+            }
+        };
+        // (centre, spread) of every voiced frame.
+        let shape: Vec<Option<(f64, f64)>> = m
+            .iter()
+            .enumerate()
+            .map(|(k, own)| {
+                let (s0, s1) = segment(k);
+                own.map(|own| contour(&m[s0..s1], k - s0, own))
+            })
+            .collect();
+        for (k, sk) in shape.iter().enumerate() {
+            let Some((centre, spread)) = *sk else {
+                continue;
             };
-            let centre = contour(&m[s0..s1], k - s0, own);
-            let p = pitch_credit(cents(centre, n.midi), self.tol);
+            // E1: how far the centre moves in ±100 ms (a vibrato's centre stays put).
+            // A jump beyond the contour range is a note change or an ornament,
+            // already kept out of the contour: not wander.
+            let (s0, s1) = segment(k);
+            let around = |j: usize| shape[j.clamp(s0, s1 - 1)].map(|s| s.0);
+            let wander = match (
+                around(k.saturating_sub(WANDER_FRAMES)),
+                around(k + WANDER_FRAMES),
+            ) {
+                (Some(x), Some(y)) => Some((fold_to(y, x) - x).abs())
+                    .filter(|&d| d <= CONTOUR_RANGE_ST)
+                    .map_or(0.0, |d| 100.0 * d),
+                _ => 0.0,
+            };
+            let err = cents(centre, n.midi).abs()
+                + SPREAD_WEIGHT * (100.0 * spread - VIBRATO_SPREAD_CENTS).max(0.0)
+                + WANDER_WEIGHT * wander;
+            let p = pitch_credit(err, self.tol);
             c.p_sum += p;
             c.held += u32::from(p > 0.0);
             if (acc_from..acc_to).contains(&self.raw[lo + k].t_ms) {
@@ -416,7 +470,7 @@ impl Scorer {
     /// never gets nearer (e.g. constantly sharp towards the previous note), the
     /// first frame on target. If the voice is already on target when the window
     /// opens, the onset goes back to where that stretch began (A3), as long as
-    /// the frames are strictly nearer this target than the previous one.
+    /// the frames are strictly nearer this target than the previous one (≤ 1 s back).
     fn onset(&self, j: usize) -> Option<f64> {
         let n = &self.notes[j];
         let tol = self.tol;
@@ -447,7 +501,7 @@ impl Scorer {
         let mut i = found.or(first)?;
         if i == lo {
             while i > 0
-                && self.raw[i - 1].t_ms >= n.start - RHYTHM_ZERO_MS
+                && self.raw[i - 1].t_ms >= n.start - ONSET_BACK_MS
                 && on_target(i - 1).is_some_and(|s| nearer(s, true))
             {
                 i -= 1;
@@ -518,19 +572,23 @@ impl Scorer {
 
 /// Vibrato-free pitch at position `k` of a segment of in-note medians: mean of
 /// the voiced values in a 19-frame window kept inside the segment, each folded
-/// to the octave of `own` and only if within `CONTOUR_RANGE_ST` of it.
-fn contour(seg: &[Option<f64>], k: usize, own: f64) -> f64 {
+/// to the octave of `own` and only if within `CONTOUR_RANGE_ST` of it. Also
+/// returns the spread: mean |value − mean| of those values (semitones).
+fn contour(seg: &[Option<f64>], k: usize, own: f64) -> (f64, f64) {
     let w = 2 * CONTOUR_HALF + 1;
     let lo = k
         .saturating_sub(CONTOUR_HALF)
         .min(seg.len().saturating_sub(w));
-    let (sum, count) = seg[lo..(lo + w).min(seg.len())]
+    let values: Vec<f64> = seg[lo..(lo + w).min(seg.len())]
         .iter()
         .flatten()
         .map(|&v| fold_to(v, own))
         .filter(|v| (v - own).abs() <= CONTOUR_RANGE_ST)
-        .fold((0.0, 0u32), |(s, c), v| (s + v, c + 1));
-    sum / count as f64 // ≥ 1: `own` is in its own window
+        .collect();
+    let n = values.len() as f64; // ≥ 1: `own` is in its own window
+    let mean = values.iter().sum::<f64>() / n;
+    let spread = values.iter().map(|v| (v - mean).abs()).sum::<f64>() / n;
+    (mean, spread)
 }
 
 /// N4: how far a short note's region (and onset window) may shift.
@@ -935,6 +993,33 @@ mod tests {
         };
         assert!(sing(0.0).score >= 98.0, "{:?}", sing(0.0));
         assert!(sing(1.0).score <= 40.0, "{:?}", sing(1.0));
+    }
+
+    #[test]
+    fn oscillating_around_the_target_is_not_singing_it() {
+        // E1 (v4): a square trill between the two neighbouring semitones has its
+        // mean on the target but never sings it; a slow ±100 c swing moves its centre.
+        let r = reference(&[(500, 1000, 60.0), (1700, 1000, 64.0), (2900, 1000, 67.0)]);
+        let sing = |dev: &dyn Fn(f64) -> f64| {
+            run(&r, Difficulty::Normal, 4500, |t| {
+                r.notes
+                    .iter()
+                    .find(|n| within(t, n.start_ms as f64, (n.start_ms + n.dur_ms) as f64))
+                    .map(|n| n.midi as f64 + dev(t))
+            })
+        };
+        let trill = sing(&|t| {
+            if ((t / 1000.0) * 12.0) as i64 % 2 == 0 {
+                -1.0
+            } else {
+                1.0
+            }
+        });
+        assert!(trill.score <= 50.0, "{trill:?}");
+        let slow = sing(&|t| (TAU * 2.0 * t / 1000.0).sin());
+        assert!(slow.score <= 50.0, "{slow:?}");
+        let vibrato = sing(&|t| (TAU * 5.5 * t / 1000.0).sin());
+        assert!(vibrato.score >= 98.0, "{vibrato:?}");
     }
 
     #[test]
