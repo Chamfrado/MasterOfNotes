@@ -1,5 +1,6 @@
 // T-010-05: accessibility and 10-foot audit of the existing screens (SPEC-010), with the test-only IPC mock.
 // Measurements are logged (`--reporter=list` shows them); findings go to docs/testing/evidence/a11y-audit.md.
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { fullSpec, settings } from "./fixtures";
 import { mockTauri, useSyntheticVideo, type MockSpec } from "./tauri-mock";
@@ -15,7 +16,8 @@ const openPlayer = async (page: Page) => {
 
 interface ScreenDef {
   name: string;
-  video?: boolean;
+  /** Length of the synthetic video, when the screen needs one that plays. */
+  videoMs?: number;
   reach: (page: Page) => Promise<void>;
   /** Where Esc must lead. */
   backTo: ((page: Page) => Promise<void>) | null;
@@ -42,10 +44,21 @@ const screens: ScreenDef[] = [
     },
     backTo: homeVisible,
   },
-  { name: "Player", video: true, reach: openPlayer, backTo: libraryVisible },
+  { name: "Player", videoMs: 800, reach: openPlayer, backTo: libraryVisible },
+  {
+    name: "Player pausado",
+    videoMs: 6000,
+    reach: async (p) => {
+      await openPlayer(p);
+      await p.getByRole("button", { name: "Começar" }).click();
+      await p.getByRole("button", { name: "Pausar" }).click({ timeout: 10_000 });
+      await expect(p.getByRole("button", { name: "Continuar" })).toBeVisible();
+    },
+    backTo: libraryVisible,
+  },
   {
     name: "Resultado",
-    video: true,
+    videoMs: 800,
     reach: async (p) => {
       await openPlayer(p);
       await p.getByRole("button", { name: "Começar" }).click();
@@ -66,9 +79,27 @@ const screens: ScreenDef[] = [
 async function open(page: Page, s: ScreenDef, spec: MockSpec = {}) {
   const tracker = await mockTauri(page, fullSpec(spec));
   await page.goto("/");
-  if (s.video) await useSyntheticVideo(page);
+  if (s.videoMs) await useSyntheticVideo(page, s.videoMs);
   await s.reach(page);
   return tracker;
+}
+
+// ---------- (a) axe-core ----------
+
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
+
+for (const s of screens) {
+  test(`axe: ${s.name} — zero violações serious/critical`, async ({ page }) => {
+    // Known finding, listed for Agent 3 (docs/testing/evidence/a11y-audit.md). Remove when it starts passing.
+    test.fail(s.name === "Biblioteca", "A11Y-02: label-content-name-mismatch nos botões Cantar");
+    await open(page, s);
+    const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    for (const v of violations) {
+      console.log(`[axe] ${s.name}: ${v.impact} ${v.id} (${v.nodes.length}×) ${v.help} — ${v.nodes[0]?.target.join(" ")}`);
+    }
+    const blocking = violations.filter((v) => v.impact === "serious" || v.impact === "critical").map((v) => `${v.impact} ${v.id}`);
+    expect(blocking).toEqual([]);
+  });
 }
 
 // ---------- (b) keyboard ----------
