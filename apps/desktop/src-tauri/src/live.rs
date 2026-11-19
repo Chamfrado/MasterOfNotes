@@ -1,0 +1,601 @@
+//! Live performance commands and persistence (SPEC-006 T-006-05, SPEC-007 R1/R2/R5).
+//! Session logic (anchor, sync, scorer) lives in `performance.rs` (Agent 2); this module
+//! decides what is competitive, stores the result and computes the records.
+
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
+
+use audio_engine::CaptureConfig;
+use game::CompatKey;
+use rusqlite::{Connection, OptionalExtension};
+use scoring_engine::{ExploratoryMetrics, ScoreResult};
+use serde::{Deserialize, Serialize};
+use tauri::ipc::Channel;
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
+
+use crate::commands::{AppState, blocking};
+use crate::db::now_ms;
+use crate::error::{AppError, AppResult};
+use crate::library::{self, lock};
+use crate::mic::MicMonitor;
+use crate::performance::{LivePerformance, LiveTick, PerformanceConfig, PerformanceSummary};
+use crate::reference;
+use crate::sessions::{self, difficulty_str};
+use crate::settings::{self, Difficulty};
+
+/// SPEC-007 R2: at least this fraction of the song must have been played.
+const MIN_PLAYED_RATIO: f64 = 0.5;
+/// Device-error polling period (watchdog for `audio://error`).
+const WATCH_EVERY: Duration = Duration::from_millis(250);
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct StartPerformance {
+    pub song_id: String,
+    pub round_id: Option<i64>,
+    pub participant_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceStarted {
+    pub competitive: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceOutcome {
+    pub performance_id: Option<i64>,
+    pub competitive: bool,
+    pub result: Option<ScoreResult>,
+    pub exploratory: Option<ExploratoryMetrics>,
+    pub personal_best: Option<f32>,
+    pub song_record: Option<f32>,
+}
+
+/// What the run needs to be stored when it finishes (captured at start).
+#[derive(Debug, Clone, PartialEq)]
+pub struct RunContext {
+    pub song_id: String,
+    pub round_id: Option<i64>,
+    pub participant_id: Option<i64>,
+    /// (reference id, revision) of the active reference at start.
+    pub reference: Option<(i64, i64)>,
+    pub difficulty: Difficulty,
+}
+
+struct Running {
+    generation: u64,
+    perf: LivePerformance,
+    ctx: RunContext,
+}
+
+/// The single live performance. Drop of `LivePerformance` = abort.
+#[derive(Default)]
+pub struct LiveState {
+    running: Mutex<Option<Running>>,
+    generation: AtomicU64,
+}
+
+fn running(state: &LiveState) -> std::sync::MutexGuard<'_, Option<Running>> {
+    state
+        .running
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+pub fn scoring_difficulty(d: Difficulty) -> scoring_engine::Difficulty {
+    match d {
+        Difficulty::Easy => scoring_engine::Difficulty::Easy,
+        Difficulty::Normal => scoring_engine::Difficulty::Normal,
+        Difficulty::Hard => scoring_engine::Difficulty::Hard,
+    }
+}
+
+/// Polls a device error every 250 ms. `check` returns `None` when the capture it watches is
+/// gone (stop/replace → watchdog exits) and `Some(Some(err))` after it has stopped the
+/// capture because of `err`; the error is then emitted as `audio://error`.
+pub fn spawn_error_watch<R: Runtime>(
+    app: AppHandle<R>,
+    mut check: impl FnMut(&AppHandle<R>) -> Option<Option<AppError>> + Send + 'static,
+) {
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(WATCH_EVERY);
+            match check(&app) {
+                None => return,
+                Some(None) => {}
+                Some(Some(e)) => {
+                    log::error!("audio device failed: {e}");
+                    if let Err(err) = app.emit("audio://error", &e) {
+                        log::warn!("emit audio://error: {err}");
+                    }
+                    return;
+                }
+            }
+        }
+    });
+}
+
+/// Validates the request and builds the session config. No device is touched.
+pub fn prepare(
+    conn: &Connection,
+    args: &StartPerformance,
+) -> AppResult<(PerformanceConfig, RunContext, PerformanceStarted)> {
+    let song = library::get_song(conn, &args.song_id)?;
+    if !song.available {
+        return Err(AppError::invalid_input(format!(
+            "O arquivo de \"{}\" não está disponível.",
+            song.title
+        )));
+    }
+    if let Some(pid) = args.participant_id {
+        let exists: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM participants WHERE id = ?1)",
+            [pid],
+            |r| r.get(0),
+        )?;
+        if !exists {
+            return Err(AppError::new("not_found", "Participante não encontrado."));
+        }
+    }
+    if let Some(round_id) = args.round_id {
+        let (song_id, participant_id, status, session_status): (
+            String,
+            Option<i64>,
+            String,
+            String,
+        ) = conn
+            .query_row(
+                "SELECT r.song_id, r.participant_id, r.status, s.status FROM rounds r
+                 JOIN game_sessions s ON s.id = r.session_id WHERE r.id = ?1",
+                [round_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()?
+            .ok_or_else(|| AppError::new("not_found", "Rodada não encontrada."))?;
+        if session_status != "active" || status == "completed" {
+            return Err(AppError::invalid_input(
+                "Esta rodada não está mais disponível.",
+            ));
+        }
+        if song_id != args.song_id || participant_id != args.participant_id {
+            return Err(AppError::invalid_input(
+                "A música ou o participante não correspondem à rodada.",
+            ));
+        }
+    }
+
+    let s = settings::load(conn)?;
+    let active = reference::active(conn, &args.song_id)?;
+    let (competitive, reason) = match active.as_ref().map(|r| r.status.as_str()) {
+        Some("validated") => (true, None),
+        Some("invalid") => (
+            false,
+            Some(
+                "A referência desta música foi marcada como inválida: a apresentação é só treino.",
+            ),
+        ),
+        Some(_) => (
+            false,
+            Some("A referência desta música ainda não foi validada: a apresentação é só treino."),
+        ),
+        None => (
+            false,
+            Some(
+                "Esta música não tem referência melódica: não há pontuação, só métricas de treino.",
+            ),
+        ),
+    };
+    let reference = match &active {
+        Some(r) => {
+            let notes_json: String = conn.query_row(
+                "SELECT notes_json FROM melody_references WHERE id = ?1",
+                [r.id],
+                |x| x.get(0),
+            )?;
+            Some((reference::parse_stored(&notes_json)?, r.offset_ms))
+        }
+        None => None,
+    };
+    let mut capture = CaptureConfig::default();
+    if let Some(n) = s.noise_floor_dbfs {
+        capture.noise_floor_dbfs = n as f32;
+    }
+    let cfg = PerformanceConfig {
+        reference,
+        competitive,
+        difficulty: scoring_difficulty(s.difficulty),
+        latency_offset_ms: s.latency_offset_ms as f64,
+        device_id: s.input_device_id.clone(),
+        capture,
+    };
+    let ctx = RunContext {
+        song_id: args.song_id.clone(),
+        round_id: args.round_id,
+        participant_id: args.participant_id,
+        reference: active.as_ref().map(|r| (r.id, r.revision)),
+        difficulty: s.difficulty,
+    };
+    Ok((
+        cfg,
+        ctx,
+        PerformanceStarted {
+            competitive,
+            reason: reason.map(str::to_owned),
+        },
+    ))
+}
+
+/// Stores a finished run. Without a reference nothing is stored (SPEC-007 R1).
+pub fn persist(
+    conn: &mut Connection,
+    ctx: &RunContext,
+    summary: PerformanceSummary,
+) -> AppResult<PerformanceOutcome> {
+    let (Some(result), Some((ref_id, revision))) = (summary.result, ctx.reference) else {
+        return Ok(PerformanceOutcome {
+            performance_id: None,
+            competitive: false,
+            result: None,
+            exploratory: summary.exploratory,
+            personal_best: None,
+            song_record: None,
+        });
+    };
+    let duration_ms: Option<i64> = library::get_song(conn, &ctx.song_id)?.duration_ms;
+    // Unknown duration → cannot prove 50% was played → training.
+    let competitive = summary.competitive
+        && duration_ms
+            .is_some_and(|d| d > 0 && summary.played_ms as f64 >= MIN_PLAYED_RATIO * d as f64);
+    let difficulty = difficulty_str(ctx.difficulty);
+
+    let tx = conn.transaction()?;
+    tx.execute(
+        "INSERT INTO performances (round_id, song_id, participant_id, reference_id, reference_revision, algorithm_version,
+         difficulty, competitive, score, metrics_json, capture_json, created_ms)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+        (
+            ctx.round_id,
+            &ctx.song_id,
+            ctx.participant_id,
+            ref_id,
+            revision,
+            result.algorithm_version,
+            difficulty,
+            competitive,
+            result.score as f64,
+            serde_json::to_string(&result)?,
+            serde_json::to_string(&summary.capture)?,
+            now_ms(),
+        ),
+    )?;
+    let performance_id = tx.last_insert_rowid();
+    // A round completes only with a competitive performance (SPEC-008).
+    if competitive && let Some(round_id) = ctx.round_id {
+        tx.execute(
+            "UPDATE rounds SET status = 'completed' WHERE id = ?1 AND status != 'completed'
+             AND session_id IN (SELECT id FROM game_sessions WHERE status = 'active')",
+            [round_id],
+        )?;
+    }
+    tx.commit()?;
+
+    let compat = CompatKey {
+        reference_id: ref_id,
+        reference_revision: revision,
+        algorithm_version: result.algorithm_version,
+        difficulty: difficulty.to_owned(),
+    };
+    let records = sessions::competitive_records(conn, &ctx.song_id, &compat)?;
+    let best = |filter: &dyn Fn(Option<i64>) -> bool| {
+        records
+            .iter()
+            .filter(|(_, _, r)| filter(r.participant_id))
+            .map(|(_, _, r)| r.score)
+            .reduce(f32::max)
+    };
+    Ok(PerformanceOutcome {
+        performance_id: Some(performance_id),
+        competitive,
+        result: Some(result),
+        exploratory: None,
+        personal_best: ctx.participant_id.and_then(|p| best(&|q| q == Some(p))),
+        song_record: best(&|_| true),
+    })
+}
+
+#[tauri::command]
+pub async fn start_performance(
+    app: AppHandle,
+    args: StartPerformance,
+    on_tick: Channel<LiveTick>,
+) -> AppResult<PerformanceStarted> {
+    blocking(move || {
+        let live = app.state::<LiveState>();
+        // One microphone user at a time: replaces a forgotten run and the meter.
+        running(&live).take();
+        app.state::<MicMonitor>().stop();
+        let (cfg, ctx, started) = prepare(&lock(app.state::<AppState>().db()?), &args)?;
+        let perf = LivePerformance::start(cfg, move |t| {
+            let _ = on_tick.send(t); // UI gone: the run continues until finish/abort
+        })?;
+        let generation = live.generation.fetch_add(1, Ordering::Relaxed) + 1;
+        *running(&live) = Some(Running {
+            generation,
+            perf,
+            ctx,
+        });
+        spawn_error_watch(app.clone(), move |app| {
+            let live = app.state::<LiveState>();
+            let mut slot = running(&live);
+            let r = slot.as_ref().filter(|r| r.generation == generation)?;
+            let err = r.perf.take_error()?;
+            slot.take(); // stops the stream; the run is lost (not scored)
+            Some(Some(err))
+        });
+        log::info!("performance started (competitive: {})", started.competitive);
+        Ok(started)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn sync_performance(
+    live: State<'_, LiveState>,
+    video_time_s: f64,
+    playing: bool,
+    seeked: bool,
+) -> AppResult<()> {
+    match running(&live).as_ref() {
+        Some(r) => {
+            r.perf.sync(video_time_s, playing, seeked);
+            Ok(())
+        }
+        None => Err(not_running()),
+    }
+}
+
+#[tauri::command]
+pub async fn finish_performance(app: AppHandle) -> AppResult<PerformanceOutcome> {
+    blocking(move || {
+        let r = running(&app.state::<LiveState>())
+            .take()
+            .ok_or_else(not_running)?;
+        let summary = r.perf.finish();
+        let outcome = persist(&mut lock(app.state::<AppState>().db()?), &r.ctx, summary)?;
+        log::info!(
+            "performance finished: id {:?}, competitive {}",
+            outcome.performance_id,
+            outcome.competitive
+        );
+        Ok(outcome)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn abort_performance(live: State<'_, LiveState>) -> AppResult<()> {
+    running(&live).take();
+    Ok(())
+}
+
+fn not_running() -> AppError {
+    AppError::new("no_performance", "Nenhuma apresentação em andamento.")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::performance::CaptureStats;
+
+    const REF: &str =
+        r#"{"format":"mon-melody","version":1,"notes":[{"startMs":1000,"durMs":500,"midi":60}]}"#;
+
+    fn env(ref_status: Option<&str>, duration_ms: Option<i64>) -> (tempfile::TempDir, Connection) {
+        let dir = tempfile::tempdir().unwrap();
+        let conn = crate::db::open(&dir.path().join("t.db")).unwrap();
+        conn.execute(
+            "INSERT INTO songs (id, path, file_name, title, extension, size_bytes, modified_ms, duration_ms, added_ms, updated_ms)
+             VALUES ('s1', 'C:/v/s1.mp4', 's1.mp4', 's1', 'mp4', 1, 1, ?1, 1, 1)",
+            [duration_ms],
+        )
+        .unwrap();
+        if let Some(st) = ref_status {
+            conn.execute(
+                "INSERT INTO melody_references (song_id, source, format_version, status, offset_ms, notes_json, created_ms, updated_ms)
+                 VALUES ('s1', 'json', 1, ?1, 120, ?2, 1, 1)",
+                (st, REF),
+            )
+            .unwrap();
+        }
+        (dir, conn)
+    }
+
+    fn prepare_err(conn: &Connection, a: &StartPerformance) -> &'static str {
+        match prepare(conn, a) {
+            Err(e) => e.code,
+            Ok(_) => panic!("expected an error"),
+        }
+    }
+
+    fn args() -> StartPerformance {
+        StartPerformance {
+            song_id: "s1".into(),
+            round_id: None,
+            participant_id: None,
+        }
+    }
+
+    fn summary(competitive: bool, played_ms: u64, score: Option<f32>) -> PerformanceSummary {
+        PerformanceSummary {
+            competitive,
+            played_ms,
+            result: score.map(|score| ScoreResult {
+                score,
+                pitch: 0.9,
+                rhythm: 0.9,
+                sustain: 0.9,
+                coverage: 1.0,
+                notes_total: 1,
+                notes_hit: 1,
+                algorithm_version: scoring_engine::ALGORITHM_VERSION,
+            }),
+            exploratory: score.is_none().then_some(ExploratoryMetrics {
+                voiced_ratio: 0.5,
+                pitch_stability: 0.8,
+            }),
+            capture: CaptureStats {
+                device_id: None,
+                sample_rate: 48_000,
+                noise_floor_dbfs: -60.0,
+                gate_margin_db: 10.0,
+                latency_offset_ms: 0.0,
+                clipped_ratio: 0.0,
+                leak_suspected: false,
+            },
+        }
+    }
+
+    #[test]
+    fn prepare_reports_competitiveness() {
+        let (_d, conn) = env(Some("validated"), Some(10_000));
+        let (cfg, ctx, started) = prepare(&conn, &args()).unwrap();
+        assert!(started.competitive && cfg.competitive && started.reason.is_none());
+        assert_eq!(
+            cfg.reference.as_ref().map(|(r, o)| (r.notes.len(), *o)),
+            Some((1, 120))
+        );
+        assert_eq!(ctx.reference.map(|(_, rev)| rev), Some(1));
+
+        for (status, competitive) in [
+            (Some("experimental"), false),
+            (Some("invalid"), false),
+            (None, false),
+        ] {
+            let (_d, conn) = env(status, Some(10_000));
+            let (cfg, _, started) = prepare(&conn, &args()).unwrap();
+            assert_eq!(started.competitive, competitive);
+            assert!(started.reason.is_some());
+            assert_eq!(cfg.reference.is_some(), status.is_some());
+        }
+        let (_d, conn) = env(None, None);
+        let bad = StartPerformance {
+            song_id: "nope".into(),
+            ..args()
+        };
+        assert_eq!(prepare_err(&conn, &bad), "not_found");
+        let bad = StartPerformance {
+            round_id: Some(9),
+            ..args()
+        };
+        assert_eq!(prepare_err(&conn, &bad), "not_found");
+    }
+
+    #[test]
+    fn competitive_needs_half_the_song() {
+        let (_d, mut conn) = env(Some("validated"), Some(10_000));
+        let (_, ctx, _) = prepare(&conn, &args()).unwrap();
+        let short = persist(&mut conn, &ctx, summary(true, 4_999, Some(70.0))).unwrap();
+        assert!(!short.competitive, "below 50% → training");
+        assert!(short.performance_id.is_some(), "training is stored too");
+        assert_eq!(short.song_record, None, "training does not set records");
+        let full = persist(&mut conn, &ctx, summary(true, 5_000, Some(80.0))).unwrap();
+        assert!(full.competitive);
+        assert_eq!(full.song_record, Some(80.0));
+        let seeked = persist(&mut conn, &ctx, summary(false, 10_000, Some(95.0))).unwrap();
+        assert!(!seeked.competitive);
+        assert_eq!(seeked.song_record, Some(80.0));
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM performances", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 3);
+        let stored: String = conn
+            .query_row("SELECT capture_json FROM performances LIMIT 1", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert!(stored.contains("\"noiseFloorDbfs\""));
+    }
+
+    #[test]
+    fn unknown_duration_is_training_and_no_reference_stores_nothing() {
+        let (_d, mut conn) = env(Some("validated"), None);
+        let (_, ctx, _) = prepare(&conn, &args()).unwrap();
+        assert!(
+            !persist(&mut conn, &ctx, summary(true, 60_000, Some(90.0)))
+                .unwrap()
+                .competitive
+        );
+
+        let (_d, mut conn) = env(None, Some(10_000));
+        let (_, ctx, _) = prepare(&conn, &args()).unwrap();
+        let out = persist(&mut conn, &ctx, summary(false, 10_000, None)).unwrap();
+        assert_eq!(
+            (out.performance_id, out.result, out.competitive),
+            (None, None, false)
+        );
+        assert!(out.exploratory.is_some());
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM performances", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn round_completes_and_records_per_participant() {
+        let (_d, mut conn) = env(Some("validated"), Some(10_000));
+        let a = sessions::create_participant(&conn, "Ana").unwrap().id;
+        let b = sessions::create_participant(&conn, "Bia").unwrap().id;
+        let s = sessions::create_session(
+            &mut conn,
+            serde_json::from_value(serde_json::json!({
+                "mode": "duel", "name": null, "participantIds": [a, b], "songIds": ["s1"], "order": "manual"
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+        let (ra, rb) = (&s.rounds[0], &s.rounds[1]);
+        let wrong = StartPerformance {
+            song_id: "s1".into(),
+            round_id: Some(ra.id),
+            participant_id: Some(b),
+        };
+        assert_eq!(prepare_err(&conn, &wrong), "invalid_input");
+
+        let start = |round: &sessions::Round| StartPerformance {
+            song_id: "s1".into(),
+            round_id: Some(round.id),
+            participant_id: round.participant_id,
+        };
+        let (_, ctx_a, _) = prepare(&conn, &start(ra)).unwrap();
+        // Training run: round stays pending.
+        persist(&mut conn, &ctx_a, summary(true, 1_000, Some(99.0))).unwrap();
+        assert_eq!(
+            sessions::get_session(&conn, s.id).unwrap().rounds[0].status,
+            "pending"
+        );
+        let out = persist(&mut conn, &ctx_a, summary(true, 9_000, Some(70.0))).unwrap();
+        assert_eq!(
+            (out.personal_best, out.song_record),
+            (Some(70.0), Some(70.0))
+        );
+        let (_, ctx_b, _) = prepare(&conn, &start(rb)).unwrap();
+        let out = persist(&mut conn, &ctx_b, summary(true, 9_000, Some(60.0))).unwrap();
+        assert_eq!(
+            (out.personal_best, out.song_record),
+            (Some(60.0), Some(70.0))
+        );
+
+        let s = sessions::get_session(&conn, s.id).unwrap();
+        assert!(s.rounds.iter().all(|r| r.status == "completed"));
+        assert_eq!(s.standings[0].participant_id, a);
+        assert_eq!(
+            prepare_err(&conn, &start(ra)),
+            "invalid_input",
+            "completed round"
+        );
+    }
+}

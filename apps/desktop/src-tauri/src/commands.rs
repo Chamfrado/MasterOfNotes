@@ -8,7 +8,7 @@ use notify_debouncer_full::notify::{EventKind, RecursiveMode};
 use notify_debouncer_full::{DebounceEventResult, Debouncer, RecommendedCache, new_debouncer};
 use rusqlite::Connection;
 use serde_json::{Map, Value, json};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 
 use crate::error::{AppError, AppResult};
 use crate::library::{self, ScanSummary, Song, SongPatch, lock};
@@ -69,7 +69,6 @@ pub async fn set_library_folder(
                 format!("A pasta {path} não foi encontrada ou não está acessível."),
             ));
         }
-        allow_asset_scope(&app, &root, recursive)?;
         let summary = run_scan(&app, &root, recursive)?;
         let state = app.state::<AppState>();
         settings::write(
@@ -125,7 +124,7 @@ pub fn restore_library(app: &AppHandle) {
                 return Ok(());
             };
             let root = PathBuf::from(folder);
-            allow_asset_scope(&app, &root, s.recursive_scan)?;
+            allow_library_files(&app)?; // saved catalog playable before the rescan ends
             run_scan(&app, &root, s.recursive_scan)?;
             start_watcher(&app, &root, s.recursive_scan);
             Ok(())
@@ -145,26 +144,39 @@ pub async fn blocking<T: Send + 'static>(
     })?
 }
 
-/// Only the library folder is served through the asset protocol (Law 09).
-fn allow_asset_scope(app: &AppHandle, root: &Path, recursive: bool) -> AppResult<()> {
-    app.asset_protocol_scope()
-        .allow_directory(root, recursive)
-        .map_err(|e| {
-            log::error!("asset scope for {}: {e}", root.display());
-            AppError::new(
-                "internal",
-                "Não foi possível liberar o acesso aos vídeos da pasta.",
-            )
-        })
+/// Law 09: the asset protocol serves only the indexed video files (scanner output: supported
+/// extensions inside the library folder), never the whole folder. Tauri's runtime scope API
+/// escapes patterns, so files are allowed one by one; patterns live in a set (no duplicates).
+// ponytail: one pattern per song, linear match per request; fine for thousands of songs.
+fn allow_library_files<R: Runtime>(app: &AppHandle<R>) -> AppResult<()> {
+    let state = app.state::<AppState>();
+    let paths: Vec<String> = {
+        let conn = lock(state.db()?);
+        let mut stmt = conn.prepare("SELECT path FROM songs WHERE available = 1")?;
+        stmt.query_map([], |r| r.get(0))?
+            .collect::<Result<_, _>>()?
+    };
+    let scope = app.asset_protocol_scope();
+    for p in &paths {
+        if let Err(e) = scope.allow_file(p) {
+            log::warn!("asset scope for {p}: {e}");
+        }
+    }
+    Ok(())
 }
 
-fn run_scan(app: &AppHandle, root: &Path, recursive: bool) -> AppResult<ScanSummary> {
+fn run_scan<R: Runtime>(
+    app: &AppHandle<R>,
+    root: &Path,
+    recursive: bool,
+) -> AppResult<ScanSummary> {
     let state = app.state::<AppState>();
     let _guard = state
         .scan_lock
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let (summary, change) = library::scan(state.db()?, root, recursive)?;
+    allow_library_files(app)?;
     if !change.is_empty()
         && let Err(e) = app.emit("library://changed", &change)
     {
@@ -212,5 +224,26 @@ fn start_watcher(app: &AppHandle, root: &Path, recursive: bool) {
             *slot = None;
             log::warn!("cannot watch {}: {e}", root.display());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn asset_scope_allows_only_indexed_videos() {
+        let dir = tempfile::tempdir().unwrap();
+        let lib = dir.path().join("lib");
+        std::fs::create_dir_all(&lib).unwrap();
+        std::fs::write(lib.join("song.mp4"), b"video").unwrap();
+        std::fs::write(lib.join("secret.txt"), b"x").unwrap();
+        let app = tauri::test::mock_app();
+        app.manage(AppState::new(crate::db::open(&dir.path().join("t.db"))));
+        run_scan(app.handle(), &lib, true).unwrap();
+        let scope = app.asset_protocol_scope();
+        assert!(scope.is_allowed(lib.join("song.mp4")));
+        assert!(!scope.is_allowed(lib.join("secret.txt")));
+        assert!(!scope.is_allowed(&lib));
     }
 }
