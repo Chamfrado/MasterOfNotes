@@ -39,6 +39,8 @@ const LEAK_MIN_NOTES: u32 = 3;
 /// Latency probe (T-004-07, SPEC-004 R7): minimum clicks played and valid range.
 const PROBE_MIN_CLICKS: usize = 4;
 const PROBE_MAX_OFFSET_MS: f32 = 500.0;
+/// SPEC-006 v3 N2: above this share of missing mic audio the run is training.
+pub const MAX_MISSING_RATIO: f32 = 0.05;
 
 #[derive(Debug, Clone)]
 pub struct PerformanceConfig {
@@ -127,14 +129,21 @@ pub struct CaptureStats {
     pub clipped_ratio: f32,
     /// Indicative only (the singer may hum in instrumentals); never invalidates a run.
     pub leak_suspected: bool,
+    /// 0..1: microphone audio that never arrived while the music played
+    /// (1 − callback samples / (played video time · sample rate)). Above
+    /// [`MAX_MISSING_RATIO`] the run is training (SPEC-006 v3 N2).
+    pub missing_ratio: f32,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PerformanceSummary {
-    /// Validated reference, a result, and no seek. The command still requires
-    /// `played_ms ≥ 50%` of the song (SPEC-007 R2).
+    /// Validated reference, a result, no seek and ≤ 5% missing audio. The
+    /// command still requires `played_ms ≥ 50%` of the song (SPEC-007 R2).
     pub competitive: bool,
+    /// pt-BR: why a run that started competitive ended as training (seek or
+    /// missing audio). `None` otherwise; the start reason covers the rest.
+    pub reason: Option<String>,
     /// Song time actually played (playing = true), skipped stretches excluded.
     pub played_ms: u64,
     pub result: Option<ScoreResult>,
@@ -252,6 +261,11 @@ struct Session {
     /// Measured on the video clock: the mic sample clock can lose samples
     /// (WASAPI delivered 40–46 k/s at a nominal 48 k on the dev machine).
     played_ms: f64,
+    /// Callback samples delivered over the same played stretches (N2).
+    played_samples: u64,
+    last_sync_sample: u64,
+    /// Competitive at start: a later loss of competitiveness gets a reason.
+    started_competitive: bool,
     frames_seen: u64,
     scored_frames: u32,
     clipped_frames: u32,
@@ -285,11 +299,13 @@ impl Session {
             ),
             None => (None, Vec::new()),
         };
+        let competitive =
+            cfg.competitive && scorer.is_some() && !cfg.leak_check && cfg.latency_probe.is_none();
         Self {
-            competitive: cfg.competitive
-                && scorer.is_some()
-                && !cfg.leak_check
-                && cfg.latency_probe.is_none(),
+            competitive,
+            started_competitive: competitive,
+            played_samples: 0,
+            last_sync_sample: 0,
             scorer,
             spans,
             voice: Vec::new(),
@@ -355,8 +371,10 @@ impl Session {
         if self.anchor.is_some() {
             let reached = if seeked { position } else { video_ms };
             self.played_ms += (reached - self.last_video_ms).max(0.0);
+            self.played_samples += now.saturating_sub(self.last_sync_sample);
         }
         self.last_video_ms = video_ms;
+        self.last_sync_sample = now;
         if seeked {
             // Seek = training (overview §6). Notes jumped over are ignored, not zeroed.
             // ponytail: a backward seek re-sings notes on top of their first pass;
@@ -524,6 +542,7 @@ impl Session {
         if self.anchor.is_some() {
             // Tail since the last sync, estimated on the mic clock (≤ one sync period).
             self.played_ms += (end_ms - self.last_video_ms).max(0.0);
+            self.played_samples += now.saturating_sub(self.last_sync_sample);
         }
         self.close_segment();
         let mut covered = 0u32;
@@ -546,8 +565,30 @@ impl Session {
             .then(|| self.leak_verdict(result.as_ref(), covered));
         let latency = self.probe.is_some().then(|| self.latency_verdict(end_ms));
         let ratio = |n: u32, d: u32| if d == 0 { 0.0 } else { n as f32 / d as f32 };
+        let missing_ratio = if self.played_ms > 0.0 {
+            (1.0 - self.samples_to_ms(self.played_samples as f64) / self.played_ms).max(0.0) as f32
+        } else {
+            0.0
+        };
+        let gappy = missing_ratio > MAX_MISSING_RATIO;
+        let reason = if !self.started_competitive {
+            None
+        } else if self.seeked {
+            Some(
+                "A música foi avançada ou voltada durante a performance. Esta performance conta como treino."
+                    .to_owned(),
+            )
+        } else if gappy {
+            let pct = format!("{:.1}", missing_ratio * 100.0).replace('.', ",");
+            Some(format!(
+                "O áudio do microfone teve falhas ({pct}% do áudio não chegou). Esta performance conta como treino."
+            ))
+        } else {
+            None
+        };
         PerformanceSummary {
-            competitive: self.competitive && result.is_some(),
+            competitive: self.competitive && result.is_some() && !gappy,
+            reason,
             played_ms: self.played_ms.round() as u64,
             exploratory: (result.is_none() && self.probe.is_none())
                 .then(|| exploratory_metrics(&self.voice)),
@@ -561,6 +602,7 @@ impl Session {
                 clipped_ratio: ratio(self.clipped_frames, self.scored_frames),
                 leak_suspected: self.outside_frames >= LEAK_MIN_FRAMES
                     && ratio(self.outside_voiced, self.outside_frames) > LEAK_RATIO,
+                missing_ratio,
             },
             leak,
             latency,
@@ -713,9 +755,48 @@ mod tests {
         let sum = s.summary(57_600);
         let r = sum.result.unwrap();
         assert!(!sum.competitive);
+        assert!(
+            sum.reason
+                .is_some_and(|m| m.contains("avançada ou voltada"))
+        );
         assert_eq!((r.notes_total, r.notes_hit), (2, 2));
         assert!(r.score >= 99.0, "{r:?}");
         assert_eq!(sum.played_ms, 1200);
+    }
+
+    #[test]
+    fn missing_mic_audio_over_5_percent_makes_training_with_a_reason() {
+        // SPEC-006 v3 N2: 2 s of video; the callback delivers `per_s` samples per second.
+        let run = |per_s: u64, competitive: bool| {
+            let mut s = session(Some(&[(0, 500, 60.0)]), competitive, 0.0);
+            s.sync(0.0, true, false, 0);
+            s.sync(1.0, true, false, per_s);
+            s.sync(2.0, false, false, 2 * per_s); // pause: closes the played stretch
+            s.sync(2.0, true, false, 3 * per_s); // resume: the paused second is not counted
+            s.summary(3 * per_s)
+        };
+        let ok = run(46_000, true); // 4.2 % missing
+        assert!(
+            (ok.capture.missing_ratio - 1.0 / 24.0).abs() < 1e-4,
+            "{ok:?}"
+        );
+        assert!(ok.competitive && ok.reason.is_none(), "{ok:?}");
+        let bad = run(44_000, true); // 8.3 % missing
+        assert!(!bad.competitive);
+        assert_eq!(
+            bad.reason.as_deref(),
+            Some(
+                "O áudio do microfone teve falhas (8,3% do áudio não chegou). Esta performance conta como treino."
+            )
+        );
+        // A run that was never competitive keeps the start reason (none here).
+        let training = run(44_000, false);
+        assert!(!training.competitive && training.reason.is_none());
+        assert!(
+            serde_json::to_string(&bad.capture)
+                .unwrap()
+                .contains("\"missingRatio\":0.083")
+        );
     }
 
     #[test]
