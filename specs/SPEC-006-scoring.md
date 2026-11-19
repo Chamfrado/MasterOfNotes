@@ -111,7 +111,7 @@ Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md).
 | T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | done |
 | T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | done |
 | T-006-12 | 4ª rodada de QA (curta, v3 × v4) → `docs/testing/evidence/scoring-review-v4.md` | Agente 4 | done |
-| T-006-13 | Algoritmo v5 (movimento só como oscilação) + regressão com fall/bend/scoop lento/vibrato irregular, `ALGORITHM_VERSION = 5` | Agente 2 | todo |
+| T-006-13 | Algoritmo v5 (movimento só como oscilação) + regressão com fall/bend/scoop lento/vibrato irregular, `ALGORITHM_VERSION = 5` | Agente 2 | review |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -216,3 +216,11 @@ Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md).
   - Metas v3 todas mantidas; curva do amador igual (≤ 0,2).
   - Achado Média: o termo de movimento penaliza gestos expressivos monotônicos (fall −9,6; bend −10,2; scoop lento −5,3; vibrato irregular −7,0, com o ornamento em todas as notas) e voz com SNR 5 dB no agudo (−13,9). Nenhum exploit novo.
 - T-006-12 done (Agente 0, 2026-11-19): 4ª rodada integrada. v4 confirmado (E1/E2 ok, sem regressão). O teste E2 do app passou no `pnpm check` do coordenador (57 testes do app). Falsos positivos em gestos expressivos → v5 (T-006-13).
+- T-006-13 `review` (Agente 2, 2026-11-19): algoritmo v5, `ALGORITHM_VERSION = 5`. Tabela v4 × v5 no mesmo áudio (voz humana) em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md#algoritmo-v5-algorithm_version--5-atual-encerra-o-ciclo-de-ajuste-com-voz-sintética).
+  - **Movimento só como oscilação:** o termo do v4 virou `3·max(0, balanço − 50 c)`. Balanço = máximo − mínimo do centro em ±600 ms; centro = contorno promediado de novo em 250 ms (a cascata 190 + 250 ms deixa < 3% de um vibrato de 4–7 Hz). Só conta se o contorno inverter de direção ≥ 2 vezes (histerese de 8 c) na mesma janela. O peso do espalhamento subiu de 2,5 para 3,5.
+  - **Gestos** (no máximo 2 abaixo do v3): scoop lento 95,3, fall 88,1, bend 96,8 (iguais ao v3); vibrato irregular 98,1 (v3 98,4).
+  - **E1:** ≤ 41,1 (aleatória ±150: 41,1, margem 8,9).
+  - **Mantidos:** N1, metas v3/v4, amador e curva constante sem mudança.
+  - Na regressão: `v5_expressive_gestures_are_style_not_error`. Golden com 14 fixtures.
+  - A janela de oscilação (1,2 s) ficou um pouco acima dos "~0,5–1 s" da spec. Com 1 s, a aleatória ±150 em notas de 1 s quase nunca mostra 2 inversões, e o E1 não fecha.
+  - **Fim do ciclo sintético:** mudanças de pontuação a partir daqui só com evidência de voz real.

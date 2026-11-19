@@ -6,7 +6,65 @@ Ambiente: Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1. Medido em
 Todos os números abaixo vêm de testes executados e reproduzíveis (áudio gerado em código, sem arquivos binários).
 Com microfone físico, só o caminho da captura foi exercitado (seção "Dispositivo real"). Pitch com voz real está pendente (⏳).
 
-## Algoritmo v4 (`ALGORITHM_VERSION = 4`, atual)
+## Algoritmo v5 (`ALGORITHM_VERSION = 5`, atual; encerra o ciclo de ajuste com voz sintética)
+
+Decisões: SPEC-006, seção "Algoritmo v5", a partir da [4ª rodada de QA](evidence/scoring-review-v4.md).
+**Daqui em diante, a pontuação só muda com evidência de voz real.**
+
+**Reproduzir:** `cargo test -p scoring-engine --test regression -- --nocapture --test-threads=1`.
+- O golden tem 14 fixtures.
+- A comparação v4 × v5 abaixo rodou o `scorer.rs` do v4 (main @ 9185456) e o do v5 sobre o mesmo áudio, numa sonda local fora do repositório.
+- Voz humana: formantes, jitter 1% e shimmer 10%. Normal.
+
+### O que mudou: o movimento do centro só conta quando é oscilação
+
+O v4 somava `2·max(0, movimento − 20)` em cada frame, em que movimento = `|contorno(+100 ms) − contorno(−100 ms)|`. Isso cobrava também gestos expressivos que mexem o centro **uma vez** (fall, bend, scoop).
+
+No v5, o erro de afinação de cada frame, em cents, é:
+
+`|contorno − alvo| + 3,5·max(0, espalhamento − 60) + 3·max(0, balanço − 50)`
+
+- **centro** = o contorno (média de 190 ms) promediado de novo em 250 ms. A cascata 190 + 250 ms deixa menos de 3% de um vibrato de 4 a 7 Hz.
+- **balanço** = máximo − mínimo do centro em ±600 ms.
+- O balanço só conta se, na mesma janela, o contorno inverter de direção pelo menos 2 vezes (histerese de 8 c). Ou seja, quando é oscilação.
+- O peso do espalhamento subiu de 2,5 para 3,5 e compensa a senoide ±150 c, que no v4 também pagava pelo movimento.
+
+**Como cheguei a essa forma.** Exploração em Python com frames ideais, depois confirmada no pipeline:
+1. **Contar inversões do centro de 190 ms + 190 ms com histerese de 10 c.** Os gestos ficaram em 0. Mas o vibrato irregular (4–7 Hz, extensão variando) tem um centro que anda de verdade (−37 a +12 c), porque os ciclos não são simétricos.
+2. **Com histerese maior, ou com o filtro de inversões no centro mais suavizado,** a oscilação aleatória ±150 c deixou de disparar o filtro (nota de 1 s, inversões a cada 400–900 ms) e voltou a 64–71.
+3. **O que separa os casos é a amplitude do vai-e-volta do centro:** vibrato irregular 49 c, ondulação lenta ±30 c 50 c, oscilação aleatória 138 c. Daí o balanço com limiar de 50 c, com o filtro de inversões no contorno (que inverte mais) e a amplitude medida no centro (sem resíduo de vibrato).
+
+### v4 × v5 no mesmo áudio
+
+| Item | Caso | Meta v5 | v4 | v5 | ✅ |
+|---|---|---|---|---|---|
+| Gesto | Scoop lento −100 c em 400 ms (notas de 2 s; v3 95,3) | ≥ 93,3 | 90,0 | **95,3** | ✅ |
+| Gesto | Fall −300 c nos últimos 250 ms (v3 88,1) | ≥ 86,1 | 78,5 | **88,1** | ✅ |
+| Gesto | Bend +100 c e volta em 300 ms (v3 96,8) | ≥ 94,8 | 86,6 | **96,8** | ✅ |
+| Gesto | Vibrato irregular 4–7 Hz / 30–90 c (v3 98,4) | ≥ 96,4 | 91,4 | **98,1** | ✅ |
+| E1 | Trinado quadrado ±100 c a 6 Hz (voz humana / frames ideais) | ≤ 50 | 44,4 / 25,0 | 26,1 / 9,1 | ✅ |
+| E1 | Senoide ±150 c a 5,5 Hz | ≤ 50 | 43,0 / 32,4 | 31,0 / 28,6 | ✅ |
+| E1 | Oscilação aleatória até ±150 c (80 ms) | ≤ 50 | 44,2 / 44,5 | **41,1 / 39,4** | ✅ (margem 8,9) |
+| E1 | Alternância +1 / +11 st a cada 100 ms | ≤ 50 | 40,4 / 28,1 | 22,3 / 9,6 | ✅ |
+| E1 | Trinado ±100 c a 3 Hz / ±125 c a 6 Hz / senoide ±100 c a 2 Hz (informativo) | — | 13,6 / 7,8 / 15,7 | 22,7 / 2,3 / 2,4 | |
+| N1 | Vibrato centrado ±50 / ±75 / ±100 c (regressão; música de teste igual) | ≥ 95 / 92 / 88 | 100,0 / 99,9 / 99,7 | 100,0 / 99,9 / 99,7 | ✅ |
+| N1 | Vibrato ±100 c a 4,5 / 7 Hz (informativo) | — | 99,0 / 97,4 | 98,7 / 99,9 | |
+| v4 | Vibrato lento ±75 c a 4 / 4,5 Hz | ≥ 92 | 97,5 / 100,0 | 100,0 / 100,0 | ✅ |
+| v4 | Scoop 150 c em 100 ms + vibrato ±50 (sem scoop: 100) | custo ≈ 3 | 97,7 | 98,3 | ✅ |
+| v4 | Notas de 2 s: ondula ±30 c em 2 s / em 1 s | ≤ 5 abaixo do v3 (98,7 / 99,2) | 98,7 / 96,9 | 98,7 / 97,9 | ✅ |
+| v1 | Glissando de 80 ms | ≥ 92 | 97,7 | 97,7 | ✅ |
+| N2 | Canto perfeito, ~10 / 15% dos frames não chegam | 100 | 100,0 / 100,0 | 100,0 / 100,0 | ✅ |
+| N3 | Segura a nota anterior 150 ms | ≈ calado | 72,4 | 72,4 | ✅ |
+| N4 | Ligadas de 50 / 100 ms, 25 ms atrasadas | ≥ 70 / 85 | 100,0 / 99,5 | 100,0 / 99,5 | ✅ |
+| A3 | Pausas de 200 ms, atrasado / adiantado 300 ms; entra 190 / 400 ms antes | simétrico; 400 pior | 57,0 / 58,7; 90,8 / 68,2 | igual | ✅ |
+| A4 | +90 c constante; maior queda em 10 c (Easy / Normal / Hard) | ≤ 40; ≤ 10 | 39,1; 8,5 / 9,7 / 9,7 | igual | ✅ |
+| A5 | Sirene / nota fixa | ≤ 15 / ≤ 25 | 0,7 / 22,0 | 0,1 / 22,0 | ✅ |
+| — | Amador (drift ±20 + vibrato ±50), desvio 0 / +20 / +30 / −40 c | informativo | 100,0 / 96,7 / 90,8 / 88,1 | igual | |
+| — | Desvio constante +30 / +50 c sem vibrato | igual ao v3 | 94,2 / 74,6 | igual | ✅ |
+
+Fora do escopo, por decisão da spec: sopro com SNR 5 dB e ligadas de 100 ms com 50 ms de atraso.
+
+## Algoritmo v4 (`ALGORITHM_VERSION = 4`; histórico, vale para performances gravadas com `algorithmVersion = 4`)
 
 Decisões: SPEC-006, seção "Algoritmo v4", a partir da [3ª rodada de QA](evidence/scoring-review-v3.md).
 

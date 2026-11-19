@@ -940,6 +940,75 @@ fn e1_legitimate_movement_is_not_penalised() {
     }
 }
 
+/// SPEC-006 v5: single expressive gestures cost at most 2 points more than in
+/// v3 (QA probe P17: 2 s notes, realistic voice, the gesture on every note).
+#[test]
+fn v5_expressive_gestures_are_style_not_error() {
+    let long: Song = [60.0, 64.0, 62.0, 67.0, 65.0, 60.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &m)| (500.0 + i as f64 * 2300.0, 2000.0, m))
+        .collect();
+    let calm = Voice {
+        drift_cents: 0.0,
+        ..HUMAN
+    };
+    let irregular: Drift = |x| {
+        let rate = 5.5 + 1.5 * (TAU * 0.7 * x / 1000.0).sin();
+        let ext = 60.0 + 30.0 * (TAU * 0.4 * x / 1000.0 + 1.0).sin();
+        ext * (TAU * rate * x / 1000.0).sin()
+    };
+    // (label, deviation by time since the note start, v3 score); notes last 2000 ms.
+    let gestures: [(&str, Drift, f32); 4] = [
+        (
+            "scoop lento −100 c em 400 ms",
+            |x| -100.0 * (1.0 - (x / 400.0).min(1.0)),
+            95.3,
+        ),
+        (
+            "fall −300 c nos últimos 250 ms",
+            |x| {
+                if x > 1750.0 {
+                    -300.0 * (x - 1750.0) / 250.0
+                } else {
+                    0.0
+                }
+            },
+            88.1,
+        ),
+        (
+            "bend +100 c e volta em 300 ms",
+            |x| {
+                let d = (x - 1000.0).abs();
+                if d < 150.0 {
+                    100.0 * (1.0 - d / 150.0)
+                } else {
+                    0.0
+                }
+            },
+            96.8,
+        ),
+        ("vibrato irregular 4–7 Hz / 30–90 c", irregular, 98.4),
+    ];
+    for (label, f, v3) in gestures {
+        let audio = render(
+            song_end(&long),
+            |t| {
+                let (s0, _, m) = long
+                    .iter()
+                    .copied()
+                    .find(|&(st, d, _)| t >= st && t < st + d)?;
+                Some(m + f(t - s0) / 100.0)
+            },
+            AMP,
+            calm,
+        );
+        let r = score(&long, &audio);
+        report(&format!("v5 gesto: {label} (v3 {v3})"), &r);
+        assert!(r.score >= v3 - 2.0, "{label}: {r:?}");
+    }
+}
+
 // ---------- A7: golden values ----------
 
 fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
@@ -1024,7 +1093,7 @@ fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
     ]
 }
 
-/// Exact expected results for ALGORITHM_VERSION 4. Regenerate only together
+/// Exact expected results for ALGORITHM_VERSION 5. Regenerate only together
 /// with a version bump: run with `-- --nocapture golden` and paste.
 fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
     let r = |score, pitch, rhythm, sustain, coverage, notes_hit, notes_total| ScoreResult {
@@ -1035,7 +1104,7 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         coverage,
         notes_total,
         notes_hit,
-        algorithm_version: 4,
+        algorithm_version: 5,
     };
     vec![
         ("perfect", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
@@ -1048,7 +1117,7 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
             r(73.1, 0.80178905, 0.44848484, 0.804, 1.0, 10, 10),
         ),
         ("vibrato", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
-        ("siren", r(0.6, 0.009253586, 0.0, 0.0, 0.0, 0, 10)),
+        ("siren", r(0.1, 0.0014386226, 0.0, 0.0, 0.0, 0, 10)),
         ("tied_repeated", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         ("human_voice", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
@@ -1066,11 +1135,11 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         ("missing_10_percent", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
             "e1_trill_100",
-            r(44.2, 0.5735026, 0.19838846, 0.19768271, 0.7, 7, 10),
+            r(26.5, 0.40205285, 0.010089772, 0.010089772, 0.2, 2, 10),
         ),
         (
             "e1_random_150",
-            r(44.5, 0.576917, 0.20021741, 0.20219181, 0.6, 6, 10),
+            r(39.4, 0.4489467, 0.28762674, 0.2954537, 0.4, 4, 10),
         ),
         ("early_400", r(68.1, 0.8470751, 0.0, 0.867, 1.0, 10, 10)),
     ]
