@@ -75,7 +75,7 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 | T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | done |
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
-| T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | todo |
+| T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | doing (backend done; UI em integração) |
 
 ## TEST
 `scoring-engine/tests/regression.rs` cobre cada linha da tabela. Pipeline completo (áudio sintético → `analyze_buffer` → `Scorer`) para pelo menos perfeito, desafinado, silêncio, atraso.
@@ -120,3 +120,12 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
   - Player: música validada sem teste aprovado mostra o aviso e o botão "Fazer teste" (vai para Microfone); o botão principal vira "Começar como treino". O mesmo atalho aparece na pausa, junto do `reason` do Rust.
   - Testes: `LeakTest.test.tsx` (4), `leak.test.ts` (+4 de `leakCheckState`), `Player.test.tsx` (+1).
   - ❓ Supõe que o Rust recusa o competitivo nas mesmas condições de `leakCheckState`; o texto do `reason` não é interpretado. ⏳ Commands do Agente 1 ainda não testados juntos.
+
+- T-004-06 parte Agente 1 `review` (2026-11-19):
+  - `settings.leakCheck {deviceId, videoVolume, passed, atMs}`. É só leitura em `update_settings` (`invalid_setting`) e é gravado só pela execução de teste.
+  - `start_performance` com `leakCheck: true`: recusa rodada/participante; exige referência ativa experimental ou validated; `PerformanceConfig.leak_check`.
+  - No finish: nada vai para `performances`; o veredito vai para as settings (um veredito reprovado substitui uma aprovação anterior) e é devolvido em `outcome.leak`.
+  - Gate competitivo: `leakCheck.passed && deviceId == inputDeviceId && videoVolume ≤ leakCheck.videoVolume + 0,05`. Senão é treino, com o reason "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking.".
+  - Testes ✅ `live::tests::{leak_check_gates_competitive, leak_check_run_saves_verdict_only, leak_check_is_read_only_for_update_settings}`.
+
+- T-004-06 (Agente 0, 2026-11-19): partes dos Agentes 2 e 1 integradas em main @ 2cef2b0 (140 testes Rust verdes). Decisão: qualquer veredito reprovado (inclusive inconclusivo) substitui uma aprovação anterior, que é o lado conservador. A UI (Agente 3) entra no próximo merge.

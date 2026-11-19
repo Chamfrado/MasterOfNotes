@@ -65,3 +65,24 @@ fn unknown_device_is_a_clear_error() {
     .err();
     assert!(err.is_some_and(|e| e.to_string().contains("não encontrado")));
 }
+
+#[test]
+#[ignore = "needs an audio input device"]
+fn raw_capture_delivers_contiguous_blocks_numbered_like_the_callback() {
+    let blocks = Arc::new(Mutex::new(Vec::<(u64, usize)>::new()));
+    let sink = blocks.clone();
+    let cap = Capture::start_raw(None, move |i, b| sink.lock().unwrap().push((i, b.len())))
+        .expect("default input opens");
+    std::thread::sleep(Duration::from_secs(2));
+    let captured = cap.captured_samples();
+    drop(cap);
+    let blocks = blocks.lock().unwrap();
+    let total: u64 = blocks.iter().map(|b| b.1 as u64).sum();
+    eprintln!(
+        "{} blocks, {total} samples, callback counter {captured}",
+        blocks.len()
+    );
+    assert!(!blocks.is_empty() && blocks[0].0 == 0);
+    assert!(blocks.windows(2).all(|w| w[1].0 == w[0].0 + w[0].1 as u64));
+    assert!(total <= captured);
+}

@@ -30,6 +30,7 @@ Critérios:
 | T-004-03 | Calibração de ruído | Agente 2 | done |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | done |
 | T-004-05 | Tela de microfone e calibração | Agente 3 | done |
+| T-004-07 | Medição assistida de latência (sonda de cliques pelo pipeline do vídeo) | Agente 2 + Agente 1 + Agente 3 | doing (backend done; UI pendente) |
 
 ## TEST
 `audio-engine/tests/synthetic.rs`: senoides, oitavas, glissando, silêncio, ruído, clipping, invariância a volume, harmônicos. Dispositivo real = teste manual registrado em `docs/testing/evidence/`.
@@ -63,3 +64,33 @@ Critérios:
   - Testes: `Mic.test.tsx` (5).
   - ⏳ O "teste de palmas sobre clique" do R7 não foi feito. Os frames do monitor chegam a ~30 Hz pelo Channel, resolução insuficiente para medir latência na UI sem enganar; precisa de um command que meça no Rust (proposta ao coordenador). Dispositivo real não testado.
 - T-004-05 done (Agente 0, 2026-11-19): integrado em main; vitest 124/124. R7 assistido vira T-004-07.
+- T-004-06, parte do Agente 2 `review` (2026-11-19): checagem de vazamento em `performance.rs`. `PerformanceConfig.leak_check` e `PerformanceSummary.leak: Option<LeakVerdict { passed, guide_score, reason }>` (`reason` em pt-BR quando reprova).
+  - **Método:** com o usuário calado, a música toca e o Scorer roda normalmente. `guide_score` = componente P só nas notas da referência tocadas **inteiras** (as outras são excluídas com `Scorer::skip`).
+  - **R9, limiar `passed`: `guide_score ≤ 0,05`**, e ainda: ≥ 8 s tocados, ≥ 3 notas cobertas, sem seek e com referência. Senão `passed = false` com motivo ("Teste curto demais…", "O teste foi interrompido…", "O teste precisa de uma música com referência…", "O microfone está captando a voz ou a melodia da música…"). A execução de checagem nunca é competitiva.
+  - **Evidência** (`performance::tests::leak_threshold_evidence`, `--ignored`, ≈ 60 s): análise real, usuário calado, ruído de sala −60 dBFS, gate padrão −50 dBFS, música de 10 notas (12,5 s). "Score só com o vazamento" = nota que esse vazamento daria numa performance normal.
+
+    | Fonte nas caixas | −20 | −30 | −40 | −45 | −50 | −55 dBFS | só ruído de sala |
+    |---|---|---|---|---|---|---|---|
+    | Voz-guia (vogal com formantes): guide_score / score | 0,998 / 99,7 | 0,998 / 99,7 | 0,998 / 99,7 | 0,998 / 99,8 | 0,590 / 59,2 | 0 / 0 | 0 / 0 |
+    | Melodia instrumental (piano, decaimento 300 ms) | 1,000 / 100 | 0,990 / 99,2 | 0,650 / 72,0 | 0,479 / 57,1 | 0,302 / 34,4 | 0,131 / 14,3 | 0 / 0 |
+    | Só acordes (fundamental e quinta uma oitava abaixo) | 0,891 / 89,2 | 0,891 / 89,2 | 0,891 / 89,2 | 0,891 / 89,2 | 0,878 / 88,2 | 0 / 0 | 0 / 0 |
+
+  - **Leitura da evidência:**
+    - O vazamento é quase binário: acima do gate do VAD ele dá a nota inteira; abaixo, nada.
+    - Todos os casos aprovados têm `guide_score` 0, e o menor reprovado tem 0,131. O score do vazamento fica em ≈ 110·P, então 0,05 ≈ 5 pontos, que é o máximo que um dispositivo aprovado pode ganhar de graça (invariante do teste).
+    - O acompanhamento sozinho também vaza quando a fundamental coincide com a melodia (89 pontos), então a checagem deve rodar com a música normal, com ou sem voz-guia.
+  - Guarda rápido no CI: `leak_threshold_separates_a_silent_room_from_a_leak` e `leak_check_needs_8s_and_3_notes_and_no_seek`.
+  - ❓ Com microfone físico e caixas reais ainda não foi medido. O gate depende da calibração de ruído: com o piso real mais alto, o vazamento precisa ser mais forte para passar do gate.
+- T-004-07, parte do Agente 2 `review` (2026-11-19): sonda de latência ponta a ponta (R7) pelo mesmo caminho da performance, com o desenho aprovado pelo coordenador.
+  - **audio-engine:** `detect_onsets` (envelope de 5 ms, subida ≥ 15 dB, ≥ piso + 20 dB, refratário de 150 ms, início com precisão de amostra), `latency_from` (pareamento em [−100, +600] ms, offset = mediana, jitter = desvio absoluto mediano) e `Capture::start_raw` (blocos mono numerados como o contador do callback).
+  - **performance.rs:** `PerformanceConfig.latency_probe: Option<Vec<f64>>` (cliques em tempo de vídeo; exclusivo com `leak_check`; exige `latency_offset_ms = 0`, senão `invalid_input`) e `PerformanceSummary.latency: Option<LatencyVerdict { offsetMs, jitterMs, detected, expected, passed, reason }>`.
+    - As amostras são guardadas a partir do 1º play, sem pré-roll.
+    - Cada onset é mapeado com a âncora vigente na sua amostra (o histórico de âncoras inclui os resyncs).
+    - Falha com motivo em pt-BR se houver seek, < 4 cliques tocados, detected < expected/2 ou |offset| > 500 ms.
+  - Testes ✅:
+    - puros: atraso constante de 87 ms medido com erro ≤ 1 ms; palmas com ±10 ms → jitter 10 ±1,5; palmas faltando; som contínuo não vira transiente; palma adiantada → offset negativo;
+    - sessão: atraso medido através da âncora com o pré-roll ignorado; resync de +100 ms aplicado só aos onsets posteriores; sem detecção, com seek e sonda curta reprovam; validação e JSON achatado;
+    - hardware (`--ignored`): `start_raw` com blocos contíguos no microfone Realtek; `live_probe_on_the_default_microphone` roda ponta a ponta (sem cliques tocados → detected 0 com motivo).
+  - ⏳ Medida real com cliques nas caixas e palmas não foi feita. O microfone desta máquina parece mudo (piso de −105 a −109 dBFS); depende do proprietário.
+- T-004-07 parte Agente 1 `review` (2026-11-19): `start_performance` com `latencyProbe` (1–500 cliques; recusa junto com leakCheck, rodada ou participante) monta `PerformanceConfig.latency_probe` com `latency_offset_ms = 0`, sem referência. No finish, nada vai para `performances`; se `passed`, grava `latencyOffsetMs = round(offsetMs)` pelo caminho validado das settings; devolve `outcome.latency` (achatado, como no ipc.ts). Teste ✅ `live::tests::latency_probe_saves_offset_only_when_passed`. ❓ `songId` continua obrigatório e precisa existir (a UI passa a música atual).
+- T-004-07 (Agente 0, 2026-11-19): sonda integrada em main @ 2cef2b0. Sintético: atraso de 87 ms medido com erro ≤ 1 ms. ⏳ UI (trilha de cliques) e medição real com caixas e palmas.
