@@ -4,7 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 declare const process: { env: Record<string, string | undefined> }; // no @types/node in this app
 
-const PORT = 1440; // Agent 4's port; `tauri dev` owns 1420.
+// Default 1440 (Agent 4); set E2E_PORT to run several worktrees at once. `tauri dev` owns 1420.
+const PORT = Number(process.env.E2E_PORT ?? 1440);
 const CI = !!process.env.CI;
 
 export default defineConfig({
@@ -18,6 +19,7 @@ export default defineConfig({
   webServer: {
     command: `pnpm exec vite --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
-    reuseExistingServer: !CI,
+    // Never reuse: a server already on the port may be another worktree's code. Fail loudly instead.
+    reuseExistingServer: false,
   },
 });

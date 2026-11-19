@@ -169,6 +169,8 @@ export interface StartPerformance {
   participantId: number | null;
   /** true = leak check run: user stays silent, nothing is persisted, outcome.leak is set and settings.leakCheck is saved. */
   leakCheck?: boolean;
+  /** Latency probe (T-004-07): click times in VIDEO time (ms) of the click track the UI plays. Exclusive with leakCheck. */
+  latencyProbe?: number[];
 }
 export interface PerformanceStarted {
   competitive: boolean; // false when no validated reference
@@ -194,9 +196,18 @@ export interface PerformanceOutcome {
   competitive: boolean;
   result: ScoreResult | null; // null when there was no reference
   exploratory: ExploratoryMetrics | null; // set when result is null
-  leak?: { passed: boolean; guideScore: number } | null; // only on leak check runs
+  leak?: { passed: boolean; guideScore: number; reason: string | null } | null; // only on leak check runs
+  latency?: LatencyVerdict | null; // only on latency probe runs; if passed, settings.latencyOffsetMs was updated
   personalBest: number | null;
   songRecord: number | null;
+}
+export interface LatencyVerdict {
+  offsetMs: number;
+  jitterMs: number;
+  detected: number;
+  expected: number;
+  passed: boolean;
+  reason: string | null; // pt-BR
 }
 export const startPerformance = (args: StartPerformance, onTick: (t: LiveTick) => void) => {
   const ch = new Channel<LiveTick>();
