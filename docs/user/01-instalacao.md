@@ -17,8 +17,10 @@ Não precisa de internet para usar o app nem de conta ou cadastro.
 1. Abra a página de versões do projeto: <https://github.com/Chamfrado/MasterOfNotes/releases>.
 2. Na versão mais recente, baixe o arquivo que termina em **`_x64-setup.exe`** (por exemplo, `Master Of Notes_0.1.0_x64-setup.exe`).
 3. Dê dois cliques no arquivo baixado.
-4. Se o Windows mostrar o aviso **"O Windows protegeu o computador"**, clique em **Mais informações** e depois em **Executar assim mesmo**. Esse aviso pode aparecer com programas novos que ainda não são conhecidos pelo Windows.
+4. O Windows deve mostrar o aviso **"O Windows protegeu o computador"**. Clique em **Mais informações** e depois em **Executar assim mesmo**.
 5. Siga o instalador (em português) até o fim.
+
+> **Por que aparece esse aviso?** O Windows avisa sempre que um instalador não tem um certificado comercial de assinatura de código, que é pago. O Master Of Notes não tem esse certificado, então o aviso é esperado. Para instalar com segurança, **baixe o instalador só da página oficial de versões** (o endereço acima), nunca de outros sites ou de arquivos repassados por outras pessoas. Depois de instalado, as [atualizações](11-atualizacoes.md) do próprio app são conferidas por uma assinatura digital do projeto, e uma atualização adulterada é recusada.
 
 <!-- Captura manual pendente (release v0.1.0): media/instalador-boas-vindas.png — primeira tela do instalador, em pt-BR. -->
 <!-- Captura manual pendente (release v0.1.0): media/instalador-concluido.png — tela final do instalador. -->
