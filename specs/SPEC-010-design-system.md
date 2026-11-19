@@ -52,3 +52,4 @@
   - ❓ Não há "usuário atual" no app, então o recorde pessoal é por cantor escolhido e se limita ao top 50 do ranking.
 
 - T-010-06 done (Agente 0, 2026-11-19): integrado; vitest 189/189, Playwright completo verde. As 13 telas obrigatórias existem.
+- A11Y-06 corrigido (Agente 3, 2026-11-19): em Modo TV, `html[data-tv=on] input:is([type=checkbox],[type=radio])` desenha os controles com 2rem, ≥ 40 px em 1080p. A regra fica fora de layer para vencer a utility `size-6`. Fora do Modo TV, nada muda: o alvo continua sendo a linha/label inteira, ≥ 48 px. ⏳ Medida visual com o E2E do Agente 4.
