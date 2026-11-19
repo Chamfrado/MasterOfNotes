@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MicMeter, PitchIndicator, RankingTable, ScoreBadge, midiToName } from "./game";
+import { MicMeter, PitchIndicator, RankingTable, ScoreBadge, hzToMidi, midiToName } from "./game";
 
 describe("midiToName", () => {
   it("maps MIDI numbers to note names", () => {
@@ -8,6 +8,10 @@ describe("midiToName", () => {
     expect(midiToName(69)).toBe("A4");
     expect(midiToName(61.4)).toBe("C#4");
     expect(midiToName(21)).toBe("A0");
+  });
+  it("converts Hz to MIDI", () => {
+    expect(hzToMidi(440)).toBe(69);
+    expect(hzToMidi(261.63)).toBeCloseTo(60, 2);
   });
 });
 
@@ -18,6 +22,7 @@ describe("MicMeter", () => {
     expect(meter).toHaveAttribute("aria-valuenow", "-12");
     expect(meter).toHaveAttribute("aria-valuetext", "-12 dBFS, saturando");
     expect(screen.getByText(/Saturando/)).toBeInTheDocument();
+    expect(screen.getByText("Nota A3 · 220 Hz")).toBeInTheDocument();
   });
   it("clamps and reports no signal", () => {
     render(<MicMeter frame={null} />);

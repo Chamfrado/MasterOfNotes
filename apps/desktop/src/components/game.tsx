@@ -13,6 +13,9 @@ export function midiToName(midi: number): string {
   return `${NOTE_NAMES[((n % 12) + 12) % 12]}${Math.floor(n / 12) - 1}`;
 }
 
+/** Frequency → fractional MIDI note (440 Hz = 69). */
+export const hzToMidi = (hz: number) => 69 + 12 * Math.log2(hz / 440);
+
 // ---------- MicMeter ----------
 const METER_MIN_DB = -60;
 /** Live input level. `noiseFloorDbfs` draws the calibrated gate line. */
@@ -41,10 +44,15 @@ export function MicMeter({ frame, noiseFloorDbfs }: { frame: MicFrame | null; no
           <div aria-hidden className="absolute inset-y-0 w-0.5 bg-fg/70" style={{ left: `${floorRatio * 100}%` }} />
         )}
       </div>
-      <div className="flex gap-2 text-sm text-muted">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-muted">
         <span className="tabular-nums">{valueText}</span>
         {frame?.clipped && <Badge tone="danger">Saturando — afaste o microfone</Badge>}
         {frame?.voiced && <Badge tone="success">Voz detectada</Badge>}
+        {frame?.voiced && frame.f0Hz != null && (
+          <span className="tabular-nums">
+            Nota {midiToName(hzToMidi(frame.f0Hz))} · {fmt0.format(frame.f0Hz)} Hz
+          </span>
+        )}
       </div>
     </div>
   );
