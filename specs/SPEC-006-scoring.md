@@ -69,7 +69,7 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
 |---|---|---|---|
 | T-006-01 | `Scorer` v1 conforme fórmula + testes unitários | Agente 2 | done |
 | T-006-02 | Regressão com gerador de fixtures sintéticas (`tests/regression.rs`) cobrindo a tabela | Agente 2 | done |
-| T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | todo |
+| T-006-03 | `performance.rs`: âncora, resync, pausa, seek→treino, latência | Agente 2 | review |
 | T-006-04 | Relatório de precisão em `docs/testing/scoring-accuracy.md` | Agente 2 | done |
 | T-006-05 | Persistência da performance + recordes | Agente 1 | todo |
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | todo |
@@ -87,5 +87,11 @@ Critérios v1 que continuam valendo: toda a tabela acima, com as metas acrescent
   - `NotDetected` aparece quando menos da metade dos frames dos últimos 200 ms em nota é vozeada;
   - `pitch`, `rhythm`, `sustain` e `coverage` em `ScoreResult` vão de 0 a 1, e `score` vai de 0 a 100.
 - Item 9: `exploratory_metrics(&[VoiceFrame]) -> ExploratoryMetrics { voiced_ratio, pitch_stability }` (contrato §2.2). Corridas vozeadas são separadas por frame não vozeado ou por lacuna > 50 ms, e só contam as que têm ≥ 200 ms. Sem corrida qualificada, a estabilidade é 0. Testes: tom estável > 0,999; glissando de 1 oitava < 0,1; vibrato ±30 cents ≈ 0,79; silêncio → 0.
-- T-006-03 (`performance.rs`): onda 2.
+- T-006-03 `review` (Agente 2, 2026-11-19): `apps/desktop/src-tauri/src/performance.rs` conforme contrato §2.4.
+  - A âncora usa `Capture::captured_samples()` (contador do callback).
+  - `played_ms` é medido no relógio do **vídeo** (Σ avanço entre syncs tocando; a cauda depois do último sync é estimada pelo microfone). No microfone desta máquina, o WASAPI entregou 40–46 mil amostras/s com nominal de 48 mil, então o relógio de amostras perde tempo. O resync de 40 ms corrige o mapeamento dos frames.
+  - Ticks saem a cada 3 frames.
+  - Seek → treino, com `Scorer::skip` nas notas puladas.
+  - `leakSuspected` é só indicativo.
+  - Testes: 9 unitários da sessão (sem hardware) + 1 `#[ignore]` com microfone real (5/5 verdes). Rodados num crate-harness fora do repositório que inclui o arquivo via `#[path]` (regra de disco: Agente 2 não compila o app). A compilação dentro do app fica com o Agente 1 ao registrar `mod performance;`.
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
