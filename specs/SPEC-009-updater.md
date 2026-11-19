@@ -12,7 +12,7 @@
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | todo |
+| T-009-01 | Config NSIS + `tauri build` local verde | Agente 1 | done |
 | T-009-02 | Updater plugin + tela Atualizações | Agente 1 / Agente 3 | todo |
 | T-009-03 | Workflow de release (cria draft, não publica) | Agente 4 | review |
 | T-009-04 | Teste de atualização local v0.1.0 → v0.1.1 preservando dados | Agente 4 | todo |
@@ -24,3 +24,6 @@
   2. Criar os secrets `TAURI_SIGNING_PRIVATE_KEY` e `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` no GitHub.
   3. Chave pública em `plugins.updater.pubkey` e `bundle.createUpdaterArtifacts: true` no `tauri.conf.json` (Agente 1, T-009-01/02).
 - Demais tarefas pendentes.
+- T-009-01 `review` (Agente 1, 2026-11-19): `bundle.targets = ["nsis"]`, `installMode: "currentUser"` (sem admin), idiomas PortugueseBR + English. `pnpm build` local verde (release com LTO em 19m50s) → `target/release/bundle/nsis/Master Of Notes_0.1.0_x64-setup.exe` (2,79 MiB). O exe release inicia sem erro (smoke de 12 s). `createUpdaterArtifacts`/`pubkey` aguardam a chave do proprietário. ⏳ Instalação/desinstalação do instalador não testada (fica com T-009-04).
+- T-009-01 done (Agente 0, 2026-11-19): `pnpm build` gerou `Master Of Notes_0.1.0_x64-setup.exe` (2,79 MiB, NSIS por usuário, pt-BR/en) na worktree do Agente 1; o binário release sobe sem erro. AC-014 parcial: instalador gerado ✅; instalar/desinstalar ⏳ (T-009-04).
+- Decisão (Agente 0, 2026-11-19): identifier `com.masterofnotes.app` → `com.masterofnotes.karaoke`, porque o sufixo `.app` conflita com o bundle do macOS (aviso do Tauri). A troca foi feita **antes de qualquer distribuição**: só a pasta de dados de desenvolvimento desta máquina fica órfã. Depois da primeira release, o identifier é imutável (a pasta `app_data_dir` depende dele, Lei 14).

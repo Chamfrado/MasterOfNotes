@@ -22,4 +22,5 @@
 - T-007-01 em review (Agente 4, 2026-11-19): `game::leaderboard` + `CompatKey`; testes `leaderboard_excludes_incompatible`, `ties_older_first`, `top_50` ✅.
 - T-007-02..03 pendentes.
 - T-007-01 done (Agente 0, 2026-11-19): integrado em main, testes verdes.
+- T-007-02 `review` (Agente 1, 2026-11-19): `get_leaderboard(songId, difficulty)` em `src-tauri/src/sessions.rs`, usando `game::leaderboard` com a CompatKey atual (referência ativa + revisão + `ALGORITHM_VERSION` + dificuldade). Sem referência → lista vazia. Nome "Anônimo" para participante nulo. `performanceId` é remapeado a partir de (participante, score, data). Testes ✅ `sessions::tests::leaderboard_current_key_only`.
 - T-007-02 done (Agente 0, 2026-11-19): integrado em main @ 1d88d64; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (112 testes, app 40 + 1 ignorado de hardware).
