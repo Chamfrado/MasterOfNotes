@@ -551,6 +551,87 @@ pub fn leaderboard(
         .collect())
 }
 
+// ---------- Performance history (SPEC-007 R6, T-007-04) ----------
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceRow {
+    pub performance_id: i64,
+    pub song_id: String,
+    pub song_title: String,
+    pub participant_name: Option<String>,
+    pub score: f32,
+    pub competitive: bool,
+    pub algorithm_version: u32,
+    pub reference_revision: i64,
+    pub difficulty: String,
+    pub created_ms: i64,
+    /// Same CompatKey as the song has today (active reference + revision + current
+    /// algorithm); `false` = "versão anterior".
+    pub is_current_key: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ListPerformances {
+    pub song_id: Option<String>,
+    pub participant_id: Option<i64>,
+    pub limit: u32,
+}
+
+const MAX_HISTORY: u32 = 500;
+
+/// Newest first; competitive and training; songs whose file vanished stay (history).
+pub fn list_performances(
+    conn: &Connection,
+    args: &ListPerformances,
+) -> AppResult<Vec<PerformanceRow>> {
+    if !(1..=MAX_HISTORY).contains(&args.limit) {
+        return Err(AppError::invalid_input(format!(
+            "O limite deve estar entre 1 e {MAX_HISTORY}."
+        )));
+    }
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.song_id, s.title, pa.name, p.score, p.competitive, p.algorithm_version,
+                COALESCE(p.reference_revision, 0), p.difficulty, p.created_ms,
+                r.id IS NOT NULL AND r.id = p.reference_id AND r.revision = p.reference_revision
+                    AND p.algorithm_version = ?3
+         FROM performances p
+         JOIN songs s ON s.id = p.song_id
+         LEFT JOIN participants pa ON pa.id = p.participant_id
+         LEFT JOIN melody_references r ON r.song_id = p.song_id AND r.active = 1
+         WHERE (?1 IS NULL OR p.song_id = ?1) AND (?2 IS NULL OR p.participant_id = ?2)
+         ORDER BY p.created_ms DESC, p.id DESC
+         LIMIT ?4",
+    )?;
+    let rows = stmt
+        .query_map(
+            (
+                &args.song_id,
+                args.participant_id,
+                scoring_engine::ALGORITHM_VERSION,
+                args.limit,
+            ),
+            |r| {
+                Ok(PerformanceRow {
+                    performance_id: r.get(0)?,
+                    song_id: r.get(1)?,
+                    song_title: r.get(2)?,
+                    participant_name: r.get(3)?,
+                    score: r.get::<_, f64>(4)? as f32,
+                    competitive: r.get(5)?,
+                    algorithm_version: r.get(6)?,
+                    reference_revision: r.get(7)?,
+                    difficulty: r.get(8)?,
+                    created_ms: r.get(9)?,
+                    is_current_key: r.get(10)?,
+                })
+            },
+        )?
+        .collect::<Result<_, _>>()?;
+    Ok(rows)
+}
+
 /// Tauri commands; names match ipc.ts.
 pub mod cmd {
     use super::*;
@@ -607,6 +688,14 @@ pub mod cmd {
         difficulty: Difficulty,
     ) -> AppResult<Vec<LeaderboardRow>> {
         super::leaderboard(&lock(state.db()?), &song_id, difficulty)
+    }
+
+    #[tauri::command]
+    pub async fn list_performances(
+        state: State<'_, AppState>,
+        args: ListPerformances,
+    ) -> AppResult<Vec<PerformanceRow>> {
+        super::list_performances(&lock(state.db()?), &args)
     }
 }
 
@@ -679,6 +768,76 @@ mod tests {
             [round.id],
         )
         .unwrap();
+    }
+
+    #[test]
+    fn performance_history_filters_and_flags_old_keys() {
+        let mut e = env();
+        let ana = create_participant(&e.conn, "Ana").unwrap().id;
+        let hist = |e: &Env, song: Option<&str>, participant: Option<i64>, limit: u32| {
+            list_performances(
+                &e.conn,
+                &ListPerformances {
+                    song_id: song.map(str::to_owned),
+                    participant_id: participant,
+                    limit,
+                },
+            )
+        };
+        let s1 = create_session(&mut e.conn, args(GameMode::Solo, &[ana], &["s1"])).unwrap();
+        sing(&e.conn, &s1.rounds[0], 70.0);
+        let anon = create_session(&mut e.conn, args(GameMode::Solo, &[], &["s1"])).unwrap();
+        sing(&e.conn, &anon.rounds[0], 85.0);
+        let s2 = create_session(&mut e.conn, args(GameMode::Solo, &[ana], &["s2"])).unwrap();
+        sing(&e.conn, &s2.rounds[0], 60.0);
+
+        let all = hist(&e, None, None, 50).unwrap();
+        let view: Vec<_> = all
+            .iter()
+            .map(|r| (r.song_id.as_str(), r.participant_name.as_deref(), r.score))
+            .collect();
+        assert_eq!(
+            view,
+            [
+                ("s2", Some("Ana"), 60.0),
+                ("s1", None, 85.0),
+                ("s1", Some("Ana"), 70.0)
+            ],
+            "newest first"
+        );
+        assert!(
+            all.iter()
+                .all(|r| r.is_current_key && r.competitive && r.reference_revision == 1)
+        );
+        assert_eq!(all[0].song_title, "s2");
+        assert_eq!(hist(&e, Some("s1"), None, 50).unwrap().len(), 2);
+        assert_eq!(hist(&e, None, Some(ana), 50).unwrap().len(), 2);
+        assert_eq!(hist(&e, Some("s1"), Some(ana), 50).unwrap().len(), 1);
+        assert_eq!(hist(&e, None, None, 1).unwrap()[0].song_id, "s2");
+        assert!(hist(&e, Some("nope"), None, 50).unwrap().is_empty());
+
+        // New reference revision → s1 rows become "versão anterior"; s2 untouched.
+        e.conn
+            .execute(
+                "UPDATE melody_references SET revision = 2 WHERE song_id = 's1'",
+                [],
+            )
+            .unwrap();
+        let all = hist(&e, None, None, 50).unwrap();
+        let current: Vec<_> = all
+            .iter()
+            .map(|r| (r.song_id.as_str(), r.is_current_key))
+            .collect();
+        assert_eq!(current, [("s2", true), ("s1", false), ("s1", false)]);
+        // Song file gone: history stays.
+        e.conn
+            .execute("UPDATE songs SET available = 0 WHERE id = 's2'", [])
+            .unwrap();
+        assert_eq!(hist(&e, Some("s2"), None, 50).unwrap().len(), 1);
+
+        for bad in [0, 501] {
+            assert_eq!(hist(&e, None, None, bad).unwrap_err().code, "invalid_input");
+        }
     }
 
     #[test]
