@@ -99,7 +99,7 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
 | T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | done |
 | T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | done |
 | T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | done |
-| T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | review |
+| T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | done |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -197,3 +197,4 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
   - O contorno também não cruza o onset da próxima nota. O recuo do onset (A3) vai até 1 s para cair na troca real.
   - **E2:** `Capture::dropped_samples()` (contracts §2.1) conta as amostras perdidas com o ring cheio. O `performance.rs` as desconta, e o `missing_ratio` passa a incluí-las. Teste que cruza as duas camadas: só os 100 ms iniciais de cada nota chegam → o scorer sozinho dá ≥ 80 e a sessão marca treino.
   - **E3:** risco aceito, sem mudança.
+- T-006-11 done (Agente 0, 2026-11-19): algoritmo v4 integrado (`ALGORITHM_VERSION = 4`); `pnpm check` exit 0 (regressão 31 com golden de 14 fixtures). E1: trinado/senoide/aleatória/alternância 93–97 → 40–44; N1 preservado; casos legítimos (scoop, glissando, vibrato lento, drift) custam ≤ 2,3. ⏳ 4ª rodada de QA; voz real.
