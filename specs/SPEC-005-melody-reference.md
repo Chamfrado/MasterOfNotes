@@ -19,8 +19,8 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-005-01 | Tipos, parser JSON, import MIDI (`midly`, tempo map) + testes | Agente 2 | review |
-| T-005-02 | Fixtures `tests/fixtures/references/` (sintéticas, autoria própria) | Agente 2 | review |
+| T-005-01 | Tipos, parser JSON, import MIDI (`midly`, tempo map) + testes | Agente 2 | done |
+| T-005-02 | Fixtures `tests/fixtures/references/` (sintéticas, autoria própria) | Agente 2 | done |
 | T-005-03 | Commands de referência + persistência | Agente 1 | todo |
 | T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | todo |
 
@@ -35,3 +35,4 @@ Critérios:
   - nota mais grave que começa sob uma mais aguda: fica só a cauda dela depois do fim da aguda (legato descendente desloca poucos ms), ou é descartada se estiver totalmente coberta.
 - MIDI: `track = None` escolhe a única trilha com notas; com várias, dá o erro `TrackRequired`. MIDI tipo 2 e SMPTE: erro. Notas que arredondam para 0 ms são descartadas. Letras de MIDI não são importadas (`lyric = None`).
 - Critério "offset → experimental e revision+1" é persistência (T-005-03, Agente 1).
+- Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
