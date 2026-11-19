@@ -18,7 +18,7 @@
 | T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | done |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | done |
 | T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | done |
-| T-010-06 | Tela Detalhes da música (editar, arquivo, reprodução, referência, recordes, Cantar/Ranking) | Agente 3 | review |
+| T-010-06 | Tela Detalhes da música (editar, arquivo, reprodução, referência, recordes, Cantar/Ranking) | Agente 3 | done |
 
 ## STATUS
 2026-11-19 (Agente 3):
@@ -51,3 +51,4 @@
   - vitest: `maxWorkers: 1`. Com 2 workers, um não subiu no limite fixo de 60 s com a CPU a 88–100%. `isolate: false` (22 s) foi testado e descartado: vaza estado entre arquivos. Duas rodadas sob carga: 18/187, exit 0 (113 s e 316 s).
   - ❓ Não há "usuário atual" no app, então o recorde pessoal é por cantor escolhido e se limita ao top 50 do ranking.
 
+- T-010-06 done (Agente 0, 2026-11-19): integrado; vitest 189/189, Playwright completo verde. As 13 telas obrigatórias existem.
