@@ -83,6 +83,16 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
 - **E2 (BAIXA): frames descartados por ring cheio** (depois do callback) também entram no `missing_ratio`. Teste cruzando as duas camadas (scorer + performance.rs): "só os 100 ms iniciais de cada nota chegam" ⇒ treino.
 - **E3 (BAIXA, teórico): perda seletiva < 5%** não é controlável pelo usuário no fluxo real (a perda vem do driver). Risco aceito e registrado; não muda o v4.
 
+## Algoritmo v5 (decisão do coordenador, 2026-11-19, a partir da 4ª rodada de QA)
+
+Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md). O v4 resolveu o E1 sem regressões nem exploits novos, mas o termo de movimento também cobra **gestos expressivos monotônicos** (fall, bend, scoop lento, vibrato irregular), que custam 5 a 10 pontos. Estilo não é erro. `ALGORITHM_VERSION = 5`.
+
+- **Movimento só conta quando é oscilação:** o centro **inverte de direção** repetidamente numa janela de ~0,5–1 s (ou outra formulação equivalente que separe vai-e-volta de gesto único; escolha do Agente 2).
+- **Metas (voz realista, Normal, ornamento em todas as notas), no máximo 2 pontos abaixo do v3:** fall −300 c nos últimos 250 ms (v3 88,1); bend +100 c e volta em 300 ms (v3 96,8); scoop lento −100 c em 400 ms (v3 95,3); vibrato irregular 4–7 Hz / 30–90 c (v3 98,4).
+- **Mantidas:** E1 ≤ 50 (atenção à margem da aleatória ±150), N1, todas as metas v3/v4 e a curva do amador.
+- **Fora do escopo:** sopro com SNR 5 dB (caso extremo; SNR ≥ 10 dB está ileso) e ligadas de 100 ms com 50 ms de atraso, além da tolerância do N4 (a calibração de latência resolve).
+- **Encerramento do ciclo sintético:** depois do v5, mudanças de pontuação só com **evidência de voz real** (roteiro do proprietário e gravações autorizadas), para não sobreajustar a vozes sintéticas.
+
 ## PLAN
 `scoring-engine` puro. `Scorer` incremental; `finish()` consolida. 5 min ≈ 30k frames em memória (ok). `performance.rs` (src-tauri) faz âncora/sync, aplica latência e decide `competitive`.
 
@@ -100,7 +110,8 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
 | T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | done |
 | T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | done |
 | T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | done |
-| T-006-12 | 4ª rodada de QA (curta, v3 × v4) → `docs/testing/evidence/scoring-review-v4.md` | Agente 4 | review |
+| T-006-12 | 4ª rodada de QA (curta, v3 × v4) → `docs/testing/evidence/scoring-review-v4.md` | Agente 4 | done |
+| T-006-13 | Algoritmo v5 (movimento só como oscilação) + regressão com fall/bend/scoop lento/vibrato irregular, `ALGORITHM_VERSION = 5` | Agente 2 | todo |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -204,3 +215,4 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
   - E2 ✅ por leitura do teste de sessão.
   - Metas v3 todas mantidas; curva do amador igual (≤ 0,2).
   - Achado Média: o termo de movimento penaliza gestos expressivos monotônicos (fall −9,6; bend −10,2; scoop lento −5,3; vibrato irregular −7,0, com o ornamento em todas as notas) e voz com SNR 5 dB no agudo (−13,9). Nenhum exploit novo.
+- T-006-12 done (Agente 0, 2026-11-19): 4ª rodada integrada. v4 confirmado (E1/E2 ok, sem regressão). O teste E2 do app passou no `pnpm check` do coordenador (57 testes do app). Falsos positivos em gestos expressivos → v5 (T-006-13).
