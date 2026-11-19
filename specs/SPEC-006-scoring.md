@@ -99,7 +99,7 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
 | T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | done |
 | T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | done |
 | T-006-10 | 3ª rodada de QA independente (v2 × v3) → `docs/testing/evidence/scoring-review-v3.md` | Agente 4 | done |
-| T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | todo |
+| T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | review |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -185,3 +185,15 @@ Revisão: [scoring-review-v3.md](../docs/testing/evidence/scoring-review-v3.md).
   - E2 (Baixa): o A8 passou a depender do limite de 5 % do `performance.rs`; no scorer, "só os 100 ms iniciais" dá 91,1. E3 (Baixa): perda seletiva < 5 % rende +3,2.
   - Leniência: sem vibrato, v2 = v3. O Normal distingue 0/30/50 c → 100/90,8/72,9 com vibrato.
 - T-006-10 done (Agente 0, 2026-11-19): 3ª rodada integrada; v3 confirmado em todas as metas e sem afrouxar a desafinação constante. E1 (oscilação premiada) → v4, T-006-11.
+- T-006-11 `review` (Agente 2, 2026-11-19): algoritmo v4, `ALGORITHM_VERSION = 4`. Tabela v3 × v4 no mesmo áudio (voz humana) em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md#algoritmo-v4-algorithm_version--4-atual). Todas as metas do v4 e do v3 atingidas; a tabela v1 continua passando.
+  - **E1:** erro por frame = `|contorno − alvo| + 2,5·max(0, espalhamento − 60 c) + 2·max(0, movimento − 20 c)`. Espalhamento = média de |mediana − contorno| na janela de 190 ms. Movimento = |contorno(+100 ms) − contorno(−100 ms)|. O termo de movimento é necessário porque a oscilação aleatória ±150 c tem RMS igual ao de um vibrato ±100 c e espalha menos; o que a distingue é o centro que anda.
+  - Resultado: trinado ±100 c 44,4; senoide ±150 c 43,0; aleatória ±150 c 44,2; alternância +1/+11 st 40,4. N1 preservado (100,0 / 99,9 / 99,7).
+  - Movimento legítimo (pedido do coordenador, na regressão):
+    - scoop de 150 c custa 2,3 pontos (v3: 1,7);
+    - vibrato ±75 c a 4 Hz dá 97,7;
+    - drift de ±30 c dentro de notas de 2 s fica ≥ 96,9 (≤ 2,3 abaixo do v3);
+    - glissando de 80 ms 97,7; N4 sem mudança.
+  - Desafinação constante idêntica ao v3 (frames ideais) e, com voz humana, igual a menos de 0,1.
+  - O contorno também não cruza o onset da próxima nota. O recuo do onset (A3) vai até 1 s para cair na troca real.
+  - **E2:** `Capture::dropped_samples()` (contracts §2.1) conta as amostras perdidas com o ring cheio. O `performance.rs` as desconta, e o `missing_ratio` passa a incluí-las. Teste que cruza as duas camadas: só os 100 ms iniciais de cada nota chegam → o scorer sozinho dá ≥ 80 e a sessão marca treino.
+  - **E3:** risco aceito, sem mudança.
