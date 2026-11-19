@@ -813,6 +813,133 @@ fn a4_constant_detune_on_the_regression_song() {
     }
 }
 
+// ---------- v4 targets (SPEC-006 "Algoritmo v4"; probes from scoring-review-v3) ----------
+
+fn trill(t: f64, hz: f64, lo: f64, hi: f64) -> f64 {
+    if ((t / 1000.0) * hz * 2.0) as i64 % 2 == 0 {
+        lo
+    } else {
+        hi
+    }
+}
+
+/// E1 cases: deviation (cents) from the target over time. None of them is a vibrato.
+type Deviation = Box<dyn Fn(f64) -> f64>;
+/// Pitch offset (cents) by time since the note start (ms).
+type Drift = fn(f64) -> f64;
+
+fn e1_cases() -> Vec<(&'static str, Deviation)> {
+    let mut w = Wobble::new(0x5EED, 8); // a new random value every 80 ms
+    let wob: Vec<f64> = (0..3000).map(|_| w.next()).collect();
+    vec![
+        (
+            "trinado quadrado ±100 c a 6 Hz",
+            Box::new(|t| trill(t, 6.0, -100.0, 100.0)),
+        ),
+        (
+            "senoide ±150 c a 5,5 Hz",
+            Box::new(|t| 150.0 * (TAU * 5.5 * t / 1000.0).sin()),
+        ),
+        (
+            "aleatória até ±150 c (80 ms)",
+            Box::new(move |t| 150.0 * wob[(t / 10.0) as usize]),
+        ),
+        (
+            "alterna +1 st / +11 st a cada 100 ms",
+            Box::new(|t| {
+                if (t / 100.0) as i64 % 2 == 0 {
+                    100.0
+                } else {
+                    1100.0
+                }
+            }),
+        ),
+    ]
+}
+
+#[test]
+fn e1_oscillating_around_the_target_is_not_singing_it() {
+    let s = regression_song();
+    for (label, dev) in e1_cases() {
+        let pitch = |t: f64| at(&s, t).map(|m| m + dev(t) / 100.0);
+        let human = Voice {
+            drift_cents: 0.0,
+            ..HUMAN
+        };
+        let r = score(&s, &render(song_end(&s), pitch, AMP, human));
+        report(&format!("E1 {label}, voz humana"), &r);
+        assert!(r.score <= 50.0, "{label}: {r:?}");
+        let r = ideal(&s, Difficulty::Normal, |_, _| true, pitch);
+        report(&format!("E1 {label}, frames ideais"), &r);
+        assert!(r.score <= 50.0, "{label} (ideal): {r:?}");
+    }
+}
+
+/// Coordinator check for the E1 terms: legitimate pitch movement inside a note
+/// (realistic voice, Normal) must not cost much more than in v3.
+#[test]
+fn e1_legitimate_movement_is_not_penalised() {
+    let ts = test_song();
+    let voice = |s: &Song, f: &dyn Fn(f64) -> Option<f64>| {
+        score(
+            s,
+            &render(
+                song_end(s),
+                f,
+                AMP,
+                Voice {
+                    drift_cents: 0.0,
+                    ..HUMAN
+                },
+            ),
+        )
+    };
+    let vib = |t: f64, a: f64, hz: f64| a * (TAU * hz * t / 1000.0).sin();
+    // Scoop: every note starts 150 c low and glides up over 100 ms (+ vibrato ±50).
+    let plain = voice(&ts, &|t| at(&ts, t).map(|m| m + vib(t, 50.0, 5.5) / 100.0));
+    let scoop = voice(&ts, &|t| {
+        let (s0, _, m) = ts
+            .iter()
+            .copied()
+            .find(|&(st, d, _)| t >= st && t < st + d)?;
+        Some(m + (-150.0 * (1.0 - ((t - s0) / 100.0).min(1.0)) + vib(t, 50.0, 5.5)) / 100.0)
+    });
+    report("E1 legítimo: scoop 150 c em 100 ms + vibrato ±50", &scoop);
+    assert!(plain.score - scoop.score <= 4.0, "{plain:?} vs {scoop:?}");
+    // Slow vibrato: period longer than the 190 ms contour window.
+    for hz in [4.0, 4.5] {
+        let r = voice(&ts, &|t| at(&ts, t).map(|m| m + vib(t, 75.0, hz) / 100.0));
+        report(&format!("E1 legítimo: vibrato lento ±75 c a {hz} Hz"), &r);
+        assert!(r.score >= 92.0, "{hz} Hz: {r:?}");
+    }
+    // Slow drift inside 2 s notes (a tiring amateur).
+    let long: Song = [60.0, 62.0, 64.0, 65.0, 67.0, 65.0, 64.0, 62.0]
+        .iter()
+        .enumerate()
+        .map(|(i, &m)| (500.0 + i as f64 * 2200.0, 2000.0, m))
+        .collect();
+    let drifts: [(&str, Drift); 3] = [
+        ("cai 30 c ao longo da nota", |x| -30.0 * x / 2000.0),
+        ("ondula ±30 c, período 2 s", |x| {
+            30.0 * (TAU * x / 2000.0).sin()
+        }),
+        ("ondula ±30 c, período 1 s", |x| {
+            30.0 * (TAU * x / 1000.0).sin()
+        }),
+    ];
+    for (label, f) in drifts {
+        let r = voice(&long, &|t| {
+            let (s0, _, m) = long
+                .iter()
+                .copied()
+                .find(|&(st, d, _)| t >= st && t < st + d)?;
+            Some(m + f(t - s0) / 100.0)
+        });
+        report(&format!("E1 legítimo: notas de 2 s, {label}"), &r);
+        assert!(r.score >= 94.0, "{label}: {r:?}");
+    }
+}
+
 // ---------- A7: golden values ----------
 
 fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
@@ -867,6 +994,24 @@ fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
             let drop: Vec<bool> = (0..2000).map(|_| rng.next() < -0.8).collect();
             ideal(&s, Difficulty::Normal, |i, _| !drop[i], |t| at(&s, t))
         }),
+        ("e1_trill_100", {
+            let audio = render(
+                song_end(&s),
+                |t| at(&s, t).map(|m| m + trill(t, 6.0, -1.0, 1.0)),
+                AMP,
+                HUMAN,
+            );
+            score(&s, &audio)
+        }),
+        ("e1_random_150", {
+            let dev = e1_cases().swap_remove(2).1;
+            ideal(
+                &s,
+                Difficulty::Normal,
+                |_, _| true,
+                |t| at(&s, t).map(|m| m + dev(t) / 100.0),
+            )
+        }),
         (
             "early_400",
             sing(&s, |t| {
@@ -879,7 +1024,7 @@ fn golden_cases() -> Vec<(&'static str, ScoreResult)> {
     ]
 }
 
-/// Exact expected results for ALGORITHM_VERSION 3. Regenerate only together
+/// Exact expected results for ALGORITHM_VERSION 4. Regenerate only together
 /// with a version bump: run with `-- --nocapture golden` and paste.
 fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
     let r = |score, pitch, rhythm, sustain, coverage, notes_hit, notes_total| ScoreResult {
@@ -890,7 +1035,7 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         coverage,
         notes_total,
         notes_hit,
-        algorithm_version: 3,
+        algorithm_version: 4,
     };
     vec![
         ("perfect", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
@@ -903,7 +1048,7 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
             r(73.1, 0.80178905, 0.44848484, 0.804, 1.0, 10, 10),
         ),
         ("vibrato", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
-        ("siren", r(9.5, 0.1454789, 0.0, 0.0, 0.0, 0, 10)),
+        ("siren", r(0.6, 0.009253586, 0.0, 0.0, 0.0, 0, 10)),
         ("tied_repeated", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         ("human_voice", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
@@ -920,9 +1065,14 @@ fn golden_expected() -> Vec<(&'static str, ScoreResult)> {
         ),
         ("missing_10_percent", r(100.0, 1.0, 1.0, 1.0, 1.0, 10, 10)),
         (
-            "early_400",
-            r(66.5, 0.8455609, 0.005064616, 0.7639583, 1.0, 10, 10),
+            "e1_trill_100",
+            r(44.2, 0.5735026, 0.19838846, 0.19768271, 0.7, 7, 10),
         ),
+        (
+            "e1_random_150",
+            r(44.5, 0.576917, 0.20021741, 0.20219181, 0.6, 6, 10),
+        ),
+        ("early_400", r(68.1, 0.8470751, 0.0, 0.867, 1.0, 10, 10)),
     ]
 }
 

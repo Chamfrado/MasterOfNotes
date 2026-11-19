@@ -6,7 +6,80 @@ Ambiente: Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1. Medido em
 Todos os números abaixo vêm de testes executados e reproduzíveis (áudio gerado em código, sem arquivos binários).
 Com microfone físico, só o caminho da captura foi exercitado (seção "Dispositivo real"). Pitch com voz real está pendente (⏳).
 
-## Algoritmo v3 (`ALGORITHM_VERSION = 3`, atual)
+## Algoritmo v4 (`ALGORITHM_VERSION = 4`, atual)
+
+Decisões: SPEC-006, seção "Algoritmo v4", a partir da [3ª rodada de QA](evidence/scoring-review-v3.md).
+
+**Reproduzir:** `cargo test -p scoring-engine --test regression -- --nocapture --test-threads=1`.
+- O golden tem 14 fixtures, duas delas novas do E1 (trinado ±100 c em voz humana e oscilação aleatória ±150 c).
+- A comparação v3 × v4 abaixo rodou o `scorer.rs` do v3 (main @ 56db79e) e o do v4 **sobre o mesmo áudio**, numa sonda local fora do repositório.
+
+**Voz humana:** vogal /a/ com formantes, jitter 1%, shimmer 10%. Normal.
+
+### E1: oscilar em volta do alvo não é afinar
+
+Erro de afinação por frame no v4, em cents:
+
+`|contorno − alvo| + 2,5·max(0, espalhamento − 60) + 2·max(0, movimento − 20)`
+
+- **espalhamento** = média de `|mediana − contorno|` na janela de 190 ms;
+- **movimento** = `|contorno(+100 ms) − contorno(−100 ms)|`, o quanto o centro anda em 200 ms.
+
+Na desafinação constante, os dois termos valem 0, então a curva do A4 é idêntica à do v3.
+
+**Por que o termo de movimento é necessário.** Só o espalhamento, como o QA sugeriu, não basta. A oscilação aleatória ±150 c da sonda (um valor novo a cada 80 ms) tem o mesmo RMS de um vibrato ±100 c (70,7 c) e espalha **menos** (36 contra 62 c). O que a distingue é o centro que anda: 28 c em 200 ms, contra cerca de 2 c no vibrato.
+
+Medidas com frames ideais, uma nota de 1 s (`|c|` = erro médio do contorno):
+
+| Caso | `|c|` | espalhamento | movimento em 200 ms |
+|---|---|---|---|
+| vibrato ±50 / ±75 / ±100 c a 5,5 Hz | 1 / 2 / 3 | 31 / 47 / 62 | 1 / 2 / 2 |
+| vibrato ±100 c a 7 Hz | 14 | 59 | 21 |
+| trinado quadrado ±100 c a 6 Hz | 12 | **98** | 13 |
+| senoide ±150 c a 5,5 Hz | 19 | **84** | 19 |
+| aleatória ±150 c (80 ms) | **54** | 36 | **28** |
+| alternância +1 / +11 st | 5 | **100** | 2 |
+
+**Zona livre de 20 c de movimento.** Na primeira versão, sem ela, o movimento legítimo dentro da nota custava caro: ondular ±30 c com período de 1 s numa nota de 2 s dava 88,4 (v3: 99,2), e o vibrato ±75 c a 4 Hz dava 93,5. Com a zona livre e peso 2, os dois ficam em 96,9 e 97,7.
+
+### v3 × v4 no mesmo áudio
+
+| Item | Caso | Meta | v3 | v4 | ✅ |
+|---|---|---|---|---|---|
+| E1 | Trinado quadrado ±100 c a 6 Hz (voz humana / frames ideais) | ≤ 50 | 97,0 / 83,9 | **44,4 / 25,0** | ✅ |
+| E1 | Senoide ±150 c a 5,5 Hz | ≤ 50 | 97,1 / 93,5 | **43,0 / 32,4** | ✅ |
+| E1 | Oscilação aleatória até ±150 c (80 ms) | ≤ 50 | 79,7 / 79,7 | **44,2 / 44,5** | ✅ |
+| E1 | Alternância +1 st / +11 st a cada 100 ms | ≤ 50 | 93,0 / 80,0 | **40,4 / 28,1** | ✅ |
+| E1 | Trinado ±100 c a 3 Hz / ±125 c a 6 Hz / senoide ±100 c a 2 Hz (informativo) | — | 72,2 / 74,6 / 73,5 | 13,6 / 7,8 / 15,7 | |
+| N1 | Vibrato centrado ±50 / ±75 / ±100 c, regressão | ≥ 95 / 92 / 88 | 100,0 / 99,9 / 99,7 | 100,0 / 99,9 / 99,7 | ✅ |
+| N1 | Idem, música de teste | ≥ 95 / 92 / 88 | 100,0 / 99,9 / 99,7 | 100,0 / 99,8 / 99,7 | ✅ |
+| N1 | Vibrato ±100 c a 4,5 / 7 Hz (informativo) | — | 99,8 / 99,9 | 99,0 / 97,4 | |
+| — | Vibrato lento ±75 c a 4 / 4,5 Hz (pedido do coordenador) | ≥ 92 | 100,0 / 100,0 | 97,7 / 99,9 | ✅ |
+| — | Scoop de 150 c em 100 ms + vibrato ±50 (sem scoop: 100,0) | custo ≈ 3 | 98,3 | 97,7 | ✅ |
+| — | Notas de 2 s: cai 30 c / ondula ±30 c em 2 s / ondula ±30 c em 1 s | ≤ 5 abaixo do v3 | 99,7 / 98,7 / 99,2 | 99,7 / 98,7 / 96,9 | ✅ |
+| v1 | Glissando de 80 ms entre notas | ≥ 92 | 97,7 | 97,7 | ✅ |
+| N2 | Canto perfeito, ~10 / 15% dos frames não chegam | 100 | 100,0 / 100,0 | 100,0 / 100,0 | ✅ |
+| N3 | Segura a nota anterior 150 ms | ≈ calado | 72,4 | 72,4 | ✅ |
+| N4 | Ligadas de 50 / 100 ms, 25 ms atrasadas | ≥ 70 / 85 | 100,0 / 99,5 | 100,0 / 99,5 | ✅ |
+| A3 | Pausas de 200 ms, atrasado / adiantado 300 ms | simétrico | 57,0 / 58,7 | 57,0 / 58,7 | ✅ |
+| A3 | Entra 190 / 400 ms antes (cortando a anterior) | 400 pior | 90,8 / 66,6 | 90,8 / 68,2 | ✅ |
+| A4 | +90 c constante | ≤ 40 | 39,1 | 39,1 | ✅ |
+| A4(b) | Maior queda em 10 c (Easy / Normal / Hard) | ≤ 10 | 8,5 / 9,7 / 9,7 | 8,5 / 9,7 / 9,7 | ✅ |
+| A5 | Sirene / nota fixa | ≤ 15 / ≤ 25 | 9,5 / 22,0 | 0,6 / 22,0 | ✅ |
+| — | Amador drift ±20 + vibrato ±50, desvio 0 / +20 / +30 / −40 c | informativo | 100,0 / 96,7 / 90,8 / 88,2 | 100,0 / 96,7 / 90,8 / 88,1 | |
+| — | Desvio constante +30 / +50 c sem vibrato | igual ao v3 | 94,2 / 74,6 | 94,2 / 74,6 | ✅ |
+
+Outras mudanças do v4:
+- O contorno também não cruza o onset da **próxima** nota (adiantar a seguinte). O recuo do onset (A3) pode chegar a 1 s, para que esse corte caia na troca real.
+- Sem isso, "entra 400 ms antes" caía para 56,5. Com isso, dá 68,2.
+
+### E2: ring buffer cheio
+
+- `Capture::dropped_samples()` conta as amostras que o callback não conseguiu entregar à análise.
+- O `performance.rs` desconta essas amostras das recebidas nos trechos tocados, e o `missing_ratio` passa a incluí-las.
+- Teste que cruza as duas camadas (`ring_drops_count_as_missing_audio_across_scorer_and_session`): só os 100 ms iniciais de cada nota chegam à análise. O scorer sozinho fica ≥ 80, mas a sessão marca treino com o reason.
+
+## Algoritmo v3 (`ALGORITHM_VERSION = 3`; histórico, vale para performances gravadas com `algorithmVersion = 3`)
 
 Decisões: SPEC-006, seção "Algoritmo v3", a partir da [re-revisão do Agente 4](evidence/scoring-review-v2.md). Formulação: comentário de cabeçalho de `crates/scoring-engine/src/scorer.rs` e STATUS da SPEC-006.
 
