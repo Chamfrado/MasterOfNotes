@@ -130,8 +130,8 @@ export function LeakTest({ settings, onFinished }: { settings: AppSettings; onFi
             <p className="text-success">Aprovado: partidas com este microfone valem ranking até este volume.</p>
           ) : (
             <div className="text-danger">
-              <p>{phase.reason ?? "O microfone captou a música."}</p>
-              <p>Use fones de ouvido ou baixe o volume e repita.</p>
+              {/* Rust's reason already says what to do; the generic hint is only for when it has none. */}
+              <p>{phase.reason ?? "O microfone captou a música. Use fones de ouvido ou baixe o volume e repita."}</p>
             </div>
           ))}
         {phase.name === "error" && <p className="text-danger">{errorMessage(phase.error)}</p>}
