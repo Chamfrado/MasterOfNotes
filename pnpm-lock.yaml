@@ -68,6 +68,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.2
         version: 6.3.0(vite@8.3.8(esbuild@0.28.2)(jiti@2.7.0))
+      gifenc:
+        specifier: 1.0.3
+        version: 1.0.3
       jsdom:
         specifier: ^31.0.1
         version: 31.0.1
@@ -787,6 +790,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  gifenc@1.0.3:
+    resolution: {integrity: sha512-xdr6AdrfGBcfzncONUOlXMBuc5wJDtOueE3c5rdG0oNgtINLD+f2iFZltrBRZYzACRbKr+mSVU/x98zv2u3jmw==}
 
   graceful-fs@4.2.12:
     resolution: {integrity: sha512-iuyGF2E4oafQfPsRrG2wtY2ILupMhvtdrhzrxB+0VcjsPpSPttpfYdjnGFGsTi5MaJFjI1jOKHPQ6UTbTj9TAw==}
@@ -1664,6 +1670,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  gifenc@1.0.3: {}
 
   graceful-fs@4.2.12: {}
 

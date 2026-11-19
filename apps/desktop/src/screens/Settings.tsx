@@ -10,9 +10,9 @@ export function Settings() {
   const [load, reload] = useAsync(getSettings, []);
   return (
     <div className="flex max-w-4xl flex-col gap-8">
-      <h1 className="font-display text-5xl font-bold">Configurações</h1>
+      <h1 className="font-display text-5xl font-bold">Ajustes</h1>
       {load.status === "loading" && <LoadingState />}
-      {load.status === "error" && <ErrorState title="Não foi possível ler as configurações" error={load.error} onRetry={reload} />}
+      {load.status === "error" && <ErrorState title="Não foi possível carregar os ajustes" error={load.error} onRetry={reload} />}
       {load.status === "ready" && <Form initial={load.data} />}
     </div>
   );

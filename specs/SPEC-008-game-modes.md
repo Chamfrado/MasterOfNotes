@@ -57,3 +57,9 @@ Critérios:
   - ⏳ Sem verificação com os commands reais nem no WebView2. O erro de CompatKey do duelo vem do Rust; a tela de confronto compara só as notas das duas rodadas.
 - T-008-03 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
 - T-008-04 done (Agente 0, 2026-11-19): E2E da Festa integrado; suíte completa 95/95 em main. Lacuna encontrada pelo Agente 4: o Duelo não verificava CompatKey → T-008-05.
+- T-008-05, parte da UI (Agente 3, 2026-11-19), em review: o `DuelBoard` usa só `session.duel` e saiu o `duelResult` da UI, que comparava `round.score`.
+  - Sem `duel` (rodadas incompletas): "Aguardando: o duelo termina quando os dois cantarem."
+  - `{kind:"result"}`: "X venceu o duelo por N pontos!" com destaque no card do vencedor, ou "Empate!" com `winner=null`.
+  - `{kind:"incompatible"}`: "Duelo sem vencedor", a `message` do Rust e a explicação (referência melódica, revisão, versão do algoritmo ou dificuldade diferentes).
+  - As notas de cada rodada continuam no card, mas sem decidir nada.
+  - Testes: `Session.test.tsx` (+4: aguardando com notas presentes, vencedor contrariando as notas, empate, incompatível).
