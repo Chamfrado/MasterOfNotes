@@ -19,7 +19,7 @@ Critérios:
 |---|---|---|---|
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
 | T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | done |
-| T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | review |
+| T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | done |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | doing |
 
 ## TEST
@@ -53,3 +53,4 @@ Critérios:
   - Histórico (`History.tsx`): sessões da mais recente para a mais antiga, com modo, data, status e vencedor.
   - Testes: `Session.test` (8: `currentRound`, `duelResult`, `challengeStatus`, cantar com contexto, ranking parcial, pular, encerrar com confirmação e vencedor, erro), `NewSession.test` (5), `Modes.test` (1), `StandingsTable` (2, incluindo o critério A×B da spec).
   - ⏳ Sem verificação com os commands reais nem no WebView2. O erro de CompatKey do duelo vem do Rust; a tela de confronto compara só as notas das duas rodadas.
+- T-008-03 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
