@@ -19,7 +19,9 @@ use crate::db::now_ms;
 use crate::error::{AppError, AppResult};
 use crate::library::{self, lock};
 use crate::mic::MicMonitor;
-use crate::performance::{LivePerformance, LiveTick, PerformanceConfig, PerformanceSummary};
+use crate::performance::{
+    LeakVerdict, LivePerformance, LiveTick, PerformanceConfig, PerformanceSummary,
+};
 use crate::reference;
 use crate::sessions::{self, difficulty_str};
 use crate::settings::{self, Difficulty};
@@ -35,6 +37,9 @@ pub struct StartPerformance {
     pub song_id: String,
     pub round_id: Option<i64>,
     pub participant_id: Option<i64>,
+    /// Leak check run (T-004-06): user silent, nothing stored in `performances`.
+    #[serde(default)]
+    pub leak_check: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -51,6 +56,8 @@ pub struct PerformanceOutcome {
     pub competitive: bool,
     pub result: Option<ScoreResult>,
     pub exploratory: Option<ExploratoryMetrics>,
+    /// Only on leak check runs.
+    pub leak: Option<LeakVerdict>,
     pub personal_best: Option<f32>,
     pub song_record: Option<f32>,
 }
@@ -64,6 +71,8 @@ pub struct RunContext {
     /// (reference id, revision) of the active reference at start.
     pub reference: Option<(i64, i64)>,
     pub difficulty: Difficulty,
+    /// Leak check run: (device id, video volume) at start, saved with the verdict.
+    pub leak_check: Option<(Option<String>, f64)>,
 }
 
 struct Running {
@@ -170,7 +179,24 @@ pub fn prepare(
 
     let s = settings::load(conn)?;
     let active = reference::active(conn, &args.song_id)?;
+    if args.leak_check {
+        if args.round_id.is_some() || args.participant_id.is_some() {
+            return Err(AppError::invalid_input(
+                "O teste de vazamento não pertence a uma rodada nem a um participante.",
+            ));
+        }
+        // The verdict compares the mic against the reference notes.
+        if !active.as_ref().is_some_and(|r| r.status != "invalid") {
+            return Err(AppError::invalid_input(
+                "Escolha uma música com referência melódica para o teste de vazamento.",
+            ));
+        }
+    }
     let (competitive, reason) = match active.as_ref().map(|r| r.status.as_str()) {
+        _ if args.leak_check => (
+            false,
+            Some("Teste de vazamento: fique em silêncio enquanto a música toca."),
+        ),
         // SPEC-006 A2: the guide vocal must not leak into the microphone.
         Some("validated") if s.leak_check_ok() => (true, None),
         Some("validated") => (
@@ -216,6 +242,7 @@ pub fn prepare(
         latency_offset_ms: s.latency_offset_ms as f64,
         device_id: s.input_device_id.clone(),
         capture,
+        leak_check: args.leak_check,
     };
     let ctx = RunContext {
         song_id: args.song_id.clone(),
@@ -223,6 +250,9 @@ pub fn prepare(
         participant_id: args.participant_id,
         reference: active.as_ref().map(|r| (r.id, r.revision)),
         difficulty: s.difficulty,
+        leak_check: args
+            .leak_check
+            .then(|| (s.input_device_id.clone(), s.video_volume)),
     };
     Ok((
         cfg,
@@ -240,14 +270,47 @@ pub fn persist(
     ctx: &RunContext,
     summary: PerformanceSummary,
 ) -> AppResult<PerformanceOutcome> {
+    let not_stored = PerformanceOutcome {
+        performance_id: None,
+        competitive: false,
+        result: None,
+        exploratory: None,
+        leak: None,
+        personal_best: None,
+        song_record: None,
+    };
+    // Leak check run: only the verdict is kept, in settings (T-004-06). Any non-passed
+    // verdict replaces an older pass: competitive play needs the latest check to pass.
+    if let Some((device_id, video_volume)) = &ctx.leak_check {
+        let Some(verdict) = summary.leak else {
+            return Err(AppError::new(
+                "internal",
+                "O teste de vazamento não produziu resultado.",
+            ));
+        };
+        let check = settings::LeakCheck {
+            device_id: device_id.clone(),
+            video_volume: *video_volume,
+            passed: verdict.passed,
+            at_ms: now_ms(),
+        };
+        let mut patch = serde_json::Map::new();
+        patch.insert("leakCheck".into(), serde_json::to_value(&check)?);
+        settings::write(conn, patch)?;
+        log::info!(
+            "leak check: passed {} (guide score {:.3})",
+            verdict.passed,
+            verdict.guide_score
+        );
+        return Ok(PerformanceOutcome {
+            leak: Some(verdict),
+            ..not_stored
+        });
+    }
     let (Some(result), Some((ref_id, revision))) = (summary.result, ctx.reference) else {
         return Ok(PerformanceOutcome {
-            performance_id: None,
-            competitive: false,
-            result: None,
             exploratory: summary.exploratory,
-            personal_best: None,
-            song_record: None,
+            ..not_stored
         });
     };
     let duration_ms: Option<i64> = library::get_song(conn, &ctx.song_id)?.duration_ms;
@@ -307,6 +370,7 @@ pub fn persist(
         competitive,
         result: Some(result),
         exploratory: None,
+        leak: None,
         personal_best: ctx.participant_id.and_then(|p| best(&|q| q == Some(p))),
         song_record: best(&|_| true),
     })
@@ -460,6 +524,63 @@ mod tests {
     }
 
     #[test]
+    fn leak_check_run_saves_verdict_only() {
+        let (_d, mut conn) = env(Some("experimental"), Some(10_000));
+        set(
+            &mut conn,
+            serde_json::json!({"videoVolume": 0.8, "inputDeviceId": "Mic"}),
+        );
+        let run = StartPerformance {
+            leak_check: true,
+            ..args()
+        };
+        let (cfg, ctx, started) = prepare(&conn, &run).unwrap();
+        assert!(cfg.leak_check && !cfg.competitive && !started.competitive);
+
+        let verdict = |passed: bool| {
+            let mut s = summary(false, 9_000, Some(3.0));
+            s.leak = Some(LeakVerdict {
+                passed,
+                guide_score: if passed { 0.01 } else { 0.4 },
+                reason: (!passed).then(|| "vazou".to_owned()),
+            });
+            s
+        };
+        let out = persist(&mut conn, &ctx, verdict(true)).unwrap();
+        assert_eq!(
+            (out.performance_id, out.result, out.competitive),
+            (None, None, false)
+        );
+        assert!(out.leak.as_ref().is_some_and(|l| l.passed));
+        let saved = settings::load(&conn).unwrap().leak_check.unwrap();
+        assert_eq!(
+            (saved.device_id.as_deref(), saved.video_volume, saved.passed),
+            (Some("Mic"), 0.8, true)
+        );
+        let n: i64 = conn
+            .query_row("SELECT count(*) FROM performances", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 0, "leak runs never reach performances");
+
+        // A later failed check replaces the pass.
+        let out = persist(&mut conn, &ctx, verdict(false)).unwrap();
+        assert_eq!(out.leak.and_then(|l| l.reason).as_deref(), Some("vazou"));
+        assert!(!settings::load(&conn).unwrap().leak_check.unwrap().passed);
+
+        // Not inside a round / for a participant, and needs a usable reference.
+        let ana = sessions::create_participant(&conn, "Ana").unwrap().id;
+        let in_round = StartPerformance {
+            participant_id: Some(ana),
+            ..run.clone()
+        };
+        assert_eq!(prepare_err(&conn, &in_round), "invalid_input");
+        for status in [None, Some("invalid")] {
+            let (_d, conn) = env(status, Some(10_000));
+            assert_eq!(prepare_err(&conn, &run), "invalid_input");
+        }
+    }
+
+    #[test]
     fn leak_check_is_read_only_for_update_settings() {
         let (_d, mut conn) = env(None, None);
         let patch = check(None, 1.0, true).as_object().cloned().unwrap();
@@ -481,6 +602,7 @@ mod tests {
             song_id: "s1".into(),
             round_id: None,
             participant_id: None,
+            leak_check: false,
         }
     }
 
@@ -502,6 +624,7 @@ mod tests {
                 voiced_ratio: 0.5,
                 pitch_stability: 0.8,
             }),
+            leak: None,
             capture: CaptureStats {
                 device_id: None,
                 sample_rate: 48_000,
@@ -617,6 +740,7 @@ mod tests {
             song_id: "s1".into(),
             round_id: Some(ra.id),
             participant_id: Some(b),
+            leak_check: false,
         };
         assert_eq!(prepare_err(&conn, &wrong), "invalid_input");
 
@@ -624,6 +748,7 @@ mod tests {
             song_id: "s1".into(),
             round_id: Some(round.id),
             participant_id: round.participant_id,
+            leak_check: false,
         };
         let (_, ctx_a, _) = prepare(&conn, &start(ra)).unwrap();
         // Training run: round stays pending.
