@@ -20,7 +20,7 @@ Critérios:
 | T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
 | T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | done |
 | T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | done |
-| T-008-05 | Duelo: `GameSession.duel` via `game::duel_outcome` (CompatKey); UI usa o resultado; E2E resultado + incompatível | Agente 1 + 3 + 4 | doing (backend + UI done; E2E pendente) |
+| T-008-05 | Duelo: `GameSession.duel` via `game::duel_outcome` (CompatKey); UI usa o resultado; E2E resultado + incompatível | Agente 1 + 3 + 4 | done |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | done |
 
 ## TEST
@@ -69,3 +69,4 @@ Critérios:
   - Teste ✅ `sessions::tests::duel_result_same_key_and_incompatible` (vencedor, empate, revisão diferente → incompatível, formato JSON).
 - T-008-05 (Agente 0, 2026-11-19): backend (Agente 1) e UI (Agente 3) integrados; `pnpm check` exit 0, Playwright 95/95. ⏳ E2E do Duelo (Agente 4).
 - T-008-05, E2E (Agente 4, 2026-11-19): `apps/desktop/e2e/duel.e2e.ts`, com o backend falso devolvendo `session.duel` no formato de `game::duel_outcome`. Casos ✅: (a) vencedor, "Bruno venceu o duelo por 12,5 pontos!"; (b) empate após arredondar a 0,1 (77,04 × 76,96); (c) incompatível: "Duelo sem vencedor" + mensagem do backend + explicação, e nenhum vencedor nem empate mesmo com 90 × 60; (d) "Aguardando" depois da 1ª rodada, em todos os casos.
+- T-008-05 done (Agente 0, 2026-11-19): E2E do Duelo (resultado, empate, incompatível, aguardando) integrado; Playwright 99/99.
