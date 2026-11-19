@@ -112,6 +112,7 @@ Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md).
 | T-006-11 | Algoritmo v4 (E1 espalhamento, E2 ring cheio no missing_ratio) + regressão/golden com as sondas v3, `ALGORITHM_VERSION = 4` | Agente 2 | done |
 | T-006-12 | 4ª rodada de QA (curta, v3 × v4) → `docs/testing/evidence/scoring-review-v4.md` | Agente 4 | done |
 | T-006-13 | Algoritmo v5 (movimento só como oscilação) + regressão com fall/bend/scoop lento/vibrato irregular, `ALGORITHM_VERSION = 5` | Agente 2 | done |
+| T-006-14 | 5ª rodada de QA (final do ciclo sintético, v4 × v5) → `docs/testing/evidence/scoring-review-v5.md` | Agente 4 | done |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -225,3 +226,8 @@ Revisão: [scoring-review-v4.md](../docs/testing/evidence/scoring-review-v4.md).
   - A janela de oscilação (1,2 s) ficou um pouco acima dos "~0,5–1 s" da spec. Com 1 s, a aleatória ±150 em notas de 1 s quase nunca mostra 2 inversões, e o E1 não fecha.
   - **Fim do ciclo sintético:** mudanças de pontuação a partir daqui só com evidência de voz real.
 - T-006-13 done (Agente 0, 2026-11-19): algoritmo v5 integrado (`ALGORITHM_VERSION = 5`); `pnpm check` exit 0 (regressão 32, golden de 14); os gestos expressivos voltaram aos valores do v3; E1 ≤ 44,2. Desvio aceito: janela de oscilação de ±600 ms (justificada). Corrigida também uma corrida pré-existente no SongDetails.test. ⏳ Rodada 5 de QA (final do ciclo sintético).
+- T-006-14 `review` (Agente 4, 2026-11-19): 5ª rodada em [scoring-review-v5.md](../docs/testing/evidence/scoring-review-v5.md). Nenhum achado Alto.
+  - Metas ✅: gestos 88,1/96,8/95,3/98,1 (≤ 0,3 abaixo do v3); E1 trinado 26,5, senoide 28,6, aleatória 39,4, alternância 9,6; v3/v4 e curva do amador idênticos.
+  - Médios registrados para a calibração com voz real: a janela de ±600 ms do balanço zera frames afinados em volta de ornamentos de 200 c (volteio 39,1; trinado de fim de frase 49,0). Oscilações mais lentas que as metas do E1 passam pouco do teto (triângulo ±150 c a 1 Hz 58,5; serra 53,4), abaixo de constante +60 c (66,2).
+- T-006-14 done (Agente 0, 2026-11-19): rodada 5 (final do ciclo sintético), sem achados ALTOS. v5 aprovado para a 0.1.1.
+- **Backlog para a calibração com voz real** (não mexer sem evidência real, conforme decisão do v5): (M1) ornamento de ~200 c dentro de nota longa zera também os frames afinados vizinhos (volteio 68,7 → 39,1; trinado de fim de frase 73,1 → 49,0); sugestão: aplicar o balanço só entre a 1ª e a última inversão. (M2) oscilações lentas passam pouco do teto do E1 (triângulo ±150 c a 1 Hz 58,5; serra 53,4), sem inverter o ranking. (B1) glissando único através do alvo paga pela distância (coerente com "gesto = estilo"). Evidência: docs/testing/evidence/scoring-review-v5.md.
