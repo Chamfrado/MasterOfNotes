@@ -256,7 +256,12 @@ export interface GameSession {
   completedMs: number | null;
   rounds: Round[];
   standings: Standing[];
+  /** Duel only, when both rounds are completed (game::duel_outcome). Incompatible = different CompatKey (SPEC-008). */
+  duel?: DuelResult | null;
 }
+export type DuelResult =
+  | { kind: "result"; winner: number | null; margin: number } // winner = participantId; null = draw
+  | { kind: "incompatible"; message: string };
 export interface CreateSession {
   mode: GameMode;
   name: string | null;
