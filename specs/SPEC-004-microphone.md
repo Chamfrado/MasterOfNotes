@@ -29,7 +29,7 @@ Critérios:
 | T-004-02 | `Capture` com cpal (WASAPI) + listagem de dispositivos | Agente 2 | done |
 | T-004-03 | Calibração de ruído | Agente 2 | done |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | todo |
-| T-004-05 | Tela de microfone e calibração | Agente 3 | todo |
+| T-004-05 | Tela de microfone e calibração | Agente 3 | review |
 
 ## TEST
 `audio-engine/tests/synthetic.rs`: senoides, oitavas, glissando, silêncio, ruído, clipping, invariância a volume, harmônicos. Dispositivo real = teste manual registrado em `docs/testing/evidence/`.
@@ -52,3 +52,11 @@ Critérios:
 - T-004-01 review → done (Agente 0, 2026-11-19): integrado em main @ 566a64e; fmt, clippy --workspace -D warnings e cargo test --workspace verdes (80 testes).
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
 - ⏳ Microfone real: o Realtek padrão mediu −104,8 dBFS (provavelmente mudo ou bloqueado pela privacidade do Windows). Teste com voz pendente com o proprietário.
+- T-004-05 em review (Agente 3, 2026-11-19): `src/screens/Mic.tsx`.
+  - R1: dispositivo persistido em `inputDeviceId`; "Padrão do sistema" = null; troca reinicia o monitor.
+  - R2: `MicMeter` mostra nível (meter -60..0 dBFS), linha do noise floor, "Saturando", "Voz detectada" e a nota/Hz detectada.
+  - R6: calibração de 3 s com `issues[]` em pt-BR, ou "Ambiente bom para cantar."
+  - R7: ajuste manual de −500 a +500 ms em passos de 10 ms, persistido.
+  - R9: aviso no Player (ver SPEC-003 STATUS).
+  - Testes: `Mic.test.tsx` (5).
+  - ⏳ O "teste de palmas sobre clique" do R7 não foi feito. Os frames do monitor chegam a ~30 Hz pelo Channel, resolução insuficiente para medir latência na UI sem enganar; precisa de um command que meça no Rust (proposta ao coordenador). Dispositivo real não testado.

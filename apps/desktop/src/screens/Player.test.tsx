@@ -146,6 +146,16 @@ describe("Player", () => {
     expect(navigate).toHaveBeenCalledWith({ name: "result", songId: "s1", outcome });
   });
 
+  it("warns when the mic picks up the music outside notes (R9)", async () => {
+    await renderToPlaying();
+    const onTick = vi.mocked(ipc.startPerformance).mock.calls[0][1];
+    const tick: ipc.LiveTick = { mic: { rmsDbfs: -20, f0Hz: 220, confidence: 0.9, voiced: true, clipped: false }, feedback: null };
+    act(() => {
+      for (let i = 0; i < 300; i++) onTick(tick);
+    });
+    expect(screen.getByText(/captando a música/)).toBeInTheDocument();
+  });
+
   it("shows the codec hint and marks the song unplayable on media error", async () => {
     const { container } = render(
       <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, back: vi.fn() }}>

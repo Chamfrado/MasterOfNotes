@@ -19,6 +19,7 @@ import {
   type Song,
 } from "../lib/ipc";
 import { useNav } from "../nav";
+import { createLeakMonitor } from "../player/leak";
 import { initialPlayerState, playerReducer } from "../player/playerMachine";
 import { useAsync } from "../useAsync";
 
@@ -99,6 +100,8 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
   const [pendingSeek, setPendingSeek] = useState<number | null>(null); // seek waiting for confirmation
   const [controls, setControls] = useState(true);
   const active = useRef(false); // a Rust performance is open and must be finished or aborted
+  const leakMonitor = useRef(createLeakMonitor());
+  const [leak, setLeak] = useState(false);
   const practice = seekedAway || (perf != null && !perf.competitive);
 
   useEffect(() => {
@@ -153,7 +156,11 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
 
   const start = async () => {
     try {
-      setPerf(await startPerformance({ songId: song.id, roundId: null, participantId: null }, setTick));
+      const onTick = (t: LiveTick) => {
+        setTick(t);
+        setLeak(leakMonitor.current(t)); // same value = no re-render
+      };
+      setPerf(await startPerformance({ songId: song.id, roundId: null, participantId: null }, onTick));
       active.current = true;
       dispatch({ type: "START", countdown: COUNTDOWN_S });
     } catch (e) {
@@ -308,6 +315,15 @@ function Stage({ song, settings }: { song: Song; settings: AppSettings }) {
           </div>
         </div>
       )}
+
+      {/* SPEC-004 R9 */}
+      <div role="status" className="pointer-events-none absolute top-28 left-1/2 -translate-x-1/2">
+        {leak && live && (
+          <p className="rounded-md border border-warning/50 bg-bg/85 px-5 py-3 font-semibold text-warning">
+            O microfone está captando a música — use fones de ouvido.
+          </p>
+        )}
+      </div>
 
       {state.status === "countdown" && (
         <p aria-live="assertive" className="absolute font-display text-[12rem] font-bold text-fg drop-shadow-lg">
