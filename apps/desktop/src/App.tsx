@@ -7,6 +7,7 @@ import { Library } from "./screens/Library";
 import { Mic } from "./screens/Mic";
 import { Player } from "./screens/Player";
 import { Ranking } from "./screens/Ranking";
+import { Reference } from "./screens/Reference";
 import { Result } from "./screens/Result";
 
 type TopLevel = "home" | "library" | "mic" | "ranking";
@@ -27,6 +28,8 @@ function Screen({ route }: { route: Route }) {
       return <Mic />;
     case "player":
       return <Player songId={route.songId} />;
+    case "reference":
+      return <Reference songId={route.songId} />;
     case "result":
       return <Result songId={route.songId} outcome={route.outcome} />;
     case "ranking":

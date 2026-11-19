@@ -213,9 +213,14 @@ function SongItem({ song, compact, onEdit }: { song: Song; compact: boolean; onE
           <Badge>{song.extension.toUpperCase()}</Badge>
           {duration && <Badge>{duration}</Badge>}
         </div>
-        <Button variant="ghost" onClick={onEdit} aria-label={`Editar ${song.title}`}>
-          Editar
-        </Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" onClick={() => navigate({ name: "reference", songId: song.id })} aria-label={`Referência de ${song.title}`}>
+            Referência
+          </Button>
+          <Button variant="ghost" onClick={onEdit} aria-label={`Editar ${song.title}`}>
+            Editar
+          </Button>
+        </div>
       </div>
     </div>
   );
