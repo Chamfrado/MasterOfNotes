@@ -1,6 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { MicMeter, PitchIndicator, RankingTable, ScoreBadge, hzToMidi, midiToName } from "./game";
+import { MicMeter, PitchIndicator, RankingTable, ScoreBadge, StandingsTable, hzToMidi, midiToName } from "./game";
 
 describe("midiToName", () => {
   it("maps MIDI numbers to note names", () => {
@@ -84,5 +84,39 @@ describe("RankingTable", () => {
     render(<RankingTable caption="x" rows={[]} />);
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText(/Ninguém pontuou/)).toBeInTheDocument();
+  });
+});
+
+describe("StandingsTable", () => {
+  // SPEC-008 criterion: A 3 rounds (avg 80, total 240), B 2 rounds (avg 90, total 180).
+  const names = new Map([
+    [1, "Ana"],
+    [2, "Bia"],
+    [3, "Caio"],
+  ]);
+  it("shows average and total, eligible first, ineligible flagged with missing rounds", () => {
+    render(
+      <StandingsTable
+        caption="Classificação"
+        minRounds={3}
+        names={names}
+        standings={[
+          { participantId: 2, total: 180, average: 90, rounds: 2, eligible: false, rank: 2 },
+          { participantId: 1, total: 240, average: 80, rounds: 3, eligible: true, rank: 1 },
+          { participantId: 3, total: 0, average: 0, rounds: 0, eligible: false, rank: 3 },
+        ]}
+      />,
+    );
+    const rows = within(screen.getByRole("table", { name: "Classificação" })).getAllByRole("row");
+    expect(within(rows[1]).getByRole("rowheader")).toHaveTextContent("Ana");
+    expect(rows[1]).toHaveTextContent("80");
+    expect(rows[1]).toHaveTextContent("240");
+    expect(within(rows[2]).getByRole("rowheader")).toHaveTextContent("Bia");
+    expect(rows[2]).toHaveTextContent("Inelegível: falta 1 rodada");
+    expect(rows[3]).toHaveTextContent("Inelegível: faltam 3 rodadas");
+  });
+  it("has an empty state", () => {
+    render(<StandingsTable caption="x" minRounds={1} names={names} standings={[]} />);
+    expect(screen.getByText("Ninguém cantou ainda.")).toBeInTheDocument();
   });
 });

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from "vitest";
 import { initialPlayerState, playerReducer, type PlayerEvent, type PlayerState } from "./playerMachine";
 

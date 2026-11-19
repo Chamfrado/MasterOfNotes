@@ -5,6 +5,7 @@ import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
 import { Player, clock } from "./Player";
 
+const replace = vi.fn();
 vi.mock("../lib/ipc", () => ({
   listSongs: vi.fn(),
   getSettings: vi.fn(),
@@ -33,7 +34,8 @@ const song: ipc.Song = {
   available: true,
   referenceStatus: "validated",
 };
-const settings = { videoVolume: 0.8, feedbackOverlay: "full" } as ipc.AppSettings;
+const passedCheck = { deviceId: null, videoVolume: 1, passed: true, atMs: 0 };
+const settings = { videoVolume: 0.8, feedbackOverlay: "full", inputDeviceId: null, leakCheck: passedCheck } as ipc.AppSettings;
 const navigate = vi.fn();
 
 // jsdom has no media pipeline: emulate play/pause state + events, and the frame callback.
@@ -60,7 +62,7 @@ afterEach(() => vi.useRealTimers());
 
 async function renderToPlaying() {
   const { container, unmount } = render(
-    <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, back: vi.fn() }}>
+    <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, replace, back: vi.fn() }}>
       <ToastProvider>
         <Player songId="s1" />
       </ToastProvider>
@@ -143,7 +145,7 @@ describe("Player", () => {
     const video = await renderToPlaying();
     fireEvent.ended(video);
     await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(navigate).toHaveBeenCalledWith({ name: "result", songId: "s1", outcome });
+    expect(replace).toHaveBeenCalledWith({ name: "result", songId: "s1", outcome, round: undefined });
   });
 
   it("warns when the mic picks up the music outside notes (R9)", async () => {
@@ -156,9 +158,27 @@ describe("Player", () => {
     expect(screen.getByText(/captando a música/)).toBeInTheDocument();
   });
 
+  it("offers the leak test shortcut when the check is pending (T-004-06)", async () => {
+    vi.mocked(ipc.getSettings).mockResolvedValue({ ...settings, leakCheck: null });
+    const { container } = render(
+      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, replace, back: vi.fn() }}>
+        <ToastProvider>
+          <Player songId="s1" />
+        </ToastProvider>
+      </NavContext.Provider>,
+    );
+    await screen.findByText("Carregando vídeo…");
+    const video = container.querySelector("video")!;
+    Object.defineProperty(video, "duration", { value: 120, configurable: true });
+    fireEvent.loadedMetadata(video);
+    expect(await screen.findByRole("button", { name: "Começar como treino" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Fazer teste" }));
+    expect(navigate).toHaveBeenCalledWith({ name: "mic" });
+  });
+
   it("shows the codec hint and marks the song unplayable on media error", async () => {
     const { container } = render(
-      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, back: vi.fn() }}>
+      <NavContext.Provider value={{ route: { name: "player", songId: "s1" }, navigate, replace, back: vi.fn() }}>
         <ToastProvider>
           <Player songId="s1" />
         </ToastProvider>

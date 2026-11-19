@@ -15,9 +15,9 @@
 |---|---|---|---|
 | T-010-01 | Tailwind v4 + tokens + fontes locais + layout/navegação | Agente 3 | done |
 | T-010-02 | Componentes base + testes de acessibilidade (role/label/foco) | Agente 3 | done |
-| T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | doing |
+| T-010-03 | Telas do fluxo vertical (Início, Biblioteca, Microfone, Player, Resultado, Ranking) | Agente 3 | done |
 | T-010-04 | Telas sociais, Configurações, Atualizações | Agente 3 | todo |
-| T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | review |
+| T-010-05 | Auditoria a11y/10-foot via Playwright (axe, teclado, viewports, movimento reduzido) | Agente 4 | done |
 
 ## STATUS
 2026-11-19 (Agente 3):
@@ -29,3 +29,4 @@
 
 2026-11-19 (Agente 4):
 - T-010-05 em review: `apps/desktop/e2e/a11y.e2e.ts` (axe-core, teclado, 4 viewports, movimento reduzido) nas 7 telas/estados existentes. Relatório e achados A11Y-01..05 em [a11y-audit.md](../docs/testing/evidence/a11y-audit.md). Abertos para o Agente 3: A11Y-01 (badge 12 px) e A11Y-02 (axe serious `label-content-name-mismatch`), marcados com `test.fail` até serem corrigidos.
+- T-010-05, T-010-03 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
