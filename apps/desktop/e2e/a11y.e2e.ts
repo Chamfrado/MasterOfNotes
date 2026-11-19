@@ -10,7 +10,7 @@ const nav = (page: Page, label: string) =>
 
 const openPlayer = async (page: Page) => {
   await nav(page, "Biblioteca");
-  await page.getByRole("button", { name: "Cantar Canção da Manhã, de Banda Aurora" }).click();
+  await page.getByRole("button", { name: "Cantar Canção da Manhã Banda Aurora" }).click();
   await expect(page.getByRole("button", { name: "Começar" })).toBeVisible();
 };
 
@@ -90,8 +90,6 @@ const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-
 
 for (const s of screens) {
   test(`axe: ${s.name} — zero violações serious/critical`, async ({ page }) => {
-    // Known finding, listed for Agent 3 (docs/testing/evidence/a11y-audit.md). Remove when it starts passing.
-    test.fail(s.name === "Biblioteca", "A11Y-02: label-content-name-mismatch nos botões Cantar");
     await open(page, s);
     const { violations } = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
     for (const v of violations) {
@@ -180,7 +178,7 @@ test("teclado: fluxo Início → Biblioteca → Player → Resultado → Ranking
   await tabTo(page, "Escolher música");
   await page.keyboard.press("Enter");
   await expect(page.getByText("3 músicas", { exact: true })).toBeVisible();
-  await tabTo(page, "Cantar Canção da Manhã, de Banda Aurora");
+  await tabTo(page, "Cantar Canção da Manhã Banda Aurora");
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Começar" })).toBeFocused(); // autoFocus
   await page.keyboard.press("Enter");
@@ -238,8 +236,6 @@ const measureLayout = (page: Page, minTarget: number) =>
 
 for (const s of screens) {
   test(`viewports: ${s.name} — sem overflow horizontal, alvos ≥ ${MIN_TARGET_PX}px, texto ≥ ${MIN_FONT_PX}px`, async ({ page }, info) => {
-    // Known finding, listed for Agent 3 (docs/testing/evidence/a11y-audit.md). Remove when it starts passing.
-    test.fail(s.name === "Biblioteca", "A11Y-01: Badge com texto de 12px em 960×600");
     await open(page, s);
     const problems: string[] = [];
     for (const vp of viewports) {

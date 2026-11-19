@@ -13,6 +13,7 @@ export const settings = (libraryFolder: string | null, extra: Partial<AppSetting
   reducedMotion: "on",
   feedbackOverlay: "full",
   autoCheckUpdates: false,
+  leakCheck: null,
   ...extra,
 });
 
