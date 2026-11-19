@@ -1,0 +1,77 @@
+# Release (T-009-03, SPEC-009): builds the Master Of Notes NSIS installer + updater latest.json
+# and uploads them to a DRAFT GitHub release. Never publishes; publishing is a manual owner action (R6).
+#
+# BLOCKED until the owner acts (no keys are generated or stored in this repo):
+#   1. Generate the updater key pair locally: `pnpm --filter desktop tauri signer generate`
+#      (private key stays outside the repo).
+#   2. Add repo secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD.
+#   3. Put the public key in tauri.conf.json `plugins.updater.pubkey` and set
+#      `bundle.createUpdaterArtifacts: true` (Agent 1, T-009-01/T-009-02).
+# Without them the "Check signing secrets" step fails with an explicit message.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  draft:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check signing secrets
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY missing — owner action required (see top of release.yml, SPEC-009)."
+            exit 1
+          fi
+
+      # R1: the tag must match the version in tauri.conf.json.
+      - name: Check tag matches app version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(node -p "require('./apps/desktop/src-tauri/tauri.conf.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} != v${version} (tauri.conf.json)"
+            exit 1
+          fi
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/desktop
+          tauriScript: pnpm tauri
+          args: --bundles nsis
+          tagName: v__VERSION__
+          releaseName: Master Of Notes v__VERSION__
+          releaseBody: Rascunho gerado pelo CI. Revise as notas antes de publicar.
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true

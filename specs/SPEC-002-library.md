@@ -24,13 +24,13 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-002-01 | Scanner + content id + upsert + testes com tempdir | Agente 1 | todo |
-| T-002-02 | Commands `set_library_folder`, `rescan_library`, `list_songs`, `update_song` | Agente 1 | todo |
-| T-002-03 | Watcher + evento `library://changed` | Agente 1 | todo |
+| T-002-01 | Scanner + content id + upsert + testes com tempdir | Agente 1 | review |
+| T-002-02 | Commands `set_library_folder`, `rescan_library`, `list_songs`, `update_song` | Agente 1 | review |
+| T-002-03 | Watcher + evento `library://changed` | Agente 1 | review |
 | T-002-04 | Tela Biblioteca: grade/lista, busca, estados vazio/loading/erro | Agente 3 | todo |
 
 ## TEST
 `library::tests::{indexes_supported_only, stable_id_on_rename, skips_unchanged, marks_removed}`; `Library.test.tsx` (busca sem acento, estado vazio).
 
 ## STATUS
-Pendente.
+2026-11-19 (Agente 1): T-002-01..03 em review. ID = 32 primeiros hex do blake3. Varredura e hashing em `spawn_blocking`, sem segurar o lock do banco durante o hashing; uma varredura por vez. Regras extras: troca de nomes entre arquivos preserva os IDs; conteúdo alterado no mesmo caminho troca o ID só se a música não tem histórico (senão mantém o antigo); linha sumida cujo caminho foi ocupado por outro conteúdo fica com `path#id`. Watcher: debounce 1,5 s, qualquer evento (exceto Access) dispara re-varredura incremental e emite `library://changed` se houver mudança. Testes: `library::tests::{indexes_supported_only, stable_id_on_rename, swap_names_keeps_ids, skips_unchanged, marks_removed, duplicate_content_single_record, content_changed_in_place, content_id_uses_head_and_tail, update_song_validates}` verdes. Pendente: watcher, `set_library_folder` e asset protocol verificados só por compilação; validar no app (UI do Agente 3) ou em e2e (Agente 4). Plugin JS `@tauri-apps/plugin-dialog` a cargo do Agente 3.
