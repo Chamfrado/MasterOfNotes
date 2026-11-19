@@ -198,6 +198,8 @@ export interface ExploratoryMetrics {
 export interface PerformanceOutcome {
   performanceId: number | null; // null when nothing was persisted (no reference)
   competitive: boolean;
+  /** pt-BR: why a run that started competitive ended as training (seek, microphone audio dropouts > 5%). */
+  reason?: string | null;
   result: ScoreResult | null; // null when there was no reference
   exploratory: ExploratoryMetrics | null; // set when result is null
   leak?: { passed: boolean; guideScore: number; reason: string | null } | null; // only on leak check runs
