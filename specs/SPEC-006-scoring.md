@@ -89,7 +89,7 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
 | T-006-06 | Algoritmo v2 (A1, A3–A9) + golden + fixtures realistas, `ALGORITHM_VERSION = 2` | Agente 2 | done |
 | T-006-07 | Medição de desempenho do caminho de áudio (CPU/memória 5 min, latência frame → LiveTick, estabilidade em 10 execuções, custo do finish) → `docs/testing/performance.md` | Agente 2 | done |
 | T-006-08 | Re-revisão independente de QA do algoritmo v2 → `docs/testing/evidence/scoring-review-v2.md` | Agente 4 | done |
-| T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | todo |
+| T-006-09 | Algoritmo v3 (N1–N4, resto do A3, A4b) + golden + regressão com as sondas v2, `ALGORITHM_VERSION = 3` | Agente 2 | done |
 | T-004-06 | Checagem de vazamento obrigatória para modo competitivo (A2): medição no audio-engine/performance, settings `leakCheck`, tela no assistente de microfone | Agente 2 + Agente 1 + Agente 3 | done |
 
 ## TEST
@@ -158,3 +158,14 @@ Revisão: [scoring-review-v2.md](../docs/testing/evidence/scoring-review-v2.md).
 - T-006-08 done (Agente 0, 2026-11-19): re-revisão integrada; achados N1–N4 → algoritmo v3 (T-006-09).
 - T-006-09, parte da UI (Agente 3, 2026-11-19), em review: Resultado com `competitive=false` mostra o selo "Treino — fora do ranking" e o `outcome.reason` do backend em destaque, também quando não há referência. O atalho vem de `trainingAction` (pura), pelo estado e não pelo texto: sem referência → "Importar referência"; não validada → "Abrir referência"; teste de vazamento não aprovado (`leakCheckState`) → "Fazer teste de vazamento". Seek, falha de áudio ou pouca música tocada não têm atalho ("Cantar de novo" resolve). Testes: `Result.test.tsx` (7).
 
+- T-006-09 `review` (Agente 2, 2026-11-19): algoritmo v3, `ALGORITHM_VERSION = 3`. Medições v2 × v3 no mesmo áudio (voz humana) em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md#algoritmo-v3-algorithm_version--3-atual): todas as metas do v3 atingidas, e a tabela v1 continua passando. Formulação (constantes em `scorer.rs`):
+  - **N1, contorno sem vibrato:** a nota de cada frame é a média das medianas de 5 frames numa janela de 19 frames (190 ms, cerca de um período de vibrato a 5,3 Hz). A janela fica dentro da nota e não cruza o onset (N3). Só entram valores a até 250 c do frame, então ornamentos curtos e distantes não contaminam os vizinhos. O feedback ao vivo continua frame a frame; o rótulo usa a mediana do erro nos últimos 200 ms.
+  - **Mediana com oitava:** antes da mediana, os valores são dobrados para a oitava do frame. O YIN salta oitavas em trocas rápidas com voz de formantes; sem isso, ligadas de 50 ms com 25 ms de atraso davam 46 com voz humana.
+  - **N2:** o denominador é o número de frames que chegaram. Os frames esperados depois do último recebido contam 0 (a execução parou, não houve falha). Nota sem nenhum frame fica fora, como `skip`. Mais de 5% de áudio faltando → treino (`performance.rs`, integrado em main @ 77c98ff).
+  - **N3:** a acurácia do gate vai do onset desta nota (ou start + 80 ms) até o onset da próxima. Atraso e adiantamento pesam uma vez só.
+  - **N4:** nota com d < 120 ms usa a melhor região deslocada até min(120 − d, 30) ms, em passos de 10 ms. A janela de onset também se estende esse tanto.
+  - **A3:** se a voz já está no alvo quando a janela abre, o onset recua até o início real do trecho, atravessando a pausa e o fim da nota anterior se o canto estiver estritamente mais perto deste alvo, até start − 300 ms. Se o cantor nunca fica mais perto deste alvo que do anterior (desafinado em direção à nota anterior), vale o primeiro frame no alvo. Isso eliminou a queda de 10,9 entre 50 e 60 c (A4(b): 9,7).
+  - Cada nota é pontuada uma vez, quando os frames chegam a fim + 60 ms. O `running_score` cobre essas notas. Frames fora de ordem (re-âncora para trás) são descartados.
+  - Golden com 12 fixtures. A música de teste T-003-05 foi congelada em `tests/fixtures/references/test-song.json`.
+  - ⏳ As tolerâncias de pitch não mudaram. A curva do amador subiu (Normal: desvio 0 → 100,0; +20 c → 96,7; −40 c → 88,2). Confirmar com voz real antes da release.
+- T-006-09 done (Agente 0, 2026-11-19): algoritmo v3 integrado (`ALGORITHM_VERSION = 3`) + UI do motivo do treino; `pnpm check` exit 0 (regressão 29 com golden de 12 fixtures), Playwright 99/99. Todas as metas v3 cumpridas com voz realista (vibrato ±75 c: 77,4 → 99,9; 10% de perda: 90,6 → 100; ligadas de 50 ms com 25 ms de atraso: 2,0 → 100). ⏳ 3ª rodada de QA (Agente 4); voz real.
