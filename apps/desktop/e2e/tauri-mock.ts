@@ -1,0 +1,88 @@
+// Test-only Tauri IPC mock (Law 03: never imported by src/). Installs window.__TAURI_INTERNALS__
+// before the app loads, answering each command from serializable data, so specs stay declarative.
+import type { Page } from "@playwright/test";
+import type { AppError } from "../src/lib/ipc";
+
+export type MockReply = { ok: unknown } | { err: AppError };
+/** Replies by command. Change one mid-test with `setReply` (call counts are unreliable:
+ * React StrictMode runs mount effects twice in dev). */
+export type MockSpec = Record<string, MockReply>;
+export interface IpcCall {
+  cmd: string;
+  args: unknown;
+}
+
+declare global {
+  interface Window {
+    __E2E_CALLS__?: IpcCall[];
+    __E2E_SPEC__?: MockSpec;
+  }
+}
+
+/** Every <video src> resolves here; specs decide what the "file" returns. */
+export const ASSET_ORIGIN = "http://asset.localhost";
+
+export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageErrors: string[] }> {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (e) => pageErrors.push(e.message));
+  // Offline by default: no asset request leaves the test.
+  await page.route(`${ASSET_ORIGIN}/**`, (route) => route.fulfill({ status: 404 }));
+
+  await page.addInitScript(
+    ({ spec, assetOrigin }) => {
+      const calls: IpcCall[] = [];
+      const callbacks = new Map<number, (data: unknown) => void>();
+      let nextId = 1;
+
+      // Plugin commands the shell needs; a spec entry overrides them.
+      const builtins: Record<string, unknown> = {
+        "plugin:event|listen": 0,
+        "plugin:event|unlisten": null,
+        "plugin:window|set_fullscreen": null,
+        "plugin:window|is_fullscreen": false,
+      };
+
+      const reply = (cmd: string): Promise<unknown> => {
+        const r = window.__E2E_SPEC__?.[cmd];
+        if (r === undefined) {
+          if (cmd in builtins) return Promise.resolve(builtins[cmd]);
+          return Promise.reject({ code: "E2E_UNMOCKED", message: `Comando não mockado no teste: ${cmd}` });
+        }
+        return "ok" in r ? Promise.resolve(structuredClone(r.ok)) : Promise.reject(r.err);
+      };
+
+      const unregisterCallback = (id: number) => void callbacks.delete(id);
+      Object.assign(window, {
+        __E2E_CALLS__: calls,
+        __E2E_SPEC__: spec,
+        __TAURI_INTERNALS__: {
+          metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
+          invoke: (cmd: string, args: unknown) => {
+            calls.push({ cmd, args });
+            return reply(cmd);
+          },
+          transformCallback: (cb: (data: unknown) => void, once = false) => {
+            const id = nextId++;
+            callbacks.set(id, (data) => {
+              if (once) unregisterCallback(id);
+              cb(data);
+            });
+            return id;
+          },
+          unregisterCallback,
+          runCallback: (id: number, data: unknown) => callbacks.get(id)?.(data),
+          convertFileSrc: (path: string) => `${assetOrigin}/${encodeURIComponent(path)}`,
+        },
+        __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: (_event: string, id: number) => unregisterCallback(id) },
+      });
+    },
+    { spec, assetOrigin: ASSET_ORIGIN },
+  );
+  return { pageErrors };
+}
+
+export const setReply = (page: Page, cmd: string, reply: MockReply) =>
+  page.evaluate(([cmd, reply]) => void ((window.__E2E_SPEC__ ??= {})[cmd] = reply), [cmd, reply] as const);
+
+export const ipcCalls = (page: Page, cmd: string) =>
+  page.evaluate((cmd) => (window.__E2E_CALLS__ ?? []).filter((c) => c.cmd === cmd), cmd);

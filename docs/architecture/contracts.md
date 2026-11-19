@@ -217,4 +217,4 @@ Regras:
 - Nome do comando Rust = nome snake_case da função em `ipc.ts`.
 - Structs com `#[serde(rename_all = "camelCase")]`.
 - Streams de alta frequência usam `tauri::ipc::Channel<T>`, não eventos globais.
-- Eventos globais: `library://changed` (payload `LibraryChange`).
+- Eventos globais: `library://changed` (payload `LibraryChange`); `audio://error` (payload `AppError`): emitido quando o dispositivo falha durante o medidor ou a performance; o stream já está parado.

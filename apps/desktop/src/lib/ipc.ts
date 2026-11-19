@@ -100,6 +100,9 @@ export const startMicMonitor = (deviceId: string | null, onFrame: (f: MicFrame) 
   return invoke<void>("start_mic_monitor", { deviceId, onFrame: ch });
 };
 export const stopMicMonitor = () => invoke<void>("stop_mic_monitor");
+/** Device lost/failed during the monitor or a performance (Law 13). The stream is already stopped. */
+export const onAudioError = (cb: (e: AppError) => void): Promise<UnlistenFn> =>
+  listen<AppError>("audio://error", (e) => cb(e.payload));
 /** Records `seconds` of room noise (user silent). Saves noiseFloorDbfs in settings. */
 export const calibrateNoise = (deviceId: string | null, seconds: number) =>
   invoke<NoiseCalibration>("calibrate_noise", { deviceId, seconds });
