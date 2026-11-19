@@ -14,7 +14,7 @@ Não precisa de internet para usar o app nem de conta ou cadastro.
 
 ## Instalar
 
-> **Versão de testes (pré-release).** A versão atual, [0.1.1](https://github.com/Chamfrado/MasterOfNotes/releases/tag/v0.1.1), é a primeira publicada e está marcada como **pré-release**. Tudo o que este guia descreve funciona, e a pontuação foi validada com testes automáticos. A validação com vozes reais de pessoas ainda está em andamento, então a nota pode ser ajustada em versões futuras (veja [Como a pontuação funciona](07-pontuacao.md#até-onde-dá-para-confiar)).
+> **Versão de testes (pré-release).** A versão atual, [0.1.1](https://github.com/Chamfrado/MasterOfNotes/releases/tag/v0.1.1), é a primeira publicada e está marcada como **pré-release**, ou seja, uma versão de testes que pode ter falhas. A pontuação foi validada com testes automáticos. A validação com vozes reais de pessoas ainda está em andamento, então a nota pode ser ajustada em versões futuras (veja [Como a pontuação funciona](07-pontuacao.md#até-onde-dá-para-confiar)).
 
 1. Abra a página de versões do projeto: <https://github.com/Chamfrado/MasterOfNotes/releases>. A versão atual está em <https://github.com/Chamfrado/MasterOfNotes/releases/tag/v0.1.1>.
 2. Em **Assets**, baixe o arquivo **`Master.Of.Notes_0.1.1_x64-setup.exe`** (cerca de 4 MB). Em versões futuras, o número muda, mas o nome continua terminando em **`_x64-setup.exe`**. Os outros arquivos da lista (`.sig`, `latest.json` e o código-fonte) servem para as atualizações automáticas e para desenvolvedores; você não precisa deles.
