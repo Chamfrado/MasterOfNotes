@@ -1,6 +1,6 @@
 [package]
 name = "master-of-notes"
-description = "MasterOfNotes karaoke desktop app"
+description = "Master Of Notes karaoke desktop app"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,10 +13,19 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["protocol-asset"] }
 tauri-plugin-opener = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-log = "2"
+log = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rusqlite = { version = "0.43", features = ["bundled"] }
+blake3 = "1"
+notify-debouncer-full = "0.7"
 audio-engine = { path = "../../../crates/audio-engine" }
 scoring-engine = { path = "../../../crates/scoring-engine" }
 game = { path = "../../../crates/game" }
+
+[dev-dependencies]
+tempfile = "3"

@@ -17,7 +17,7 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | todo |
+| T-008-01 | `crates/game`: `plan_rounds`, `party_standings`, `duel_outcome`, `challenge_progress` + testes | Agente 4 | done |
 | T-008-02 | Commands de participantes/sessões + repositórios | Agente 1 | todo |
 | T-008-03 | Telas: modo, participantes, festa, confronto, histórico | Agente 3 | todo |
 | T-008-04 | E2E Playwright do fluxo Festa (IPC mockado apenas no teste) | Agente 4 | todo |
@@ -26,4 +26,6 @@ Critérios:
 `game` testes: média vs total, elegibilidade, desempate, shuffle determinístico, duelo incompatível, desafio.
 
 ## STATUS
-Pendente.
+- T-008-01 em review (Agente 4, 2026-11-19): `crates/game` implementado; `cargo test -p game` 15/15 ✅ (média vs total, elegibilidade, desempate total→id, anônimos ignorados, shuffle determinístico, cobertura do plano, duelo incompatível, empate por arredondamento a 0,1, desafio).
+- T-008-02..04 pendentes.
+- T-008-01 done (Agente 0, 2026-11-19): integrado em main, `cargo test -p game` 15/15 ✅ e clippy limpo após merge. Nota para T-008-02: `party_standings` só lista quem tem performance; o glue deve acrescentar participantes da festa com 0 rodadas (inelegíveis) para exibição. `challenge_progress` exige `rounds ≥ 1` (validar no command).

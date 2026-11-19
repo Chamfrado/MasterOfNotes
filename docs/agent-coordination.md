@@ -22,6 +22,7 @@ Se uma sessão for perdida: abra uma nova sessão Claude Code na raiz do reposit
 4. Agente marca a tarefa como `review` na spec e envia o **relatório de entrega** ao coordenador.
 5. Coordenador revisa, roda os testes, faz merge em `main` (`--no-ff`), marca `done` e avisa todos para sincronizarem (`git merge main`).
 6. Mudança de contrato: o agente propõe; o coordenador altera `contracts.md`/`ipc.ts` em `main` e avisa todos.
+7. **Worktree terminada é excluída** (regra do proprietário). Quando o agente conclui todas as tarefas atribuídas àquela worktree, ele avisa no relatório: "worktree livre". Depois do merge, o coordenador roda `git worktree remove .worktrees/agent-N` e `git branch -d agent-N/work`. A próxima atribuição recria a worktree a partir de `main`. Nunca remover enquanto houver trabalho não integrado.
 
 ## Relatório de entrega (agente → coordenador)
 
@@ -42,3 +43,9 @@ Próximo: <o que pretende fazer>
 - Dependências novas: Rust → no `Cargo.toml` do seu crate. JS → peça ao Agente 3 (dono de `apps/desktop/package.json`).
 - Ninguém faz `push --force`, `reset --hard` em branch alheia, nem commit em `main` exceto o coordenador.
 - Remoto (`origin`): push só com autorização do proprietário.
+
+## Orçamento de disco (C: tem pouco espaço livre)
+- Só **Agente 1** (na sua worktree) e o **coordenador** (em `main`) compilam o app Tauri / `--workspace`.
+- Agentes 2 e 4 compilam só os próprios crates: `cargo test -p <crate>`, `cargo clippy -p <crate> --all-targets`. Agente 3 não usa cargo.
+- O perfil dev usa `debug = "line-tables-only"` (raiz `Cargo.toml`).
+- Antes de builds grandes, confira o espaço livre com `df -h /c`. Se ficar abaixo de 2 GB, avise o coordenador.
