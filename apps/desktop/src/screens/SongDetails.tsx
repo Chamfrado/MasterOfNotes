@@ -2,7 +2,16 @@
 import { useState, type FormEvent } from "react";
 import { RankingTable, ScoreBadge, formatScore } from "../components/game";
 import { Badge, Button, Card, ErrorState, Input, LoadingState, Select, errorMessage, useToast } from "../components/ui";
-import { getLeaderboard, getSettings, listParticipants, listSongs, updateSong, type Difficulty, type Song } from "../lib/ipc";
+import {
+  getLeaderboard,
+  getSettings,
+  listParticipants,
+  listPerformances,
+  listSongs,
+  updateSong,
+  type Difficulty,
+  type Song,
+} from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 import { formatDuration, referenceLabel } from "./Library";
@@ -118,6 +127,7 @@ function Details({ initial, difficulty }: { initial: Song; difficulty: Difficult
           <Records song={song} difficulty={difficulty} />
         </div>
       </div>
+      <Performances song={song} />
     </div>
   );
 }
@@ -171,3 +181,44 @@ function Records({ song, difficulty }: { song: Song; difficulty: Difficulty }) {
     </Card>
   );
 }
+
+const RECENT = 10;
+const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
+
+/** SPEC-007 R6: last performances of this song; older CompatKeys flagged, practice runs flagged. */
+function Performances({ song }: { song: Song }) {
+  const [load] = useAsync(() => listPerformances({ songId: song.id, limit: RECENT }), [song.id]);
+  return (
+    <section aria-labelledby="perf-title" className="flex flex-col gap-3">
+      <h2 id="perf-title" className="font-display text-2xl font-semibold">
+        Suas apresentações
+      </h2>
+      {load.status === "loading" && <LoadingState label="Carregando apresentações…" />}
+      {/* Discreet: history is secondary; never replace it with made-up rows. */}
+      {load.status === "error" && (
+        <p className="text-sm text-muted">Histórico indisponível no momento ({errorMessage(load.error)}).</p>
+      )}
+      {load.status === "ready" &&
+        (load.data.length === 0 ? (
+          <p className="text-muted">Ninguém cantou esta música ainda.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {load.data.map((p) => (
+              <li key={p.performanceId} className="flex flex-wrap items-center gap-3 rounded-md bg-surface-2 px-4 py-3">
+                <span className="w-16 font-display text-xl font-bold tabular-nums">{formatScore(p.score)}</span>
+                <span className="flex-1">
+                  {p.participantName ?? "Anônimo"}{" "}
+                  <span className="text-muted">
+                    · {difficultyText[p.difficulty]} · {dateTime.format(p.createdMs)}
+                  </span>
+                </span>
+                {!p.competitive && <Badge tone="warning">Treino</Badge>}
+                {!p.isCurrentKey && <Badge>Versão anterior</Badge>}
+              </li>
+            ))}
+          </ul>
+        ))}
+    </section>
+  );
+}
+

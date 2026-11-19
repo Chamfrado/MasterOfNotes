@@ -11,6 +11,7 @@ vi.mock("../lib/ipc", () => ({
   getSettings: vi.fn(),
   getLeaderboard: vi.fn(),
   listParticipants: vi.fn(),
+  listPerformances: vi.fn(),
   updateSong: vi.fn(),
 }));
 vi.mock("@tauri-apps/api/window", () => ({ getCurrentWindow: () => ({}) })); // Player module import
@@ -51,6 +52,7 @@ beforeEach(() => {
   vi.mocked(ipc.listSongs).mockResolvedValue([song()]);
   vi.mocked(ipc.getSettings).mockResolvedValue({ difficulty: "hard" } as ipc.AppSettings);
   vi.mocked(ipc.getLeaderboard).mockResolvedValue(rows);
+  vi.mocked(ipc.listPerformances).mockResolvedValue([]);
   vi.mocked(ipc.listParticipants).mockResolvedValue([
     { id: 1, name: "Bia" },
     { id: 2, name: "Zeca" },
@@ -65,7 +67,7 @@ describe("SongDetails", () => {
     expect(screen.getByText("3:05")).toBeInTheDocument();
     expect(screen.getByText("3 MB")).toBeInTheDocument();
     expect(screen.getByText("Referência validada")).toBeInTheDocument();
-    expect(ipc.getLeaderboard).toHaveBeenCalledWith("s1", "hard");
+    await vi.waitFor(() => expect(ipc.getLeaderboard).toHaveBeenCalledWith("s1", "hard"));
     const table = await screen.findByRole("table", { name: "Top 5 de Aquarela" });
     expect(within(table).getAllByRole("row")).toHaveLength(6); // header + 5
     expect(screen.getByText(/Recorde da música/)).toHaveTextContent("Ana");
@@ -111,6 +113,46 @@ describe("SongDetails", () => {
     vi.mocked(ipc.getLeaderboard).mockRejectedValue({ code: "db", message: "Banco ocupado." });
     renderDetails();
     expect(await screen.findByText("Banco ocupado.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Cantar" })).toBeEnabled();
+  });
+
+  it("lists the last 10 performances with practice and older-version flags", async () => {
+    const row = (over: Partial<ipc.PerformanceRow>): ipc.PerformanceRow => ({
+      performanceId: 1,
+      songId: "s1",
+      songTitle: "Aquarela",
+      participantName: "Ana",
+      score: 88.4,
+      competitive: true,
+      algorithmVersion: 2,
+      referenceRevision: 2,
+      difficulty: "normal",
+      createdMs: 0,
+      isCurrentKey: true,
+      ...over,
+    });
+    vi.mocked(ipc.listPerformances).mockResolvedValue([
+      row({}),
+      row({ performanceId: 2, participantName: null, competitive: false }),
+      row({ performanceId: 3, isCurrentKey: false, score: 70 }),
+    ]);
+    renderDetails();
+    const list = within(await screen.findByRole("region", { name: "Suas apresentações" }));
+    expect(ipc.listPerformances).toHaveBeenCalledWith({ songId: "s1", limit: 10 });
+    await vi.waitFor(() => expect(list.getAllByRole("listitem")).toHaveLength(3));
+    const items = list.getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("88,4");
+    expect(items[0]).not.toHaveTextContent("Treino");
+    expect(items[1]).toHaveTextContent("Anônimo");
+    expect(items[1]).toHaveTextContent("Treino");
+    expect(items[2]).toHaveTextContent("Versão anterior");
+  });
+
+  it("turns a missing history command into a discreet empty state", async () => {
+    vi.mocked(ipc.listPerformances).mockRejectedValue("Command list_performances not found");
+    renderDetails();
+    expect(await screen.findByText(/Histórico indisponível no momento \(Command list_performances not found\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Cantar" })).toBeEnabled();
   });
 
