@@ -171,7 +171,12 @@ pub fn prepare(
     let s = settings::load(conn)?;
     let active = reference::active(conn, &args.song_id)?;
     let (competitive, reason) = match active.as_ref().map(|r| r.status.as_str()) {
-        Some("validated") => (true, None),
+        // SPEC-006 A2: the guide vocal must not leak into the microphone.
+        Some("validated") if s.leak_check_ok() => (true, None),
+        Some("validated") => (
+            false,
+            Some("Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking."),
+        ),
         Some("invalid") => (
             false,
             Some(
@@ -411,7 +416,57 @@ mod tests {
             )
             .unwrap();
         }
+        // Passed leak check for the default device at full volume (competitive gate).
+        let mut conn = conn;
+        set(&mut conn, check(None, 1.0, true));
         (dir, conn)
+    }
+
+    fn set(conn: &mut Connection, v: serde_json::Value) {
+        settings::write(conn, v.as_object().cloned().unwrap()).unwrap();
+    }
+
+    fn check(device: Option<&str>, volume: f64, passed: bool) -> serde_json::Value {
+        serde_json::json!({"leakCheck": {"deviceId": device, "videoVolume": volume, "passed": passed, "atMs": 1}})
+    }
+
+    #[test]
+    fn leak_check_gates_competitive() {
+        let reason_leak =
+            "Faça o teste de vazamento do microfone (ou use fones) para pontuar no ranking.";
+        let competitive = |conn: &Connection| prepare(conn, &args()).unwrap().2;
+        let (_d, mut conn) = env(Some("validated"), Some(10_000));
+
+        set(&mut conn, check(None, 0.6, true));
+        set(&mut conn, serde_json::json!({"videoVolume": 0.65}));
+        assert!(competitive(&conn).competitive, "volume within +0.05");
+        set(&mut conn, serde_json::json!({"videoVolume": 0.7}));
+        let s = competitive(&conn);
+        assert!(!s.competitive, "louder than checked");
+        assert_eq!(s.reason.as_deref(), Some(reason_leak));
+
+        set(&mut conn, serde_json::json!({"videoVolume": 0.5}));
+        set(&mut conn, check(None, 0.6, false));
+        assert!(!competitive(&conn).competitive, "failed check");
+        set(&mut conn, check(Some("USB Mic"), 0.6, true));
+        assert!(!competitive(&conn).competitive, "checked another device");
+        set(&mut conn, serde_json::json!({"inputDeviceId": "USB Mic"}));
+        assert!(competitive(&conn).competitive, "same device");
+
+        // Never checked → training.
+        conn.execute("DELETE FROM settings WHERE key = 'leakCheck'", [])
+            .unwrap();
+        assert!(!competitive(&conn).competitive);
+    }
+
+    #[test]
+    fn leak_check_is_read_only_for_update_settings() {
+        let (_d, mut conn) = env(None, None);
+        let patch = check(None, 1.0, true).as_object().cloned().unwrap();
+        assert_eq!(
+            settings::update(&mut conn, patch).unwrap_err().code,
+            "invalid_setting"
+        );
     }
 
     fn prepare_err(conn: &Connection, a: &StartPerformance) -> &'static str {
