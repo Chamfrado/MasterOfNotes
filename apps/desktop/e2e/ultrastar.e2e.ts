@@ -3,8 +3,8 @@
 import { expect, test } from "@playwright/test";
 import type { RefNote } from "../src/lib/ipc";
 import { DUET_NOTICE, installFakeBackend } from "./fake-backend";
-import { fullSpec } from "./fixtures";
-import { mockTauri, withIpc } from "./tauri-mock";
+import { fullSpec, nav } from "./fixtures";
+import { ipcCalls, mockTauri, setReply, useSyntheticVideo, withIpc } from "./tauri-mock";
 
 /** basic.txt of the fixtures (SPEC-013 criterion: BPM 300, GAP 1000). */
 const basic: RefNote[] = [
@@ -32,4 +32,48 @@ test("contrato: .txt vira referência UltraStar ativa; dueto traz o aviso; linha
   expect(await imp("invalid-truncated-line.txt")).toEqual({
     rejected: { code: "invalid_reference", message: "Referência inválida: linha 4: a nota precisa de início, duração, altura e sílaba." },
   });
+});
+
+// ---------- UI (T-013-03) ----------
+
+const ALIGN_HINT =
+  "Arquivos UltraStar costumam seguir o tempo da gravação original, não o deste vídeo. Use Alinhar automaticamente antes de validar.";
+
+async function openSongReference(page: import("@playwright/test").Page, pick: string) {
+  await installFakeBackend(page, [], { ultrastar });
+  const tracker = await mockTauri(page, fullSpec({ "plugin:dialog|open": { ok: `C:/Karaoke/${pick}` }, upload_song_audio: { ok: "tok" } }));
+  await page.goto("/");
+  await useSyntheticVideo(page, 1000, true);
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: "Referência de Canção da Manhã" }).click();
+  await expect(page.getByRole("heading", { level: 1, name: "Canção da Manhã" })).toBeVisible();
+  return tracker;
+}
+
+test("UI: importar UltraStar → selo UltraStar + sugestão de alinhar, que some ao Alinhar automaticamente", async ({ page }) => {
+  const { pageErrors } = await openSongReference(page, "basic.txt");
+  await page.getByRole("button", { name: "Importar referência" }).click();
+  const [dialog] = await ipcCalls(page, "plugin:dialog|open");
+  expect(JSON.stringify(dialog.args)).toContain('"extensions":["mid","midi","json","txt"]');
+  for (const badge of ["UltraStar", "Referência experimental", "3 notas"]) await expect(page.getByText(badge, { exact: true })).toBeVisible();
+  const hint = page.getByRole("status").filter({ hasText: "Arquivos UltraStar costumam seguir" });
+  await expect(hint).toHaveText(ALIGN_HINT);
+  expect(await ipcCalls(page, "list_midi_tracks")).toEqual([]); // .txt: no track choice
+  await page.getByRole("button", { name: "Alinhar automaticamente" }).click();
+  await expect(hint).toHaveCount(0);
+  await expect(page.getByText(/Proposta: \+1200 ms/)).toBeVisible(); // the fake's default proposal
+  expect(pageErrors).toEqual([]);
+});
+
+test("UI: dueto UltraStar mostra o aviso; linha inválida mostra o erro com o número da linha e nada muda", async ({ page }) => {
+  const { pageErrors } = await openSongReference(page, "duet.txt");
+  await page.getByRole("button", { name: "Importar referência" }).click();
+  await expect(page.getByText(DUET_NOTICE)).toBeVisible();
+  await expect(page.getByText("2 notas", { exact: true })).toBeVisible();
+
+  await setReply(page, "plugin:dialog|open", { ok: "C:/Karaoke/invalid-truncated-line.txt" });
+  await page.getByRole("button", { name: "Importar outra" }).click();
+  await expect(page.getByText("Referência inválida: linha 4: a nota precisa de início, duração, altura e sílaba.")).toBeVisible();
+  await expect(page.getByText("2 notas", { exact: true })).toBeVisible(); // the duet import is still the active one
+  expect(pageErrors).toEqual([]);
 });
