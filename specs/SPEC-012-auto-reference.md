@@ -32,13 +32,13 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-012-01 | `song-analysis`: runtime ONNX + separação em trechos + nível de voz + transcrição + testes (modelo real só em `#[ignore]`) | Agente 2 | review |
-| T-012-02 | `song-analysis`: alinhamento por busca de defasagem em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | review |
-| T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | review |
-| T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | review |
-| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | review |
-| T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | review |
-| T-012-07 | `song-analysis`: QA M1 (andamento diferente → confiança ≤ 0,3, busca por metade) + M4 (buffer de trecho reutilizável, pico menor) | Agente 2 | review |
+| T-012-01 | `song-analysis`: runtime ONNX + separação em trechos + nível de voz + transcrição + testes (modelo real só em `#[ignore]`) | Agente 2 | done |
+| T-012-02 | `song-analysis`: alinhamento por busca de defasagem em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | done |
+| T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | done |
+| T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | done |
+| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | done |
+| T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | done |
+| T-012-07 | `song-analysis`: QA M1 (andamento diferente → confiança ≤ 0,3, busca por metade) + M4 (buffer de trecho reutilizável, pico menor) | Agente 2 | done |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
@@ -150,3 +150,4 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
     - Pico em 4 min: 1352 → **1313 MiB**. Em 10 min: 1535 → **1435 MiB**.
     - Crescimento: ~30 → ~20 MiB/min.
     - Saída idêntica: a energia dos vocais bate em 6 casas.
+- SPEC-012 done (Agente 0, 2026-11-20): T-012-01..07 integradas na 0.1.3. Portões: pnpm check exit 0, Playwright 143/143, QA independente com o modelo real sem achados ALTOS (precisão de 99,3%; sem voz detectado; armadilhas de alinhamento com confiança baixa; pico de 1313 MiB em 4 min). ⏳ voz real com verdade anotada (proprietário).
