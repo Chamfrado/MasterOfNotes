@@ -1,6 +1,7 @@
 // Shared e2e data. Invented titles and names (Law 19): no third-party content.
 import { expect, type Page } from "@playwright/test";
 import type { AppSettings, InputDevice, LeaderboardRow, PerformanceOutcome, Song } from "../src/lib/ipc";
+import { knownModel } from "./fake-backend";
 import type { MockSpec } from "./tauri-mock";
 
 export const settings = (libraryFolder: string | null, extra: Partial<AppSettings> = {}): AppSettings => ({
@@ -79,6 +80,7 @@ export const fullSpec = (extra: MockSpec = {}): MockSpec => ({
   sync_performance: { ok: null },
   finish_performance: { ok: outcome },
   abort_performance: { ok: null },
+  list_known_separation_models: { ok: [knownModel] },
   ...extra,
 });
 

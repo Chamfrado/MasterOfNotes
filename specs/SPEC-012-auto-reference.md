@@ -36,12 +36,37 @@ Critérios:
 | T-012-02 | `song-analysis`: alinhamento por busca de defasagem em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | review |
 | T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | review |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | review |
-| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | todo |
+| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | doing |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | todo |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
 - 2026-11-20 · Agente 2 · T-012-01/02 em `review`. O crate `crates/song-analysis` segue a API do contracts.md §2.5. Extra aprovado pelo coordenador: a variante `AnalysisError::Input`. O limiar de confiança 0,5 é da UI (contracts.md §2.5); no crate ele fica só nos testes. Evidência completa em [docs/testing/auto-reference.md](../docs/testing/auto-reference.md).
+- T-012-04 `review` (Agente 3, 2026-11-20):
+  - **Ajustes → Referência automática** (R1/R8): explicação simples; para cada modelo conhecido, nome, tamanho, licença, arquivo e SHA-256, mais "Abrir página do modelo" (`openUrl` da fonte). Avisa que o modelo é de terceiros e que o app nunca baixa nem envia o modelo. Checkbox obrigatório "Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade.", que habilita "Escolher arquivo baixado…" (diálogo `.onnx`) → `installSeparationModel(path, true)`. Recusas do Rust aparecem em toast. Com modelo instalado: nome, data e "Remover". A rota `settings` aceita `section: "autoReference"`, que foca o título da seção.
+  - **Referência → Gerar automaticamente** (R2–R4): sem modelo, leva a Ajustes, já na seção. Com modelo, abre um painel com a explicação e "Começar". Se já existe referência, avisa que a atual vai para o histórico. As etapas aparecem como "Etapa n de 4: Extraindo áudio / Separando a voz / Transcrevendo / Salvando (x%)", com `<progress>` (indeterminado na extração) e Cancelar. Cancelar e sair da tela abortam o fetch e chamam `cancelGenerateReference`.
+  - Resultado da geração: a referência volta ao editor, com o selo "Extraída" + experimental e o tempo gasto no toast. `reference: null` mostra o `reason` (R3) e "Tentar de novo". `model_not_installed` oferece "Abrir Ajustes".
+  - **Alinhar automaticamente** (R5): botão no cartão do offset. Mostra "Proposta: +X ms (confiança Y%)" e o piano roll já usa o valor, ainda não salvo. "Aplicar" chama `setReferenceOffset`; "Descartar" volta ao offset anterior. Confiança abaixo de 50% mostra um aviso (❓ limiar a calibrar no T-012-05). Se a proposta for igual ao offset atual, só avisa que já confere.
+  - **Áudio** (R6, `src/songAudio.ts`): `fetch(videoSrc)` → `decodeAudioData` num `OfflineAudioContext` de 44,1 kHz (reamostra), mono por downmix do Web Audio, `uploadSongAudio`. A referência ao arquivo codificado é largada logo após decodificar. A UI espelha o cache de 1 item do Rust (`{songId, token}`), reusa o token no alinhar e extrai de novo uma única vez em `audio_token_invalid`. Depende da CSP `connect-src asset: http://asset.localhost` (aprovada; aplicada pelo Agente 1).
+  - Testes: `songAudio.test.ts` (7), `Settings.test.tsx` (+4), `Reference.test.tsx` (+8).
+  - ⏳ Não visto no WebView2 real com o modelo e o backend do T-012-03; decodeAudioData de MP4/MKV no WebView2 ainda não conferido; e2e/fake-backend é o T-012-05.
+- T-012-05 `doing` (Agente 4, 2026-11-20), parte 1 de 3 pronta.
+  - Fake: `e2e/fake-backend.ts` simula os commands novos do `ipc.ts`.
+    - Modelo: listar os conhecidos; instalar só um modelo conhecido e com aceite, senão erro em pt-BR; remover.
+    - `upload_song_audio`: IPC raw (`Uint8Array` + cabeçalho `song-id`); o `tauri-mock.ts` agora repassa as `options` e aguarda handlers assíncronos.
+    - `generate_reference`: progresso por etapa, cancelamento e o caso "sem voz".
+    - `auto_align_reference` só propõe; `set_reference_offset` sobe a revisão.
+  - Teste: `e2e/auto-reference.e2e.ts` exercita o contrato pelo cliente real `src/lib/ipc.ts` (3 testes).
+  - Plano de E2E/a11y da UI e da QA independente em [song-analysis-qa-plan.md](../docs/testing/evidence/song-analysis-qa-plan.md); o harness de sondas está pronto em rascunho.
+  - ⏳ E2E/a11y esperam a T-012-04; as sondas esperam a T-012-01/02, e as com modelo esperam o comando de download e o SHA do Agente 2.
+  - Códigos de erro do fake alinhados ao contrato (§2.5): cancelled, terms_not_accepted, model_unknown, model_not_installed, audio_invalid, audio_token_invalid, busy, not_found.
+- T-012-05, parte 2 de 3 pronta (Agente 4, 2026-11-20): E2E/a11y da UI, escritos sobre um merge local da agent-3/work @ 338aad6.
+  - `auto-reference.e2e.ts`: +6 testes de UI cobrindo Ajustes, Gerar (etapas, foco, sem voz, cancelar, sair da tela, sem modelo → Ajustes) e Alinhar (prévia, Descartar, confiança baixa, Aplicar).
+  - `a11y.e2e.ts`: +4 telas. A sonda de teclado agora conta controles de mídia, faz uma volta completa e detecta contorno de foco cortado.
+  - Playwright chromium: 143 passed.
+  - Achados de UI F1 (foco cai no body ao Começar), F2 (erro de decodificação em inglês) e F3 (foco do vídeo da prévia sem contorno visível, já existia), todos médios, ficam como `test.fail` em [song-analysis-qa-plan.md](../docs/testing/evidence/song-analysis-qa-plan.md) §2.
+  - ⏳ Parte 3: QA do `song-analysis`.
+- 2026-11-20 · Agente 2 · T-012-01/02 em `review`. O crate `crates/song-analysis` segue a API do contracts.md §2.5. Há dois extras, propostos ao coordenador: as variantes `AnalysisError::Input` e `pub const LOW_CONFIDENCE: f32 = 0.5`. Evidência completa em [docs/testing/auto-reference.md](../docs/testing/auto-reference.md).
   - **R7 com o modelo real** (`#[ignore]`):
     - voz-guia sintética: **precisão 98,3%**, recall 77,2%, cantor perfeito 98,2;
     - pico de **1353 MiB**;
