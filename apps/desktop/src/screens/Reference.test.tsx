@@ -7,6 +7,7 @@ import { NavContext } from "../nav";
 import { Reference, rollLayout } from "./Reference";
 
 const replace = vi.fn();
+const navigate = vi.fn();
 vi.mock("../lib/ipc", () => ({
   listSongs: vi.fn(),
   getReference: vi.fn(),
@@ -18,10 +19,21 @@ vi.mock("../lib/ipc", () => ({
   syncPerformance: vi.fn(),
   finishPerformance: vi.fn(),
   abortPerformance: vi.fn(),
+  getSettings: vi.fn(),
+  generateReference: vi.fn(),
+  cancelGenerateReference: vi.fn(),
+  autoAlignReference: vi.fn(),
   videoSrc: () => "asset://v.mp4",
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 import { open } from "@tauri-apps/plugin-dialog";
+// The WebView decode/upload is covered in songAudio.test.ts; here it just hands out a token.
+vi.mock("../songAudio", () => ({
+  withSongAudio: vi.fn((_song: unknown, fn: (t: string) => unknown, opts?: { onExtract?: () => void }) => {
+    opts?.onExtract?.();
+    return fn("tok");
+  }),
+}));
 
 const song = { id: "s1", title: "Aquarela", available: true } as ipc.Song;
 const ref = (over: Partial<ipc.MelodyReference> = {}): ipc.MelodyReference => ({
@@ -37,7 +49,7 @@ const ref = (over: Partial<ipc.MelodyReference> = {}): ipc.MelodyReference => ({
 
 const renderRef = () =>
   render(
-    <NavContext.Provider value={{ route: { name: "reference", songId: "s1" }, navigate: vi.fn(), replace, back: vi.fn() }}>
+    <NavContext.Provider value={{ route: { name: "reference", songId: "s1" }, navigate, replace, back: vi.fn() }}>
       <ToastProvider>
         <Reference songId="s1" />
       </ToastProvider>
@@ -47,6 +59,8 @@ const renderRef = () =>
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(ipc.listSongs).mockResolvedValue([song]);
+  vi.mocked(ipc.getSettings).mockResolvedValue({ separationModel: null } as ipc.AppSettings);
+  vi.mocked(ipc.cancelGenerateReference).mockResolvedValue();
 });
 
 describe("rollLayout", () => {
@@ -245,5 +259,155 @@ describe("Gravar cantando (R8)", () => {
     await vi.waitFor(() => expect(ipc.abortPerformance).toHaveBeenCalledTimes(1));
     expect(ipc.finishPerformance).not.toHaveBeenCalled();
     expect(screen.getByText("Referência validada")).toBeInTheDocument();
+  });
+});
+
+describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
+  const withModel = () =>
+    vi.mocked(ipc.getSettings).mockResolvedValue({ separationModel: { id: "m", name: "X", acceptedMs: 0 } } as ipc.AppSettings);
+
+  it("without a model, sends the user to Ajustes -> Referencia automatica", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    expect(navigate).toHaveBeenCalledWith({ name: "settings", section: "autoReference" });
+    expect(ipc.generateReference).not.toHaveBeenCalled();
+  });
+
+  it("warns about the current reference, shows progress per stage, then the extracted notes as experimental", async () => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ status: "validated" }));
+    let progress: (p: ipc.AutoReferenceProgress) => void = () => {};
+    let finish: (o: ipc.AutoReferenceOutcome) => void = () => {};
+    vi.mocked(ipc.generateReference).mockImplementation((_id, _token, onProgress) => {
+      progress = onProgress;
+      return new Promise((ok) => (finish = ok));
+    });
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    expect(screen.getByText("A referência atual vai para o histórico; a nova nasce experimental.")).toBeInTheDocument();
+    expect(screen.getByText("Fique nesta tela até terminar: se sair, a geração será cancelada.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    expect(ipc.generateReference).toHaveBeenCalledWith("s1", "tok", expect.any(Function));
+    act(() => progress({ stage: "separating", fraction: 0.4 }));
+    expect(screen.getByText("Etapa 2 de 4: Separando a voz (40%)")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Separando a voz" })).toHaveAttribute("value", "0.4");
+    act(() => progress({ stage: "transcribing", fraction: 1 }));
+    expect(screen.getByText("Etapa 3 de 4: Transcrevendo (100%)")).toBeInTheDocument();
+    await act(async () =>
+      finish({ reference: ref({ id: 20, source: "extracted", status: "experimental" }), reason: null, voiceLevelDb: -8, elapsedMs: 151_000 }),
+    );
+    expect(await screen.findByText("Extraída")).toBeInTheDocument();
+    expect(screen.getByText("Referência experimental")).toBeInTheDocument();
+    expect(screen.getByText(/Referência gerada em 2:31/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validar alinhamento" })).toBeEnabled();
+  });
+
+  it("shows the reason when nothing was saved (instrumental video)", async () => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    vi.mocked(ipc.generateReference).mockResolvedValue({
+      reference: null,
+      reason: "Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI.",
+      voiceLevelDb: -41,
+      elapsedMs: 60_000,
+    });
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    expect(await screen.findByText(/Este vídeo não tem a voz da melodia/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+  });
+
+  it("a model file that disappeared points back to Ajustes", async () => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    vi.mocked(ipc.generateReference).mockRejectedValue({ code: "model_not_installed", message: "O modelo de separação não está instalado." });
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    expect(await screen.findByText("O modelo de separação não está instalado.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Abrir Ajustes" }));
+    expect(navigate).toHaveBeenCalledWith({ name: "settings", section: "autoReference" });
+  });
+
+  /** Like Rust: the job keeps running after cancel_generate_reference until `end` rejects it with `cancelled`. */
+  const cancellableJob = () => {
+    let end = () => {};
+    vi.mocked(ipc.generateReference).mockImplementation(
+      () => new Promise((_ok, fail) => (end = () => fail({ code: "cancelled", message: "Geração cancelada." }))),
+    );
+    return () => act(async () => end());
+  };
+
+  it("cancel stops the Rust job, keeps the current reference and keeps the keyboard on the panel", async () => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ status: "validated" }));
+    const end = cancellableJob();
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    const cancel = await screen.findByRole("button", { name: "Cancelar" });
+    await vi.waitFor(() => expect(cancel).toHaveFocus()); // "Começar" unmounted: focus must not fall to <body>
+    await userEvent.click(cancel);
+    expect(ipc.cancelGenerateReference).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Geração cancelada.")).toBeInTheDocument();
+    expect(screen.getByText("Referência validada")).toBeInTheDocument();
+    await end();
+  });
+
+  it("a new start waits until the cancelled job really ended (never `busy`)", async () => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    const end = cancellableJob();
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
+    await userEvent.click(screen.getByRole("button", { name: "Gerar automaticamente" }));
+    expect(screen.getByRole("button", { name: "Começar" })).toBeDisabled();
+    expect(screen.getByText("Encerrando a geração anterior…")).toBeInTheDocument();
+    await end();
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Começar" })).toBeEnabled());
+    expect(screen.queryByText("Encerrando a geração anterior…")).not.toBeInTheDocument();
+  });
+});
+
+describe("Alinhar automaticamente (SPEC-012 R5)", () => {
+  it("previews the proposed offset unsaved, then applies it", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ offsetMs: 100 }));
+    vi.mocked(ipc.autoAlignReference).mockResolvedValue({ offsetMs: 1300, confidence: 0.82 });
+    vi.mocked(ipc.setReferenceOffset).mockResolvedValue(ref({ offsetMs: 1300, revision: 2 }));
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Alinhar automaticamente" }));
+    expect(ipc.autoAlignReference).toHaveBeenCalledWith(9, "tok");
+    expect(await screen.findByText(/confiança 82%/)).toHaveTextContent("Proposta: +1300 ms (confiança 82%)");
+    expect(screen.getByRole("slider", { name: "Offset das notas" })).toHaveAttribute("aria-valuetext", "+1300 ms");
+    expect(ipc.setReferenceOffset).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Confiança baixa/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Aplicar" }));
+    expect(ipc.setReferenceOffset).toHaveBeenCalledWith(9, 1300);
+    expect(await screen.findByText("Revisão 2")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aplicar" })).not.toBeInTheDocument();
+  });
+
+  it("discard restores the previous offset; low confidence is flagged", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ offsetMs: 100 }));
+    vi.mocked(ipc.autoAlignReference).mockResolvedValue({ offsetMs: -250, confidence: 0.3 });
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Alinhar automaticamente" }));
+    expect(await screen.findByText("Confiança baixa: confira pelo vídeo antes de aplicar.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Descartar" }));
+    expect(screen.getByRole("slider", { name: "Offset das notas" })).toHaveAttribute("aria-valuetext", "+100 ms");
+    expect(ipc.setReferenceOffset).not.toHaveBeenCalled();
+  });
+
+  it("says so when the current offset already matches", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ offsetMs: 100 }));
+    vi.mocked(ipc.autoAlignReference).mockResolvedValue({ offsetMs: 100, confidence: 0.9 });
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Alinhar automaticamente" }));
+    expect(await screen.findByText("O alinhamento atual já confere (confiança 90%).")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Aplicar" })).not.toBeInTheDocument();
   });
 });

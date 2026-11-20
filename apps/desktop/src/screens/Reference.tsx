@@ -1,13 +1,18 @@
 // SPEC-005 T-005-04: import (.mid/.midi/.json), pick the MIDI track, align the offset over the video, validate.
 // T-005-07 (R8, ADR-0004 A): or sing the melody over the video; Rust keeps only the detected notes.
+// T-012-04 (SPEC-012): or generate it from the video's own voice (third-party model), and auto-align the offset.
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState } from "react";
 import { MicMeter } from "../components/game";
-import { Badge, Button, Card, Dialog, ErrorState, LoadingState, Slider, errorMessage, useToast } from "../components/ui";
+import { Badge, Button, Card, Dialog, ErrorState, LoadingState, Progress, Slider, errorMessage, useToast } from "../components/ui";
 import {
   abortPerformance,
+  autoAlignReference,
+  cancelGenerateReference,
   finishPerformance,
+  generateReference,
   getReference,
+  getSettings,
   importReference,
   listMidiTracks,
   listSongs,
@@ -16,6 +21,8 @@ import {
   startPerformance,
   syncPerformance,
   videoSrc,
+  type AlignProposal,
+  type AutoReferenceStage,
   type MelodyReference,
   type MicFrame,
   type MidiTrackInfo,
@@ -25,7 +32,8 @@ import {
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 import { startVideoSync, warn } from "../player/sync";
-import { referenceLabel } from "./Library";
+import { withSongAudio } from "../songAudio";
+import { formatDuration, referenceLabel } from "./Library";
 
 const OFFSET_LIMIT_MS = 10_000; // R4
 const ROLL_BEFORE_MS = 2_000;
@@ -72,7 +80,7 @@ export function rollLayout(notes: RefNote[], offsetMs: number, nowMs: number, be
 }
 
 export function Reference({ songId }: { songId: string }) {
-  const [load, reload] = useAsync(() => Promise.all([listSongs(), getReference(songId)]), [songId]);
+  const [load, reload] = useAsync(() => Promise.all([listSongs(), getReference(songId), getSettings()]), [songId]);
   return (
     <div className="flex flex-col gap-8">
       {load.status === "loading" && <LoadingState label="Carregando referência…" />}
@@ -81,7 +89,7 @@ export function Reference({ songId }: { songId: string }) {
         (() => {
           const song = load.data[0].find((s) => s.id === songId);
           return song ? (
-            <Editor song={song} initial={load.data[1]} />
+            <Editor song={song} initial={load.data[1]} hasModel={load.data[2].separationModel != null} />
           ) : (
             <ErrorState title="Música não encontrada" error="Ela pode ter sido removida da pasta da biblioteca." />
           );
@@ -90,14 +98,22 @@ export function Reference({ songId }: { songId: string }) {
   );
 }
 
-function Editor({ song, initial }: { song: Song; initial: MelodyReference | null }) {
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+const signedMs = (v: number) => `${v > 0 ? "+" : ""}${v} ms`;
+const LOW_CONFIDENCE = 0.5; // ❓ below this the proposal is flagged; tune with the T-012-05 QA
+
+type AlignState = { step: "extracting" | "aligning" } | { step: "proposal"; proposal: AlignProposal; before: number };
+
+function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyReference | null; hasModel: boolean }) {
   const toast = useToast();
   const { navigate } = useNav();
   const [ref, setRef] = useState(initial);
   const [offset, setOffset] = useState(initial?.offsetMs ?? 0);
   const [busy, setBusy] = useState(false);
   const [tracks, setTracks] = useState<{ path: string; list: MidiTrackInfo[] } | null>(null);
-  const [capturing, setCapturing] = useState(false);
+  const [panel, setPanel] = useState<"sing" | "generate" | null>(null);
+  const [align, setAlign] = useState<AlignState | null>(null);
+  const capturing = panel != null;
   const dirty = ref != null && offset !== ref.offsetMs;
 
   const run = async (fn: () => Promise<MelodyReference>, done: string) => {
@@ -106,11 +122,52 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
       const r = await fn();
       setRef(r);
       setOffset(r.offsetMs);
+      setAlign(null); // a pending proposal no longer applies to the changed reference
       toast(done, "success");
     } catch (e) {
       toast(errorMessage(e), "error");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const done = (r: MelodyReference, message: string) => {
+    setRef(r);
+    setOffset(r.offsetMs);
+    setAlign(null);
+    setPanel(null);
+    toast(message, "success");
+  };
+
+  const generate = () => {
+    if (hasModel) return setPanel("generate");
+    toast("Instale um modelo de separação de voz para gerar a referência automaticamente.");
+    navigate({ name: "settings", section: "autoReference" });
+  };
+
+  /** R5: propose an offset; the preview uses it unsaved, the user applies or discards. */
+  const autoAlign = async (r: MelodyReference) => {
+    const before = offset;
+    setAlign({ step: "aligning" });
+    try {
+      const proposal = await withSongAudio(
+        song,
+        (token) => {
+          setAlign({ step: "aligning" });
+          return autoAlignReference(r.id, token);
+        },
+        { onExtract: () => setAlign({ step: "extracting" }) },
+      );
+      if (proposal.offsetMs === r.offsetMs) {
+        setAlign(null);
+        toast(`O alinhamento atual já confere (confiança ${pct(proposal.confidence)}).`, "success");
+        return;
+      }
+      setOffset(proposal.offsetMs);
+      setAlign({ step: "proposal", proposal, before });
+    } catch (e) {
+      setAlign(null);
+      toast(errorMessage(e), "error");
     }
   };
 
@@ -152,8 +209,11 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
           <Button onClick={() => navigate({ name: "player", songId: song.id })} disabled={capturing}>
             Cantar
           </Button>
-          <Button onClick={() => setCapturing(true)} disabled={busy || capturing}>
+          <Button onClick={() => setPanel("sing")} disabled={busy || capturing}>
             {ref?.source === "manual" ? "Gravar de novo" : "Gravar cantando"}
+          </Button>
+          <Button onClick={generate} disabled={busy || capturing}>
+            Gerar automaticamente
           </Button>
           <Button variant={ref ? "secondary" : "primary"} onClick={pickFile} disabled={busy || capturing}>
             {ref ? "Importar outra" : "Importar referência"}
@@ -161,24 +221,32 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
         </div>
       </header>
 
-      {capturing ? (
+      {panel === "sing" ? (
         <SingCapture
           song={song}
           replacing={ref != null}
-          onCancel={() => setCapturing(false)}
-          onDone={(r) => {
-            setRef(r);
-            setOffset(r.offsetMs);
-            setCapturing(false);
-            toast("Notas gravadas. Confira o alinhamento e valide.", "success");
+          onCancel={() => setPanel(null)}
+          onDone={(r) => done(r, "Notas gravadas. Confira o alinhamento e valide.")}
+        />
+      ) : panel === "generate" ? (
+        <AutoGenerate
+          song={song}
+          replacing={ref != null}
+          onCancel={(wasWorking) => {
+            setPanel(null);
+            if (wasWorking) toast("Geração cancelada.");
           }}
+          onDone={(r, elapsedMs) =>
+            done(r, `Referência gerada em ${formatDuration(elapsedMs)}. Pode ter erros: confira sobre o vídeo e valide.`)
+          }
         />
       ) : !ref ? (
         <Card className="flex max-w-2xl flex-col gap-3">
           <h2 className="font-display text-2xl font-semibold">Sem referência</h2>
           <p className="text-muted">
             Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz) ou um JSON
-            no formato mon-melody v1, ou grave cantando a melodia junto com o vídeo.
+            no formato mon-melody v1, grave cantando a melodia junto com o vídeo ou gere automaticamente a partir da voz do
+            vídeo.
           </p>
         </Card>
       ) : (
@@ -198,7 +266,7 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
               step={10}
               value={offset}
               onChange={setOffset}
-              format={(v) => `${v > 0 ? "+" : ""}${v} ms`}
+              format={signedMs}
             />
             <div role="group" aria-label="Ajuste fino do offset" className="flex flex-wrap gap-2">
               {[-100, -10, 10, 100].map((d) => (
@@ -212,6 +280,41 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
               ))}
             </div>
             <p className="text-sm text-muted">Positivo atrasa as notas; negativo adianta. Salvar volta o status para experimental.</p>
+            <div role="status" className="flex flex-col gap-3">
+              {align?.step === "extracting" && <Progress label="Extraindo áudio do vídeo" />}
+              {align && align.step !== "proposal" && (
+                <p className="text-muted">{align.step === "extracting" ? "Extraindo áudio do vídeo…" : "Calculando o alinhamento…"}</p>
+              )}
+              {align?.step === "proposal" && (
+                <div className="flex flex-col gap-3 rounded-md bg-surface-2 px-4 py-3">
+                  <p>
+                    Proposta: <strong>{signedMs(align.proposal.offsetMs)}</strong> (confiança {pct(align.proposal.confidence)}). A
+                    prévia já usa esse valor.
+                  </p>
+                  {align.proposal.confidence < LOW_CONFIDENCE && (
+                    <p className="text-sm text-warning">Confiança baixa: confira pelo vídeo antes de aplicar.</p>
+                  )}
+                  <div className="flex flex-wrap gap-3">
+                    <Button
+                      variant="primary"
+                      disabled={busy}
+                      onClick={() => run(() => setReferenceOffset(ref.id, align.proposal.offsetMs), "Offset aplicado. Confira e valide de novo.")}
+                    >
+                      Aplicar
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setOffset(align.before);
+                        setAlign(null);
+                      }}
+                    >
+                      Descartar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="flex flex-wrap gap-3">
               <Button
                 variant="primary"
@@ -220,11 +323,14 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
               >
                 Salvar offset
               </Button>
-              {dirty && (
+              {dirty && align?.step !== "proposal" && (
                 <Button variant="ghost" onClick={() => setOffset(ref.offsetMs)}>
                   Desfazer
                 </Button>
               )}
+              <Button disabled={busy || align != null} onClick={() => autoAlign(ref)}>
+                Alinhar automaticamente
+              </Button>
             </div>
             <hr className="border-line" />
             <p className="text-muted">Quando as notas acompanharem a voz do vídeo, valide para liberar o ranking.</p>
@@ -277,6 +383,147 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
   );
 }
 
+type GenerateStep =
+  | { step: "intro" }
+  | { step: "extracting" }
+  | { step: "running"; stage: AutoReferenceStage; fraction: number }
+  | { step: "failed"; reason: string; needsModel?: boolean };
+
+/** The last cancelled generation until Rust really ends it (generateReference rejects with `cancelled`). Module scope: survives leaving the screen. */
+let stopping: Promise<void> | null = null;
+
+const STAGES = ["extracting", "separating", "transcribing", "saving"] as const;
+const stageText: Record<(typeof STAGES)[number], string> = {
+  extracting: "Extraindo áudio",
+  separating: "Separando a voz",
+  transcribing: "Transcrevendo",
+  saving: "Salvando",
+};
+
+/** SPEC-012 R2-R4: decode the video's audio, then the Rust job (progress per stage, cancel). Leaving the screen cancels. */
+function AutoGenerate({
+  song,
+  replacing,
+  onDone,
+  onCancel,
+}: {
+  song: Song;
+  replacing: boolean;
+  onDone: (r: MelodyReference, elapsedMs: number) => void;
+  onCancel: (wasWorking: boolean) => void;
+}) {
+  const { navigate } = useNav();
+  const [state, setState] = useState<GenerateStep>({ step: "intro" });
+  const [waiting, setWaiting] = useState(stopping != null);
+  const job = useRef<{ abort: AbortController; generating: boolean; done: Promise<unknown> } | null>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+
+  // A cancelled job may still be winding down in Rust: starting now would get `busy`.
+  useEffect(() => {
+    let alive = true;
+    stopping?.then(() => alive && setWaiting(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  /** Returns whether a job was running. */
+  const stop = () => {
+    const j = job.current;
+    if (!j) return false;
+    job.current = null;
+    j.abort.abort(); // stops the fetch / skips the upload
+    if (j.generating) cancelGenerateReference().catch(warn("cancel_generate_reference"));
+    const settled = j.done.then(
+      () => {},
+      () => {},
+    );
+    stopping = settled;
+    void settled.then(() => {
+      if (stopping === settled) stopping = null;
+    });
+    return true;
+  };
+  useEffect(() => () => void stop(), []);
+
+  const begin = async () => {
+    const j: { abort: AbortController; generating: boolean; done: Promise<unknown> } = {
+      abort: new AbortController(),
+      generating: false,
+      done: Promise.resolve(),
+    };
+    job.current = j;
+    setState({ step: "extracting" });
+    try {
+      const out = await (j.done = withSongAudio(
+        song,
+        (token) => {
+          j.generating = true;
+          setState({ step: "running", stage: "separating", fraction: 0 });
+          return generateReference(song.id, token, (p) => {
+            if (job.current === j) setState({ step: "running", ...p });
+          });
+        },
+        { signal: j.abort.signal, onExtract: () => setState({ step: "extracting" }) },
+      ));
+      if (job.current !== j) return; // cancelled meanwhile
+      job.current = null;
+      if (out.reference) onDone(out.reference, out.elapsedMs);
+      else setState({ step: "failed", reason: out.reason ?? "Nenhuma nota foi encontrada. Nada foi salvo." });
+    } catch (e) {
+      if (job.current !== j) return; // cancelled: the panel is already closed
+      job.current = null;
+      setState({ step: "failed", reason: errorMessage(e), needsModel: (e as { code?: unknown } | null)?.code === "model_not_installed" });
+    }
+  };
+
+  const stage = state.step === "extracting" ? "extracting" : state.step === "running" ? state.stage : null;
+  const working = stage != null;
+  useEffect(() => {
+    if (working) cancelButton.current?.focus(); // "Começar" unmounts; keep the keyboard on the panel
+  }, [working]);
+  return (
+    <Card className="flex max-w-2xl flex-col gap-5">
+      <h2 className="font-display text-2xl font-semibold">Gerar automaticamente</h2>
+      <p>
+        O app separa a voz do vídeo com o modelo instalado e escreve as notas. Pode levar alguns minutos. O resultado pode ter
+        erros: confira sobre o vídeo e valide antes de valer ranking.
+      </p>
+      {replacing && <p className="text-sm text-warning">A referência atual vai para o histórico; a nova nasce experimental.</p>}
+      {/* Leaving the screen cancels the job (no global job, accepted for 0.1.3): say it before and during. */}
+      <p className="text-sm text-warning">Fique nesta tela até terminar: se sair, a geração será cancelada.</p>
+      <div role="status" className="flex flex-col gap-2">
+        {stage && (
+          <>
+            <p className="font-semibold">
+              Etapa {STAGES.indexOf(stage) + 1} de {STAGES.length}: {stageText[stage]}
+              {state.step === "running" && ` (${pct(state.fraction)})`}
+            </p>
+            <Progress label={stageText[stage]} value={state.step === "running" ? state.fraction : undefined} />
+          </>
+        )}
+        {waiting && !working && <p className="text-muted">Encerrando a geração anterior…</p>}
+        {state.step === "failed" && <p className="text-danger">{state.reason}</p>}
+        {state.step === "failed" && state.needsModel && (
+          <Button className="self-start" onClick={() => navigate({ name: "settings", section: "autoReference" })}>
+            Abrir Ajustes
+          </Button>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {!working && (
+          <Button variant="primary" autoFocus disabled={waiting} onClick={begin}>
+            {state.step === "failed" ? "Tentar de novo" : "Começar"}
+          </Button>
+        )}
+        <Button ref={cancelButton} variant="ghost" onClick={() => onCancel(stop())}>
+          Cancelar
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 type CaptureStep =
   | { step: "intro" }
   | { step: "countdown"; n: number }
@@ -301,6 +548,11 @@ function SingCapture({
   const open = useRef(false); // a Rust capture is open and must be finished or aborted
   const [state, setState] = useState<CaptureStep>({ step: "intro" });
   const [frame, setFrame] = useState<MicFrame | null>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const counting = state.step === "countdown";
+  useEffect(() => {
+    if (counting) cancelButton.current?.focus(); // "Começar" unmounts; "Parar" takes over (autoFocus) when recording starts
+  }, [counting]);
 
   useEffect(
     () => () => {
@@ -418,6 +670,7 @@ function SingCapture({
           )}
           {state.step !== "saving" && (
             <Button
+              ref={cancelButton}
               variant="ghost"
               onClick={() => {
                 abort();
@@ -468,13 +721,14 @@ function AlignPreview({ song, notes, offsetMs }: { song: Song; notes: RefNote[];
     return () => cancelAnimationFrame(raf);
   }, [notes]);
 
+  // No overflow-hidden on the frame: it would clip the focus ring of the native video controls (T-012-05 F3); the video rounds itself.
   return (
-    <div className="relative overflow-hidden rounded-lg border border-line bg-black">
-      <video ref={video} src={videoSrc(song)} controls className="aspect-video w-full" aria-label={`Vídeo de ${song.title}`} />
+    <div className="relative rounded-lg border border-line bg-black">
+      <video ref={video} src={videoSrc(song)} controls className="aspect-video w-full rounded-lg" aria-label={`Vídeo de ${song.title}`} />
       <canvas
         ref={canvas}
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-2/5 w-full bg-linear-to-b from-bg/70 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-2/5 w-full rounded-t-lg bg-linear-to-b from-bg/70 to-transparent"
       />
     </div>
   );

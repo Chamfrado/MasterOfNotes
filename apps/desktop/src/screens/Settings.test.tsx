@@ -8,7 +8,15 @@ import { Home } from "./Home";
 import { Settings } from "./Settings";
 import { Updates } from "./Updates";
 
-vi.mock("../lib/ipc", () => ({ getSettings: vi.fn(), updateSettings: vi.fn() }));
+vi.mock("../lib/ipc", () => ({
+  getSettings: vi.fn(),
+  updateSettings: vi.fn(),
+  listKnownSeparationModels: vi.fn(),
+  installSeparationModel: vi.fn(),
+  removeSeparationModel: vi.fn(),
+}));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
+import { open } from "@tauri-apps/plugin-dialog";
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: () => Promise.resolve("0.1.0") }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn() }));
 import { check, type Update } from "@tauri-apps/plugin-updater";
@@ -30,6 +38,14 @@ const base = {
   tvMode: false,
   updateConsentAsked: false,
 } as ipc.AppSettings;
+const model: ipc.KnownSeparationModel = {
+  id: "ab12cd34",
+  name: "Separador Vocal X",
+  fileName: "vocals-x.onnx",
+  sizeBytes: 67_108_864,
+  sourceUrl: "https://example.org/vocals-x",
+  license: "MIT; pesos de terceiros",
+};
 const nav = { route: { name: "settings" as const }, navigate: vi.fn(), replace: vi.fn(), back: vi.fn() };
 const wrap = (ui: React.ReactNode) =>
   render(
@@ -43,6 +59,57 @@ beforeEach(() => {
   delete document.documentElement.dataset.tv;
   delete document.documentElement.dataset.reducedMotion;
   vi.mocked(ipc.getSettings).mockResolvedValue(base);
+  vi.mocked(ipc.listKnownSeparationModels).mockResolvedValue([model]);
+});
+
+describe("Settings → Referência automática (SPEC-012 R1)", () => {
+  it("lists the known model with license and size, links to its source, and needs the terms before choosing a file", async () => {
+    vi.mocked(open).mockResolvedValue("C:/Downloads/vocals-x.onnx");
+    vi.mocked(ipc.installSeparationModel).mockResolvedValue({ id: "ab12cd34", name: "Separador Vocal X", acceptedMs: 0 });
+    wrap(<Settings />);
+    expect(await screen.findByText("Separador Vocal X")).toBeInTheDocument();
+    expect(screen.getByText("Licença: MIT; pesos de terceiros")).toBeInTheDocument();
+    expect(screen.getByText(/64 MB/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Abrir página do modelo" }));
+    expect(openUrl).toHaveBeenCalledWith("https://example.org/vocals-x");
+
+    const choose = screen.getByRole("button", { name: "Escolher arquivo baixado…" });
+    expect(choose).toBeDisabled();
+    await userEvent.click(screen.getByRole("checkbox", { name: /Li e aceito os termos da fonte/ }));
+    await userEvent.click(choose);
+    expect(open).toHaveBeenCalledWith(expect.objectContaining({ filters: [{ name: "Modelo ONNX", extensions: ["onnx"] }] }));
+    expect(ipc.installSeparationModel).toHaveBeenCalledWith("C:/Downloads/vocals-x.onnx", true);
+    expect(await screen.findByText(/instalado em/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Remover" })).toBeInTheDocument();
+  });
+
+  it("shows Rust's refusal of an unknown file and stays uninstalled", async () => {
+    vi.mocked(open).mockResolvedValue("C:/Downloads/outro.onnx");
+    vi.mocked(ipc.installSeparationModel).mockRejectedValue({ code: "unknown_model", message: "Este arquivo não é um modelo conhecido." });
+    wrap(<Settings />);
+    await userEvent.click(await screen.findByRole("checkbox", { name: /Li e aceito/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Escolher arquivo baixado…" }));
+    expect(await screen.findByText("Este arquivo não é um modelo conhecido.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Remover" })).not.toBeInTheDocument();
+  });
+
+  it("shows the installed model and removes it", async () => {
+    vi.mocked(ipc.getSettings).mockResolvedValue({
+      ...base,
+      separationModel: { id: "ab12cd34", name: "Separador Vocal X", acceptedMs: Date.UTC(2026, 10, 20, 12) },
+    });
+    vi.mocked(ipc.removeSeparationModel).mockResolvedValue();
+    wrap(<Settings />);
+    expect(await screen.findByText("· instalado em 20/11/2026")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Remover" }));
+    expect(ipc.removeSeparationModel).toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: "Escolher arquivo baixado…" })).toBeDisabled();
+  });
+
+  it("focuses the section when opened from the Reference screen", async () => {
+    wrap(<Settings section="autoReference" />);
+    await vi.waitFor(() => expect(screen.getByRole("heading", { name: "Referência automática" })).toHaveFocus());
+  });
 });
 
 describe("Settings", () => {

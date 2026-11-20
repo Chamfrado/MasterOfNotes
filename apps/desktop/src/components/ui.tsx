@@ -11,6 +11,7 @@ import {
   type HTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
+  type Ref,
   type SelectHTMLAttributes,
 } from "react";
 
@@ -32,6 +33,7 @@ const buttonVariants: Record<ButtonVariant, string> = {
   danger: "bg-danger text-accent-fg hover:brightness-110",
 };
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+  ref?: Ref<HTMLButtonElement>; // React 19: ref is a plain prop, forwarded by the spread
   variant?: ButtonVariant;
   size?: "md" | "lg";
 }
