@@ -175,6 +175,8 @@ export interface StartPerformance {
   leakCheck?: boolean;
   /** Latency probe (T-004-07): click times in VIDEO time (ms) of the click track the UI plays. Exclusive with leakCheck. */
   latencyProbe?: number[];
+  /** Sung reference capture (ADR-0004 A): someone sings the melody; only the detected NOTES are saved (never audio). Exclusive with leakCheck/latencyProbe. */
+  referenceCapture?: boolean;
 }
 export interface PerformanceStarted {
   competitive: boolean; // false when no validated reference
@@ -204,6 +206,7 @@ export interface PerformanceOutcome {
   exploratory: ExploratoryMetrics | null; // set when result is null
   leak?: { passed: boolean; guideScore: number; reason: string | null } | null; // only on leak check runs
   latency?: LatencyVerdict | null; // only on latency probe runs; if passed, settings.latencyOffsetMs was updated
+  capturedReference?: MelodyReference | null; // only on reference capture runs: the new active reference (experimental, source manual); null if too few notes (see reason)
   personalBest: number | null;
   songRecord: number | null;
 }

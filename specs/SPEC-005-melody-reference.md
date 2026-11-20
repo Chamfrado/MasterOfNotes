@@ -16,12 +16,17 @@ Critérios:
 - Given MIDI com mudança de BPM no meio, Then os tempos das notas após a mudança estão corretos (±1 ms).
 - Given referência validada, When mudo o offset, Then status = experimental e revision + 1.
 
+- R8 (ADR-0004 A). **Cantar a referência:** na tela Referência, "Gravar cantando" toca o vídeo enquanto alguém canta a melodia; o app grava só as notas detectadas como nova referência `experimental` (fonte cantada), que depois é revisada e validada como qualquer outra. Com menos de 3 notas, nada é salvo e o app explica. O áudio nunca é gravado.
+- R9 (ADR-0004 B, 0.1.3). **Modelo opcional** baixado pelo usuário para gerar a referência de vídeos com voz. Atenção: análise jurídica do proprietário antes da comercialização.
+
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-005-01 | Tipos, parser JSON, import MIDI (`midly`, tempo map) + testes | Agente 2 | done |
 | T-005-02 | Fixtures `tests/fixtures/references/` (sintéticas, autoria própria) | Agente 2 | done |
 | T-005-03 | Commands de referência + persistência | Agente 1 | done |
+| T-005-07 | Cantar a referência: `segment_notes` + modo `reference_capture` no performance.rs (Agente 2); command e persistência (Agente 1); UI "Gravar cantando" na tela Referência (Agente 3) | Agentes 2, 1 e 3 | todo |
+| T-005-08 | Modelo opcional baixado pelo usuário (ADR-0004 B) | Agentes 2, 1 e 3 | todo (0.1.3) |
 | T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | done |
 
 ## TEST

@@ -1,6 +1,6 @@
 # ADR-0004 — Referência melódica automática
 
-- **Status:** **Proposta (rascunho do Agente 2)** · 2026-11-19 · aguarda aprovação do coordenador (Agente 0) e decisão do proprietário sobre licença de modelos.
+- **Status:** **Aceita** · 2026-11-19 · coordenador (Agente 0), com decisão do proprietário (seção final). Rascunho original: Agente 2.
 - **Contexto:**
   - O proprietário quer baixar o vídeo de karaokê e cantar, sem procurar MIDI.
   - O ADR-0002 deixou a extração automática fora do MVP, com status sempre `experimental`.
@@ -56,3 +56,16 @@
 - **HTDemucs embarcado:** melhor qualidade medida, mas pesos não comerciais e dependência do PyTorch. Descartado.
 - **Basic Pitch sem separação como fonte principal:** licença ok, qualidade insuficiente para pontuar (70–78). Descartado como principal.
 - **Áudio original do usuário + DTW:** o alinhamento funciona, mas o original ainda precisa de separação para virar notas, com o mesmo bloqueio. Útil depois para alinhar MIDI ou UltraStar importado (❓ não medido).
+
+
+## Decisão do proprietário (2026-11-19)
+
+O proprietário escolheu seguir com **três frentes**, nesta ordem:
+
+| Frente | Entrega | Escopo |
+|---|---|---|
+| **A. Cantar a referência** | 0.1.2 | Performance em modo `reference_capture`: o app ouve alguém cantar a melodia sobre o vídeo e grava **só as notas** (nunca o áudio, Lei 14) como referência `manual`, status `experimental`. Revisão e validação pela tela Referência, como hoje. Contrato em [contracts.md §2.4](../architecture/contracts.md). |
+| **B. Modelo opcional baixado pelo usuário** | 0.1.3 | O app **não distribui** pesos de terceiros. O usuário baixa da fonte original (ex.: MDX-Net ONNX), vê e aceita os termos da fonte e aponta o arquivo para o app, que confere o checksum de modelos conhecidos e roda via ONNX Runtime (`ort`), em trechos. Só para vídeos **com voz**; sem voz, o app diz que não dá. Resultado `extracted` + `experimental`, com validação pelo usuário. **Antes de comercializar o produto, o proprietário faz a análise jurídica desse modo.** |
+| **C. Modelo próprio** | pesquisa de longo prazo | Treinar separação com dados de licença comercial. Exige orçamento de dados e GPU; reavaliar quando o produto tiver escala. Não bloqueia A nem B. |
+
+O Basic Pitch sem separação fica **fora** (insuficiente: 70–78 para um cantor perfeito). Vídeos só instrumentais, sem melodia, continuam exigindo MIDI/JSON ou o modo A.
