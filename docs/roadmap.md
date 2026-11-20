@@ -23,6 +23,7 @@ Desempenho: todas as metas cumpridas (`docs/testing/performance.md`, `performanc
 Releases automáticas conforme [release-process.md](release-process.md).
 - **0.1.3:** referência automática a partir do vídeo (SPEC-012 / ADR-0004 B, modelo baixado pelo usuário) + alinhamento automático de referências (DTW).
 - **0.1.4:** importação de UltraStar `.txt` (notas + letra; ADR-0002).
+- Backlog 0.1.4 (vindo do QA da 0.1.3): persistir o nível de voz da referência extraída, para o aviso de "voz fraca" valer enquanto ela estiver ativa (hoje some ao sair da tela); B2, viés de ±31–36 ms no alinhamento (só registro).
 - Fora da janela (dependem do proprietário): calibração com voz real, mudanças na pontuação, licença do produto, análise jurídica do modelo opcional.
 
 ## Próximos passos
