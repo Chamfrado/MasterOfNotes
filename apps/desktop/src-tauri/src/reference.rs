@@ -182,7 +182,31 @@ pub fn import(
     } else {
         (scoring_engine::import_midi(&bytes, midi_track), "midi")
     };
-    let parsed = parsed.map_err(ref_err)?;
+    store(conn, song_id, source, &parsed.map_err(ref_err)?)
+}
+
+/// Sung reference (T-005-07): the detected notes become the new active reference
+/// (`source = 'manual'`). They go through the same parser as an imported file.
+pub fn store_captured(
+    conn: &mut Connection,
+    song_id: &str,
+    notes: Vec<scoring_engine::Note>,
+) -> AppResult<Reference> {
+    let json = scoring_engine::to_reference_json(&scoring_engine::MelodyReference {
+        format_version: scoring_engine::REFERENCE_FORMAT_VERSION,
+        notes,
+    });
+    let parsed = scoring_engine::parse_reference_json(&json).map_err(ref_err)?;
+    store(conn, song_id, "manual", &parsed)
+}
+
+/// Inserts `parsed` as the active experimental reference, deactivating the previous one.
+fn store(
+    conn: &mut Connection,
+    song_id: &str,
+    source: &str,
+    parsed: &scoring_engine::MelodyReference,
+) -> AppResult<Reference> {
     let now = now_ms();
     let tx = conn.transaction()?;
     // Previous active reference is kept for history (R5).
@@ -197,14 +221,14 @@ pub fn import(
             song_id,
             source,
             parsed.format_version,
-            scoring_engine::to_reference_json(&parsed),
+            scoring_engine::to_reference_json(parsed),
             now,
         ),
     )?;
     let id = tx.last_insert_rowid();
     tx.commit()?;
     log::info!(
-        "reference {id} imported for song {song_id} from {source} ({} notes)",
+        "reference {id} stored for song {song_id} from {source} ({} notes)",
         parsed.notes.len()
     );
     get_active_by_id(conn, id)
