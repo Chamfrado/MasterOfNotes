@@ -505,6 +505,24 @@ test("05 referência melódica — gerar e alinhar automaticamente", async ({ pa
   await shot(panel, "referencia-sem-voz");
 });
 
+test("05 referência melódica — UltraStar", async ({ page }) => {
+  const file = "musica-de-teste.txt";
+  await open(
+    page,
+    { "plugin:dialog|open": { ok: `C:/Karaoke/referencias/${file}` } },
+    // As an UltraStar file timed to the original recording would land on this video: 800 ms late (illustrative).
+    { fakeOptions: { ultrastar: { [file]: { notes: NOTES.map((n) => ({ ...n, startMs: n.startMs + 800 })), duet: true } } } },
+  );
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: "Referência de Música de teste" }).click();
+  await page.getByRole("button", { name: "Importar referência" }).click();
+  await expect(page.getByText("Arquivos UltraStar costumam seguir o tempo da gravação original", { exact: false })).toBeVisible();
+  await expect(page.getByText("UltraStar", { exact: true })).toBeVisible();
+  await expect(page.getByText("Arquivo de dueto: importamos a parte do primeiro cantor.")).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot(page, "referencia-ultrastar");
+});
+
 // ---------- 06 cantar ----------
 
 test("06 cantar", async ({ page }) => {

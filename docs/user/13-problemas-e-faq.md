@@ -70,6 +70,18 @@ A música não tem referência melódica. Veja [Referência melódica](05-refere
 
 Sim: crie a referência com [Gravar cantando](05-referencia-melodica.md#gravar-cantando). Quem grava deve conhecer bem a melodia e cantar afinado, de fones, porque as notas gravadas viram o gabarito de todo mundo.
 
+### O que é um arquivo UltraStar? Onde consigo um?
+
+É um arquivo de texto (`.txt`) com as notas e a letra de uma música, num formato criado pela comunidade de karaokê do UltraStar. O app **não inclui nem baixa** arquivos UltraStar: use só arquivos que você tem o direito de usar. Veja [Arquivos UltraStar](05-referencia-melodica.md#arquivos-ultrastar-txt).
+
+### Importei um UltraStar e as notas estão adiantadas ou atrasadas
+
+É o esperado: o arquivo segue o tempo da gravação original, e não o do seu vídeo. Use **Alinhar automaticamente** e confira sobre o vídeo antes de aplicar. Veja [Alinhar automaticamente](05-referencia-melodica.md#alinhar-automaticamente).
+
+### O UltraStar é de dueto. Dá para cantar as duas partes?
+
+Não. O app importa só a parte do primeiro cantor (P1). No [Duelo](08-modos-de-jogo.md), as duas pessoas cantam essa mesma parte, cada uma na sua vez.
+
 ### Dá para o app tirar a melodia do próprio vídeo?
 
 Sim, se o vídeo tem a voz do cantor e você instalou o modelo de separação: use [Gerar automaticamente](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo). A referência gerada pode ter erros; revise antes de validar.
@@ -138,6 +150,27 @@ Não. Sair (**Esc** ou **Sair**) descarta a apresentação. Numa partida, a roda
 | *formato não reconhecido (esperado "mon-melody")* | O JSON não está no formato do Master Of Notes. |
 | *a referência não tem notas* | O arquivo (ou a trilha escolhida) está vazio. |
 | *nota nº N: altura MIDI … fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada; confira o arquivo. |
+| *arquivo UltraStar inválido: falta o #BPM* | O arquivo não tem a linha `#BPM:` (o andamento), sem a qual não dá para saber o tempo das notas. Talvez não seja um arquivo UltraStar. |
+| *arquivo UltraStar, linha N: …* | Há um problema na linha **N** do `.txt` (contando do início do arquivo, com o cabeçalho). Abra o arquivo num editor de texto (o Bloco de Notas serve) e confira essa linha. Veja os motivos abaixo. |
+
+Os motivos mais comuns de *"arquivo UltraStar, linha N: …"*:
+
+| Motivo | O que significa |
+|---|---|
+| *#BPM "…" não é um número positivo* / *#GAP "…" não é um número* | O andamento ou o atraso inicial do cabeçalho está escrito errado. |
+| *nota antes do #BPM* | As notas começam antes da linha `#BPM:`. Ela precisa vir no cabeçalho, antes das notas. |
+| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *a nota não tem início* (ou *duração*, ou *altura*) | A linha da nota está incompleta ou tem um valor que não é um número inteiro. |
+| *início "…"*, *duração "…"* ou *altura "…" é um número fora do limite permitido* | Um número da nota é grande demais (provavelmente um erro de digitação ou um arquivo corrompido). |
+| *duração … (deve ser maior que zero)* | Uma nota tem duração zero ou negativa. |
+| *altura … (MIDI …) fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada. |
+| *a nota cai fora da música (antes de 0 ms)* | O `#GAP` negativo empurrou uma nota para antes do começo da música. |
+| *cantor "P…" desconhecido* | Num dueto, só existem os cantores P1, P2 e P3. |
+| *quebra de linha sem a batida (modo RELATIVE)*; *"…" não é um número inteiro* | Em arquivos no modo `#RELATIVE`, cada quebra de linha (`-`) precisa trazer o número da batida. |
+| *linha não reconhecida: "…"* | A linha não segue o formato UltraStar. O começo dela aparece entre aspas. |
+
+Todas as mensagens aparecem depois de *"Referência inválida:"*. Exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura "x" não é um número inteiro."*
+
+Linhas de trecho livre (freestyle) ou falado (rap), o que vem depois do fim (`E`) e linhas de cabeçalho que o app não usa (como `#MP3` e `#VIDEO`) **não são erro**: o app simplesmente as ignora. Se o arquivo só tiver trechos livres ou falados, aparece *a referência não tem notas*.
 
 ## Geral
 
@@ -163,7 +196,7 @@ Feche o app e copie a pasta `%APPDATA%\com.masterofnotes.karaoke\`. Para restaur
 
 ### "Não foi possível abrir o banco de dados em …. Nenhum dado foi apagado."
 
-O app não conseguiu abrir o arquivo de dados. Feche e abra o app de novo. Se continuar, confira se há espaço livre no disco e se a pasta indicada na mensagem existe. Seus dados não foram apagados.
+O app não conseguiu abrir o arquivo de dados. Se a mensagem disser que o banco *"foi criado por uma versão mais nova do MasterOfNotes"*, você está abrindo uma versão mais antiga do app depois de usar uma mais nova: instale a versão mais recente (veja [Atualizações](11-atualizacoes.md#versões-que-atualizam-os-seus-dados)). Nos outros casos, feche e abra o app de novo. Se continuar, confira se há espaço livre no disco e se a pasta indicada na mensagem existe. Seus dados não foram apagados.
 
 ### O app não abre ou mostra uma tela em branco
 
