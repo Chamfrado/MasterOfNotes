@@ -198,7 +198,9 @@ describe("Gravar cantando (R8)", () => {
     );
     expect(await screen.findByText("3")).toBeInTheDocument();
     for (let i = 0; i < 3; i++) await act(() => vi.advanceTimersByTimeAsync(1000));
-    expect(await screen.findByText("Gravando notas")).toBeInTheDocument();
+    const badge = await screen.findByText("Gravando notas");
+    expect(badge.closest('[role="status"]')).not.toBeNull(); // announced
+    expect(screen.getByLabelText("Vídeo de Aquarela").parentElement).not.toContainElement(badge); // never over the picture
     expect(screen.getByLabelText("Vídeo de Aquarela")).toHaveProperty("paused", false);
   }
 

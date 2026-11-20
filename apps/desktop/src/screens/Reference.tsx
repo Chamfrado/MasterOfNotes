@@ -389,16 +389,15 @@ function SingCapture({
             </span>
           </p>
         )}
-        {recording && (
-          <span className="absolute top-4 left-4">
-            <Badge tone="danger">Gravando notas</Badge>
-          </span>
-        )}
       </div>
       <Card className="flex flex-col gap-5">
-        <h2 id="capture-title" className="font-display text-2xl font-semibold">
-          Gravar cantando
-        </h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="capture-title" className="font-display text-2xl font-semibold">
+            Gravar cantando
+          </h2>
+          {/* Outside the video (nothing covers the picture while singing); always mounted so the change is announced. */}
+          <div role="status">{recording && <Badge tone="danger">Gravando notas</Badge>}</div>
+        </div>
         <p>Cante a melodia junto com o vídeo; o app grava só as notas, nunca a sua voz. Use fones de ouvido.</p>
         {replacing && <p className="text-sm text-muted">A referência atual fica no histórico; a nova nasce experimental.</p>}
         {recording && <MicMeter frame={frame} />}
