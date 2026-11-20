@@ -131,7 +131,7 @@ export interface RefNote {
 export interface MelodyReference {
   id: number;
   songId: string;
-  source: "midi" | "json" | "manual" | "extracted";
+  source: "midi" | "json" | "manual" | "extracted" | "ultrastar";
   status: Exclude<ReferenceStatus, "none">;
   revision: number;
   offsetMs: number;
@@ -146,7 +146,7 @@ export const getReference = (songId: string) =>
   invoke<MelodyReference | null>("get_reference", { songId });
 export const listMidiTracks = (filePath: string) =>
   invoke<MidiTrackInfo[]>("list_midi_tracks", { filePath });
-/** Imports .mid/.midi/.json. Result status is always "experimental" until validated by the user. */
+/** Imports .mid/.midi/.json/.txt (UltraStar). Result status is always "experimental" until validated by the user. */
 export const importReference = (songId: string, filePath: string, midiTrack: number | null) =>
   invoke<MelodyReference>("import_reference", { songId, filePath, midiTrack });
 export const setReferenceOffset = (referenceId: number, offsetMs: number) =>

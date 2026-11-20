@@ -18,6 +18,7 @@ Status de tarefa: `todo` · `doing` · `review` (entregue, aguardando coordenado
 | [SPEC-010](SPEC-010-design-system.md) | Design system e telas | Agente 3 | — |
 | [SPEC-011](SPEC-011-user-docs.md) | Documentação do usuário | Agente 5 | — |
 | [SPEC-012](SPEC-012-auto-reference.md) | Referência automática e alinhamento automático | Agente 2 | — |
+| [SPEC-013](SPEC-013-ultrastar.md) | Importar referência UltraStar (.txt) | Agente 2 | — |
 
 ## Matriz de rastreabilidade (AC → spec → teste → evidência)
 
