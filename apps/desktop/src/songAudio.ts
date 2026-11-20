@@ -3,6 +3,8 @@
 import { uploadSongAudio, videoSrc, type Song } from "./lib/ipc";
 
 export const SAMPLE_RATE = 44_100;
+export const UNDECODABLE =
+  "Não foi possível ler o áudio deste vídeo. O arquivo pode não ter som ou usar um formato de áudio não suportado.";
 
 let cached: { songId: string; token: string } | null = null;
 
@@ -12,8 +14,15 @@ export async function decodeMono44k(src: string, signal?: AbortSignal): Promise<
   if (!res.ok) throw new Error(`Não foi possível ler o vídeo (HTTP ${res.status}).`);
   let encoded: ArrayBuffer | null = await res.arrayBuffer();
   // decodeAudioData detaches `encoded`; dropping our reference lets the (possibly huge) video bytes be collected.
-  const decoded = await new OfflineAudioContext(1, 1, SAMPLE_RATE).decodeAudioData(encoded);
-  encoded = null;
+  let decoded: AudioBuffer;
+  try {
+    decoded = await new OfflineAudioContext(1, 1, SAMPLE_RATE).decodeAudioData(encoded);
+  } catch (e) {
+    console.warn("decodeAudioData:", e); // technical detail only in the log
+    throw new Error(UNDECODABLE);
+  } finally {
+    encoded = null;
+  }
   signal?.throwIfAborted();
   if (decoded.numberOfChannels === 1) return decoded.getChannelData(0);
   const mix = new OfflineAudioContext(1, decoded.length, SAMPLE_RATE); // Web Audio speaker downmix: mono = (L + R) / 2

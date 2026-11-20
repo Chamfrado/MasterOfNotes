@@ -389,6 +389,9 @@ type GenerateStep =
   | { step: "running"; stage: AutoReferenceStage; fraction: number }
   | { step: "failed"; reason: string; needsModel?: boolean };
 
+/** The last cancelled generation until Rust really ends it (generateReference rejects with `cancelled`). Module scope: survives leaving the screen. */
+let stopping: Promise<void> | null = null;
+
 const STAGES = ["extracting", "separating", "transcribing", "saving"] as const;
 const stageText: Record<(typeof STAGES)[number], string> = {
   extracting: "Extraindo áudio",
@@ -411,7 +414,18 @@ function AutoGenerate({
 }) {
   const { navigate } = useNav();
   const [state, setState] = useState<GenerateStep>({ step: "intro" });
-  const job = useRef<{ abort: AbortController; generating: boolean } | null>(null);
+  const [waiting, setWaiting] = useState(stopping != null);
+  const job = useRef<{ abort: AbortController; generating: boolean; done: Promise<unknown> } | null>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+
+  // A cancelled job may still be winding down in Rust: starting now would get `busy`.
+  useEffect(() => {
+    let alive = true;
+    stopping?.then(() => alive && setWaiting(false));
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   /** Returns whether a job was running. */
   const stop = () => {
@@ -420,16 +434,28 @@ function AutoGenerate({
     job.current = null;
     j.abort.abort(); // stops the fetch / skips the upload
     if (j.generating) cancelGenerateReference().catch(warn("cancel_generate_reference"));
+    const settled = j.done.then(
+      () => {},
+      () => {},
+    );
+    stopping = settled;
+    void settled.then(() => {
+      if (stopping === settled) stopping = null;
+    });
     return true;
   };
   useEffect(() => () => void stop(), []);
 
   const begin = async () => {
-    const j = { abort: new AbortController(), generating: false };
+    const j: { abort: AbortController; generating: boolean; done: Promise<unknown> } = {
+      abort: new AbortController(),
+      generating: false,
+      done: Promise.resolve(),
+    };
     job.current = j;
     setState({ step: "extracting" });
     try {
-      const out = await withSongAudio(
+      const out = await (j.done = withSongAudio(
         song,
         (token) => {
           j.generating = true;
@@ -439,7 +465,7 @@ function AutoGenerate({
           });
         },
         { signal: j.abort.signal, onExtract: () => setState({ step: "extracting" }) },
-      );
+      ));
       if (job.current !== j) return; // cancelled meanwhile
       job.current = null;
       if (out.reference) onDone(out.reference, out.elapsedMs);
@@ -452,6 +478,10 @@ function AutoGenerate({
   };
 
   const stage = state.step === "extracting" ? "extracting" : state.step === "running" ? state.stage : null;
+  const working = stage != null;
+  useEffect(() => {
+    if (working) cancelButton.current?.focus(); // "Começar" unmounts; keep the keyboard on the panel
+  }, [working]);
   return (
     <Card className="flex max-w-2xl flex-col gap-5">
       <h2 className="font-display text-2xl font-semibold">Gerar automaticamente</h2>
@@ -472,6 +502,7 @@ function AutoGenerate({
             <Progress label={stageText[stage]} value={state.step === "running" ? state.fraction : undefined} />
           </>
         )}
+        {waiting && !working && <p className="text-muted">Encerrando a geração anterior…</p>}
         {state.step === "failed" && <p className="text-danger">{state.reason}</p>}
         {state.step === "failed" && state.needsModel && (
           <Button className="self-start" onClick={() => navigate({ name: "settings", section: "autoReference" })}>
@@ -480,12 +511,12 @@ function AutoGenerate({
         )}
       </div>
       <div className="flex flex-wrap gap-3">
-        {!stage && (
-          <Button variant="primary" autoFocus onClick={begin}>
+        {!working && (
+          <Button variant="primary" autoFocus disabled={waiting} onClick={begin}>
             {state.step === "failed" ? "Tentar de novo" : "Começar"}
           </Button>
         )}
-        <Button variant="ghost" autoFocus={stage != null} onClick={() => onCancel(stop())}>
+        <Button ref={cancelButton} variant="ghost" onClick={() => onCancel(stop())}>
           Cancelar
         </Button>
       </div>
@@ -517,6 +548,11 @@ function SingCapture({
   const open = useRef(false); // a Rust capture is open and must be finished or aborted
   const [state, setState] = useState<CaptureStep>({ step: "intro" });
   const [frame, setFrame] = useState<MicFrame | null>(null);
+  const cancelButton = useRef<HTMLButtonElement>(null);
+  const counting = state.step === "countdown";
+  useEffect(() => {
+    if (counting) cancelButton.current?.focus(); // "Começar" unmounts; "Parar" takes over (autoFocus) when recording starts
+  }, [counting]);
 
   useEffect(
     () => () => {
@@ -634,6 +670,7 @@ function SingCapture({
           )}
           {state.step !== "saving" && (
             <Button
+              ref={cancelButton}
               variant="ghost"
               onClick={() => {
                 abort();
@@ -684,13 +721,14 @@ function AlignPreview({ song, notes, offsetMs }: { song: Song; notes: RefNote[];
     return () => cancelAnimationFrame(raf);
   }, [notes]);
 
+  // No overflow-hidden on the frame: it would clip the focus ring of the native video controls (T-012-05 F3); the video rounds itself.
   return (
-    <div className="relative overflow-hidden rounded-lg border border-line bg-black">
-      <video ref={video} src={videoSrc(song)} controls className="aspect-video w-full" aria-label={`Vídeo de ${song.title}`} />
+    <div className="relative rounded-lg border border-line bg-black">
+      <video ref={video} src={videoSrc(song)} controls className="aspect-video w-full rounded-lg" aria-label={`Vídeo de ${song.title}`} />
       <canvas
         ref={canvas}
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-2/5 w-full bg-linear-to-b from-bg/70 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-2/5 w-full rounded-t-lg bg-linear-to-b from-bg/70 to-transparent"
       />
     </div>
   );
