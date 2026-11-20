@@ -4,6 +4,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-20
+
+### Adicionado
+- **Gerar automaticamente** a referência melódica a partir do próprio vídeo, sem MIDI. O app separa a voz da música e transcreve as notas (leva cerca de 2,5 minutos para uma música de 4 minutos). Funciona em vídeos **com voz**; em karaokê só instrumental, o app avisa que não encontrou uma voz clara. A referência gerada nasce experimental: revise e valide.
+  - Usa um **modelo de separação de voz de terceiros**, que você mesmo baixa (o app mostra a página do projeto e o link do arquivo, e não baixa nada sozinho). Só modelos conhecidos são aceitos (o arquivo é conferido). A licença dos pesos do modelo não é declarada pelos autores: o uso é decisão e responsabilidade de quem baixa.
+  - Avisa quando a voz do vídeo está fraca e a referência pode ter ficado incompleta.
+- **Alinhar automaticamente:** o app encontra sozinho o deslocamento entre a referência (MIDI, JSON, cantada ou gerada) e o vídeo e propõe o ajuste com o nível de confiança; você decide se aplica. Ele avisa quando não tem certeza (por exemplo, se o andamento da referência for diferente do vídeo).
+
+### Componentes de terceiros
+- O instalador passa a incluir o **ONNX Runtime** da Microsoft (licença MIT), usado só para a referência automática. O aviso de licença está em `THIRD-PARTY-NOTICES.txt`, na pasta do programa.
+
 ## [0.1.2] - 2026-11-19
 
 ### Adicionado
