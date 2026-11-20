@@ -191,3 +191,35 @@ fn r5_alignment_on_the_four_minute_song() {
         }
     }
 }
+
+/// QA M4 (T-012-07): one song of `SA_MINUTES` (default 4) of synthetic audio,
+/// separated once; watch the process's PeakWorkingSet64 from outside.
+/// Prints a checksum of the vocals (equal before and after a refactor).
+#[test]
+#[ignore = "needs the real model and onnxruntime (see the module doc)"]
+fn m4_peak_memory_one_song() {
+    let minutes: f64 = std::env::var("SA_MINUTES")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(4.0);
+    let n = (minutes * 60.0 * SR as f64) as usize;
+    let mix: Vec<f32> = (0..n)
+        .map(|i| {
+            let t = i as f64 / SR as f64;
+            let f = 220.0 * 2f64.powf(((t * 2.0) as u64 % 12) as f64 / 12.0);
+            (0.3 * (std::f64::consts::TAU * f * t).sin()
+                + 0.1 * (std::f64::consts::TAU * 110.0 * t).sin()) as f32
+        })
+        .collect();
+    let mut sep = separator();
+    let t = Instant::now();
+    let v = sep
+        .vocals(&mix, SR, &mut |_| {}, &AtomicBool::new(false))
+        .unwrap();
+    let sum: f64 = v.iter().map(|&s| s as f64 * s as f64).sum();
+    eprintln!(
+        "{minutes} min: {:.0} s, {} samples, vocals energy {sum:.6}",
+        t.elapsed().as_secs_f64(),
+        v.len()
+    );
+}

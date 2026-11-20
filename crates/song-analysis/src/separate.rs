@@ -85,17 +85,25 @@ impl Separator {
         }
         let n = mono.len();
         let chunks = n.div_ceil(STEP);
-        // [TRIM zeros | song | zeros up to the last chunk's end]
-        let mut padded = vec![0.0f32; TRIM + chunks * STEP + TRIM];
-        padded[TRIM..TRIM + n].copy_from_slice(mono);
+        // Chunk k covers song samples [k·STEP − TRIM, k·STEP − TRIM + CHUNK),
+        // zeros outside the song; one reusable buffer instead of a padded copy
+        // of the whole song (QA M4, T-012-07).
+        let mut seg = vec![0.0f32; CHUNK];
         let mut out = Vec::with_capacity(chunks * STEP);
         progress(0.0);
         for k in 0..chunks {
             if cancel.load(Ordering::Relaxed) {
                 return Err(AnalysisError::Cancelled);
             }
-            let seg = &padded[k * STEP..k * STEP + CHUNK];
-            let input = self.stft.forward(seg);
+            let start = (k * STEP) as isize - TRIM as isize;
+            for (i, v) in seg.iter_mut().enumerate() {
+                *v = usize::try_from(start + i as isize)
+                    .ok()
+                    .and_then(|j| mono.get(j))
+                    .copied()
+                    .unwrap_or(0.0);
+            }
+            let input = self.stft.forward(&seg);
             let x = Tensor::from_array(([1usize, 4, DIM_F, DIM_T], input))
                 .map_err(|e| AnalysisError::Model(e.to_string()))?;
             let outputs = self

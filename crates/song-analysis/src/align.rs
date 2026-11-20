@@ -4,7 +4,9 @@
 //! mix gives a measured one (STFT magnitudes folded onto 12 pitch classes,
 //! mean-removed and unit-normalised per frame, so drums and silence weigh 0).
 //! The offset is the lag that maximises their mean agreement over ±15 s,
-//! after removing the slow part of that curve (see `DETREND_MS`).
+//! after removing the slow part of that curve (see `DETREND_MS`). Each half
+//! of the notes is searched again: halves that disagree (a reference whose
+//! tempo differs from the video's) cap the confidence.
 //!
 //! The spike aligned two *recordings* with DTW (tempo could differ). Here the
 //! correction is a single constant offset, so the exhaustive lag search is the
@@ -26,6 +28,15 @@ const MIN_HZ: f64 = 80.0;
 const MAX_HZ: f64 = 5_000.0;
 /// A rival peak must be this far from the best to count as an alternative.
 const RIVAL_MS: f64 = 1_000.0;
+/// Halves of the notes whose lags differ by more than this (ms) mean the
+/// reference's tempo differs from the video's (QA M1, T-012-07).
+const HALVES_AGREE_MS: f64 = 100.0;
+/// Confidence cap in that case (below the UI's 0.5 display threshold).
+const DIVERGENT_CONFIDENCE: f64 = 0.3;
+/// The halves check needs ≥ 3 s of notes in each half (short references skip it).
+const MIN_HALF_FRAMES: usize = 300;
+/// Each half is searched within ±3 s of the whole-song lag.
+const HALF_SEARCH_MS: f64 = 3_000.0;
 /// Half-width of the moving average removed from the lag scores.
 const DETREND_MS: f64 = 500.0;
 
@@ -33,7 +44,8 @@ const DETREND_MS: f64 = 500.0;
 pub struct AlignResult {
     /// Add to the reference's current offset.
     pub offset_ms: i32,
-    /// 0..1: (peak − best rival more than 1 s away) ÷ peak; 0 = no peak or a tie.
+    /// 0..1: (peak − best rival more than 1 s away) ÷ peak; 0 = no peak or a
+    /// tie; at most 0.3 when the two halves of the notes disagree.
     pub confidence: f32,
 }
 
@@ -75,10 +87,42 @@ pub fn align_offset_ms(notes: &[Note], mix: &[f32], sample_rate: u32) -> AlignRe
         return NONE;
     }
     let max_lag = (MAX_LAG_MS / HOP_MS) as isize;
-    let scores: Vec<f64> = (-max_lag..=max_lag)
+    let Some((lag, mut confidence)) = search(&marks, &chroma, -max_lag, max_lag) else {
+        return NONE;
+    };
+    // A reference whose tempo differs from the video's has no single offset:
+    // the whole-song search then settles on a compromise. Each half of the
+    // notes finds its own lag; if they disagree, the proposal is not reliable.
+    let (first, second) = marks.split_at(marks.len() / 2);
+    if second.len() >= MIN_HALF_FRAMES && first.len() >= MIN_HALF_FRAMES {
+        let near = (HALF_SEARCH_MS / HOP_MS) as isize;
+        let (lo, hi) = (lag.round() as isize - near, lag.round() as isize + near);
+        if let (Some((a, _)), Some((b, _))) = (
+            search(first, &chroma, lo, hi),
+            search(second, &chroma, lo, hi),
+        ) && (a - b).abs() * HOP_MS > HALVES_AGREE_MS
+        {
+            confidence = confidence.min(DIVERGENT_CONFIDENCE);
+        }
+    }
+    AlignResult {
+        offset_ms: (lag * HOP_MS).round() as i32,
+        confidence: confidence as f32,
+    }
+}
+
+/// Best lag (frames, sub-frame) of `marks` against `chroma` within `lo..=hi`,
+/// and its confidence; `None` when nothing matches.
+fn search(
+    marks: &[(isize, usize)],
+    chroma: &[[f32; 12]],
+    lo: isize,
+    hi: isize,
+) -> Option<(f64, f64)> {
+    let scores: Vec<f64> = (lo..=hi)
         .map(|lag| {
             let (mut sum, mut valid) = (0.0, 0usize);
-            for &(u, pc) in &marks {
+            for &(u, pc) in marks {
                 if let Some(c) = usize::try_from(u + lag).ok().and_then(|i| chroma.get(i)) {
                     sum += c[pc] as f64;
                     valid += 1;
@@ -109,11 +153,12 @@ pub fn align_offset_ms(notes: &[Note], mix: &[f32], sample_rate: u32) -> AlignRe
             scores[i] - sum / n as f64
         })
         .collect();
-    let Some((best, &peak)) = scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) else {
-        return NONE;
-    };
+    let (best, &peak) = scores
+        .iter()
+        .enumerate()
+        .max_by(|a, b| a.1.total_cmp(b.1))?;
     if peak <= 1e-9 {
-        return NONE;
+        return None;
     }
     // Sub-frame peak (parabola through the neighbours).
     let frac = match (scores.get(best.wrapping_sub(1)), scores.get(best + 1)) {
@@ -123,7 +168,6 @@ pub fn align_offset_ms(notes: &[Note], mix: &[f32], sample_rate: u32) -> AlignRe
         }
         _ => 0.0,
     };
-    let lag = best as f64 - max_lag as f64 + frac;
     let rival_frames = (RIVAL_MS / HOP_MS) as usize;
     let rival = scores
         .iter()
@@ -131,11 +175,10 @@ pub fn align_offset_ms(notes: &[Note], mix: &[f32], sample_rate: u32) -> AlignRe
         .filter(|(i, _)| i.abs_diff(best) > rival_frames)
         .map(|(_, &s)| s)
         .fold(0.0, f64::max);
-    let confidence = ((peak - rival) / peak).clamp(0.0, 1.0);
-    AlignResult {
-        offset_ms: (lag * HOP_MS).round() as i32,
-        confidence: confidence as f32,
-    }
+    Some((
+        lo as f64 + best as f64 + frac,
+        ((peak - rival) / peak).clamp(0.0, 1.0),
+    ))
 }
 
 fn pitch_class(midi: f64) -> usize {
@@ -204,11 +247,10 @@ mod tests {
         }
     }
 
-    /// A 40 s song: a chord every 2 s (I–vi–IV–V in C) as piano-like
+    /// A song of `secs`: a chord every 2 s (I–vi–IV–V in C) as piano-like
     /// harmonic tones, a melody mostly on chord tones (plus passing notes),
     /// a kick/snare noise pattern. Returns (melody notes, accompaniment, voice).
-    fn song() -> (Vec<Note>, Vec<f32>, Vec<f32>) {
-        let secs = 40.0;
+    fn song(secs: f64) -> (Vec<Note>, Vec<f32>, Vec<f32>) {
         let n = (secs * SR as f64) as usize;
         let chords: [[f64; 3]; 4] = [
             [48.0, 52.0, 55.0],
@@ -292,7 +334,7 @@ mod tests {
 
     #[test]
     fn midi_shifted_by_1_2_s_is_proposed_within_30_ms() {
-        let (notes, acc, voice) = song();
+        let (notes, acc, voice) = song(40.0);
         let mix: Vec<f32> = acc.iter().zip(&voice).map(|(a, v)| a + v).collect();
         for (shift, label) in [(-1200i64, "com voz"), (1200, "com voz"), (-1234, "com voz")] {
             let r = align_offset_ms(&shifted(&notes, shift), &mix, SR);
@@ -315,10 +357,45 @@ mod tests {
     }
 
     #[test]
+    fn reference_at_a_different_tempo_is_not_confident() {
+        // QA M1: a reference 0.25–1 % off the video's tempo has no single
+        // offset; the halves disagree and the confidence drops below 0.5.
+        let (notes, acc, voice) = song(120.0);
+        let mix: Vec<f32> = acc.iter().zip(&voice).map(|(a, v)| a + v).collect();
+        for pct in [0.0, 0.25, 0.5, 1.0] {
+            let k = 1.0 + pct / 100.0;
+            let stretched: Vec<Note> = notes
+                .iter()
+                .map(|n| Note {
+                    start_ms: (n.start_ms as f64 * k) as u32,
+                    dur_ms: (n.dur_ms as f64 * k) as u32,
+                    ..n.clone()
+                })
+                .collect();
+            let r = align_offset_ms(&shifted(&stretched, -1200), &mix, SR);
+            // Error at the first and the last note with the proposed offset.
+            let err = |n: &Note| {
+                let moved = (n.start_ms as f64 * k - 1200.0) + r.offset_ms as f64;
+                (moved - n.start_ms as f64).abs()
+            };
+            let worst = err(&notes[0]).max(err(&notes[notes.len() - 1]));
+            eprintln!(
+                "| andamento {pct}% | proposta {:+} ms | erro nas pontas até {worst:.0} ms | confiança {:.2} |",
+                r.offset_ms, r.confidence
+            );
+            if pct == 0.0 {
+                assert!(worst <= 30.0 && r.confidence >= LOW_CONFIDENCE, "{r:?}");
+            } else {
+                assert!(r.confidence < LOW_CONFIDENCE, "{pct}%: {r:?}");
+            }
+        }
+    }
+
+    #[test]
     fn karaoke_without_a_melody_is_not_confident() {
         // Accompaniment only (no guide voice): the chord loop repeats every 8 s,
         // so several offsets fit equally; the answer must say so.
-        let (notes, acc, _) = song();
+        let (notes, acc, _) = song(40.0);
         for shift in [-1200i64, 0, 1200] {
             let r = align_offset_ms(&shifted(&notes, shift), &acc, SR);
             eprintln!(
@@ -334,7 +411,7 @@ mod tests {
 
     #[test]
     fn unrelated_audio_gives_low_confidence() {
-        let (notes, ..) = song();
+        let (notes, ..) = song(40.0);
         let mut rng = Rng(7);
         let noise: Vec<f32> = (0..40 * SR as usize)
             .map(|_| (rng.next() - 0.5) as f32 * 0.3)
