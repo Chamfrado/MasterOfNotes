@@ -1,6 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "../components/ui";
 import * as ipc from "../lib/ipc";
 import { NavContext } from "../nav";
@@ -14,6 +14,10 @@ vi.mock("../lib/ipc", () => ({
   importReference: vi.fn(),
   setReferenceOffset: vi.fn(),
   setReferenceStatus: vi.fn(),
+  startPerformance: vi.fn(),
+  syncPerformance: vi.fn(),
+  finishPerformance: vi.fn(),
+  abortPerformance: vi.fn(),
   videoSrc: () => "asset://v.mp4",
 }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
@@ -148,5 +152,96 @@ describe("Reference", () => {
     expect(slider).toHaveAttribute("aria-valuetext", "+10000 ms");
     fireEvent.change(slider, { target: { value: "-200" } });
     expect(slider).toHaveAttribute("aria-valuetext", "-200 ms");
+  });
+});
+
+describe("Gravar cantando (R8)", () => {
+  // jsdom has no media pipeline: emulate play/pause state + events, and the frame callback.
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(ipc.startPerformance).mockResolvedValue({ competitive: false, reason: null });
+    vi.mocked(ipc.syncPerformance).mockResolvedValue();
+    vi.mocked(ipc.abortPerformance).mockResolvedValue();
+    const proto = HTMLMediaElement.prototype as unknown as Record<string, unknown>;
+    proto.play = function (this: HTMLMediaElement) {
+      Object.defineProperty(this, "paused", { value: false, configurable: true });
+      this.dispatchEvent(new Event("play"));
+      return Promise.resolve();
+    };
+    proto.pause = function (this: HTMLMediaElement) {
+      Object.defineProperty(this, "paused", { value: true, configurable: true });
+      this.dispatchEvent(new Event("pause"));
+    };
+    proto.requestVideoFrameCallback = () => 1;
+    proto.cancelVideoFrameCallback = () => {};
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const outcome = (over: Partial<ipc.PerformanceOutcome>): ipc.PerformanceOutcome => ({
+    performanceId: null,
+    competitive: false,
+    result: null,
+    exploratory: null,
+    personalBest: null,
+    songRecord: null,
+    ...over,
+  });
+
+  async function recordFromScratch() {
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gravar cantando" }));
+    expect(screen.getByText(/o app grava só as notas, nunca a sua voz/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    expect(ipc.startPerformance).toHaveBeenCalledWith(
+      { songId: "s1", roundId: null, participantId: null, referenceCapture: true },
+      expect.any(Function),
+    );
+    expect(await screen.findByText("3")).toBeInTheDocument();
+    for (let i = 0; i < 3; i++) await act(() => vi.advanceTimersByTimeAsync(1000));
+    expect(await screen.findByText("Gravando notas")).toBeInTheDocument();
+    expect(screen.getByLabelText("Vídeo de Aquarela")).toHaveProperty("paused", false);
+  }
+
+  it("records without a reference, then shows the sung notes as experimental with the usual actions", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    vi.mocked(ipc.finishPerformance).mockResolvedValue(
+      outcome({ capturedReference: ref({ id: 12, source: "manual", notes: [{ startMs: 0, durMs: 400, midi: 62, lyric: null }] }) }),
+    );
+    await recordFromScratch();
+    await userEvent.click(screen.getByRole("button", { name: "Parar" }));
+    await vi.waitFor(() => expect(ipc.finishPerformance).toHaveBeenCalled());
+    expect(ipc.syncPerformance).toHaveBeenLastCalledWith(expect.any(Number), false, false);
+    expect(await screen.findByText("Cantada")).toBeInTheDocument();
+    expect(screen.getByText("Referência experimental")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Validar alinhamento" })).toBeEnabled();
+    expect(screen.getByRole("slider", { name: "Offset das notas" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gravar de novo" })).toBeInTheDocument();
+    expect(ipc.abortPerformance).not.toHaveBeenCalled();
+  });
+
+  it("explains why nothing was saved when too few notes came back (video ended)", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    vi.mocked(ipc.finishPerformance).mockResolvedValue(
+      outcome({ capturedReference: null, reason: "Só 2 notas detectadas. Cante mais perto do microfone." }),
+    );
+    await recordFromScratch();
+    fireEvent.ended(screen.getByLabelText("Vídeo de Aquarela"));
+    expect(await screen.findByText("Só 2 notas detectadas. Cante mais perto do microfone.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Gravar de novo" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByText("Sem referência")).toBeInTheDocument();
+  });
+
+  it("cancel while recording aborts the capture and keeps the current reference", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ status: "validated" }));
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gravar cantando" }));
+    expect(screen.getByText(/A referência atual fica no histórico/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    for (let i = 0; i < 3; i++) await act(() => vi.advanceTimersByTimeAsync(1000));
+    await userEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
+    await vi.waitFor(() => expect(ipc.abortPerformance).toHaveBeenCalledTimes(1));
+    expect(ipc.finishPerformance).not.toHaveBeenCalled();
+    expect(screen.getByText("Referência validada")).toBeInTheDocument();
   });
 });

@@ -63,8 +63,28 @@ describe("LatencyProbe", () => {
     expect(ipc.syncPerformance).toHaveBeenCalledWith(0, true, false);
     expect(ipc.syncPerformance).toHaveBeenLastCalledWith(0, false, false);
     expect(await screen.findByText(/Latência medida: 142 ms \(variação ±9 ms, 7 de 8 palmas\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/Recomendamos medir de novo/)).not.toBeInTheDocument();
     expect(onFinished).toHaveBeenCalled();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:clicks");
+  });
+
+  it("recommends measuring again when the jitter is above 10 ms (SPEC-006 N4)", async () => {
+    vi.mocked(ipc.finishPerformance).mockResolvedValue(
+      outcome({ offsetMs: 120, jitterMs: 14.2, detected: 8, expected: 8, passed: true, reason: null }),
+    );
+    await runProbe();
+    expect(await screen.findByText(/variação ±14 ms/)).toBeInTheDocument();
+    expect(screen.getByText(/A variação passou de 10 ms.*Recomendamos medir de novo/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Medir de novo" })).toBeEnabled();
+  });
+
+  it("does not recommend repeating at a shown ±10 ms", async () => {
+    vi.mocked(ipc.finishPerformance).mockResolvedValue(
+      outcome({ offsetMs: 120, jitterMs: 10.4, detected: 8, expected: 8, passed: true, reason: null }),
+    );
+    await runProbe();
+    expect(await screen.findByText(/variação ±10 ms/)).toBeInTheDocument();
+    expect(screen.queryByText(/Recomendamos medir de novo/)).not.toBeInTheDocument();
   });
 
   it("shows Rust's reason when the probe fails", async () => {
