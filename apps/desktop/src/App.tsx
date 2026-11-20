@@ -60,7 +60,7 @@ function Screen({ route }: { route: Route }) {
     case "history":
       return <History />;
     case "settings":
-      return <Settings />;
+      return <Settings section={route.section} />;
     case "updates":
       return <Updates />;
   }

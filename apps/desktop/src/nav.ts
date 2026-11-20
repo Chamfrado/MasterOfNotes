@@ -23,7 +23,7 @@ export type Route =
   | { name: "session"; id: number }
   | { name: "participants" }
   | { name: "history" }
-  | { name: "settings" }
+  | { name: "settings"; section?: "autoReference" }
   | { name: "updates" };
 
 export interface Nav {
