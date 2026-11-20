@@ -460,6 +460,8 @@ function AutoGenerate({
         erros: confira sobre o vídeo e valide antes de valer ranking.
       </p>
       {replacing && <p className="text-sm text-warning">A referência atual vai para o histórico; a nova nasce experimental.</p>}
+      {/* Leaving the screen cancels the job (no global job, accepted for 0.1.3): say it before and during. */}
+      <p className="text-sm text-warning">Fique nesta tela até terminar: se sair, a geração será cancelada.</p>
       <div role="status" className="flex flex-col gap-2">
         {stage && (
           <>

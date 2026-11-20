@@ -286,6 +286,7 @@ describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
     renderRef();
     await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
     expect(screen.getByText("A referência atual vai para o histórico; a nova nasce experimental.")).toBeInTheDocument();
+    expect(screen.getByText("Fique nesta tela até terminar: se sair, a geração será cancelada.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Começar" }));
     expect(ipc.generateReference).toHaveBeenCalledWith("s1", "tok", expect.any(Function));
     act(() => progress({ stage: "separating", fraction: 0.4 }));
