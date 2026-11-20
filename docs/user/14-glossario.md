@@ -8,13 +8,15 @@
 
 **Calibração de ruído** — Medida de 3 segundos do barulho do ambiente, feita em silêncio, para separar a sua voz do fundo. Veja [Microfone](04-microfone.md#3-calibração-de-ruído).
 
+**Cantada** — Referência melódica criada com [Gravar cantando](05-referencia-melodica.md#gravar-cantando): alguém cantou a melodia e o app anotou as notas. A voz não é gravada.
+
 **Cents** — Unidade para medir pequenas diferenças de altura entre notas. 100 cents = meio tom (de uma tecla do piano para a vizinha). 1200 cents = uma oitava.
 
 **Cobertura** — Fração das notas da música que você acertou. É informativa: não entra na nota final.
 
 **Dificuldade** — Fácil, Normal ou Difícil: quanto a afinação pode desviar e ainda contar como acerto. O ranking é separado por dificuldade.
 
-**Experimental** — Referência melódica importada, mas com alinhamento ainda não conferido. Partidas com ela são treino.
+**Experimental** — Referência melódica importada ou gravada cantando, mas com alinhamento ainda não conferido. Partidas com ela são treino.
 
 **Latência** — O pequeno atraso entre o som acontecer e o computador ouvi-lo (ou tocá-lo). O app compensa com o **Ajuste de latência**. Veja [Microfone](04-microfone.md#5-latência-atraso).
 

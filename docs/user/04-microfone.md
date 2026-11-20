@@ -71,6 +71,8 @@ Entre você cantar e o app ouvir, e entre o vídeo tocar e o som sair, existe um
 
 *Valores ilustrativos.*
 
+Se a **variação** passar de 10 ms, a medida foi salva, mas é pouco precisa, e o app recomenda medir de novo: *"A variação passou de 10 ms, então a medida é pouco precisa. Recomendamos medir de novo, com palmas secas e o ambiente em silêncio."* Bata palmas curtas e secas, sempre no tempo do clique, num ambiente quieto.
+
 Se não der certo, o ajuste anterior é mantido e aparece o motivo:
 
 | Mensagem | O que fazer |
