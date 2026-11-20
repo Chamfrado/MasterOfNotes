@@ -169,7 +169,7 @@ fn field<'a>(s: &'a str, line: usize, what: &str) -> Result<(i64, &'a str), RefE
     let s = s.trim_start();
     let end = s.find(char::is_whitespace).unwrap_or(s.len());
     if end == 0 {
-        return Err(line_err(line, format!("falta a {what} da nota")));
+        return Err(line_err(line, format!("a nota não tem {what}")));
     }
     let v = s[..end].parse().map_err(|_| {
         line_err(
