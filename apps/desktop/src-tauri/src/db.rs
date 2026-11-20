@@ -40,7 +40,7 @@ fn migrate(conn: &mut Connection, path: &Path, migrations: &[&str]) -> AppResult
         return Err(AppError::new(
             "db_too_new",
             format!(
-                "O banco em {} foi criado por uma versão mais nova do MasterOfNotes. Atualize o aplicativo.",
+                "O banco em {} foi criado por uma versão mais nova do Master Of Notes. Atualize o aplicativo.",
                 path.display()
             ),
         ));
@@ -360,5 +360,6 @@ mod tests {
         }
         let err = open(&path).unwrap_err();
         assert_eq!(err.code, "db_too_new");
+        assert!(err.message.contains("versão mais nova do Master Of Notes."));
     }
 }
