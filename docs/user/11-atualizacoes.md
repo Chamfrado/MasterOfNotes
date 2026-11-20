@@ -56,7 +56,7 @@ O canal de atualizações automáticas só oferece **versões normais**. As vers
 - **Abrir página de versões**: abre a página de versões no navegador, para você ver se há uma versão de testes;
 - **Verificar de novo**.
 
-<!-- A capturar (T-011-06, depois da UI do Agente 3 no main): media/atualizacao-sem-versao.png. -->
+![Mensagem "Nenhuma versão nova pelo canal de atualizações automáticas." com "Versões de teste, quando houver, ficam na página de versões do projeto." e os botões Abrir página de versões e Verificar de novo.](media/atualizacao-sem-versao.png)
 
 > **Na versão 0.1.1**, essa situação aparece como erro: *"Não foi possível verificar ou baixar a atualização."*, mesmo com internet. Isso é esperado e o app continua funcionando normalmente. Confira as novidades na [página de versões](https://github.com/Chamfrado/MasterOfNotes/releases).
 
