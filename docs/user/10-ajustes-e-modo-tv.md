@@ -4,7 +4,7 @@
 
 Clique em **Ajustes** no menu. Cada mudança é salva na hora; não há botão de salvar.
 
-![Tela Ajustes com as seções Jogo (Dificuldade, Painel de feedback no player), Tela e acessibilidade (Modo TV, Reduzir movimento), Biblioteca (Procurar também nas subpastas) , Atualizações (Verificar atualizações ao abrir, Verificar agora) e Referência automática (modelo de separação de voz).](media/configuracoes.png)
+![Tela Ajustes com as seções Jogo (Dificuldade, Painel de feedback no player), Tela e acessibilidade (Modo TV, Reduzir movimento), Biblioteca (Procurar também nas subpastas), Atualizações (Verificar atualizações ao abrir, Verificar agora) e Referência automática (modelo de separação de voz).](media/configuracoes.png)
 
 ## Jogo
 
