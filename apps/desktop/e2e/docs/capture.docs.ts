@@ -414,6 +414,31 @@ test("05 referência melódica — alinhar e validar", async ({ page }) => {
   await shot(page, "referencia-validar", { fullPage: true });
 });
 
+test("05 referência melódica — gravar cantando", async ({ page }) => {
+  const sung = reference({ id: 2, source: "manual", status: "experimental" });
+  await open(
+    page,
+    { get_reference: { ok: null }, finish_performance: { ok: { ...resultNoReference, exploratory: null, reason: null, capturedReference: sung } } },
+    { delays: { finish_performance: 1200 } },
+  );
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: "Referência de Música de teste" }).click();
+  await page.getByRole("button", { name: "Gravar cantando" }).click();
+  await expect(page.getByRole("button", { name: "Começar" })).toBeVisible();
+  await shot(page, "referencia-cantar");
+  await gif(page, "referencia-cantar", async () => {
+    await pause(page, 800);
+    await page.getByRole("button", { name: "Começar" }).click();
+    await expect(page.getByText("Gravando notas")).toBeVisible({ timeout: 6000 });
+    await feedTicks(page);
+    await pause(page, 4500);
+    await page.evaluate(() => window.__docsStop?.());
+    await page.getByRole("button", { name: "Parar" }).click();
+    await expect(page.getByText("Cantada", { exact: true })).toBeVisible({ timeout: 6000 });
+    await pause(page, 1500);
+  });
+});
+
 // ---------- 06 cantar ----------
 
 test("06 cantar", async ({ page }) => {
@@ -655,6 +680,15 @@ test("11 atualizações", async ({ page }) => {
   await page.getByRole("button", { name: "Verificar agora" }).click();
   await expect(page.getByText("Você já está na versão mais recente.")).toBeVisible();
   await shot(page.getByText("Você já está na versão mais recente.").locator(".."), "atualizacao-em-dia");
+});
+
+test("11 atualizações — sem versão normal", async ({ page }) => {
+  await open(page, { "plugin:updater|check": { err: { code: "updater", message: "Could not fetch a valid release JSON from the remote" } } });
+  await nav(page, "Ajustes");
+  await page.getByRole("button", { name: "Verificar agora" }).click();
+  const msg = page.getByText("Nenhuma versão nova pelo canal de atualizações automáticas.");
+  await expect(msg).toBeVisible();
+  await shot(msg.locator(".."), "atualizacao-sem-versao");
 });
 
 // ---------- budget ----------

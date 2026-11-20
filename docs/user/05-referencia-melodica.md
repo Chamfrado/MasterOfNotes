@@ -31,7 +31,7 @@ Use arquivos que você tenha o direito de usar. O app não vem com referências 
 2. Clique em **Importar referência**.
 3. Escolha o arquivo `.mid`, `.midi` ou `.json`.
 
-![Tela de referência sem referência: "Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz) ou um JSON no formato mon-melody v1."](media/referencia-vazia.png)
+![Tela de referência sem referência, com os botões Cantar, Gravar cantando e Importar referência: "Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz) ou um JSON no formato mon-melody v1, ou grave cantando a melodia junto com o vídeo."](media/referencia-vazia.png)
 
 ### Escolher a trilha da voz (MIDI)
 
@@ -44,8 +44,6 @@ Se o MIDI tiver mais de uma trilha com notas, o app pergunta **Qual trilha é a 
 Ao importar, a referência entra como **Referência experimental**: o app ainda não sabe se ela está alinhada com o seu vídeo.
 
 ## Gravar cantando
-
-<!-- A capturar (T-011-06, depois da UI e do backend da T-005-07 no main): media/referencia-cantar.png (painel Gravar cantando) e media/referencia-cantar.gif (contagem, Gravando notas, Parar, selo Cantada). -->
 
 Sem o arquivo da melodia, dá para criar a referência **cantando**. A pessoa que grava canta a melodia junto com o vídeo, e o app anota cada nota: qual é, quando começa e quanto dura.
 
@@ -62,9 +60,16 @@ Sem o arquivo da melodia, dá para criar a referência **cantando**. A pessoa qu
 
 1. Na tela da referência, clique em **Gravar cantando**.
 2. Leia o painel **Gravar cantando** e clique em **Começar**.
+
+   ![Painel "Gravar cantando" ao lado do vídeo: "Cante a melodia junto com o vídeo; o app grava só as notas, nunca a sua voz. Use fones de ouvido." e os botões Começar e Cancelar.](media/referencia-cantar.png)
+
 3. Depois da contagem **3, 2, 1**, o vídeo toca do início. Enquanto o selo **Gravando notas** estiver aceso, cante a melodia. O medidor mostra que o microfone está ouvindo você.
 4. Ao fim da música, a gravação para sozinha. Para terminar antes, clique em **Parar**.
 5. O app mostra *"Salvando as notas…"* e volta para a tela da referência, com as notas desenhadas sobre o vídeo e os selos **Cantada** e **Referência experimental**.
+
+![Animação: Começar, o vídeo toca com o selo Gravando notas e o medidor do microfone com Voz detectada; Parar; a tela volta com as notas sobre o vídeo, os selos Referência experimental e Cantada e o aviso "Notas gravadas. Confira o alinhamento e valide."](media/referencia-cantar.gif)
+
+*Notas e nível do microfone de exemplo.*
 
 **Cancelar** descarta a gravação e não muda nada.
 

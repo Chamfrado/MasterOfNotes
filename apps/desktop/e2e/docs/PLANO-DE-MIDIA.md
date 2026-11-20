@@ -56,6 +56,8 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 | referencia-trilha | P | Diálogo **Qual trilha é a voz?** com 3 trilhas | `list_midi_tracks` com nomes inventados |
 | referencia-alinhar | G | Vídeo de teste tocando com as notas por cima; ajuste com **+100 ms** até alinhar; **Salvar offset** | música de teste + sua referência JSON |
 | referencia-validar | P | Após **Validar alinhamento**: selo **Referência validada** | `set_reference_status` → validated |
+| referencia-cantar | P | Painel **Gravar cantando** (Começar/Cancelar) | `get_reference: null` |
+| referencia-cantar | G | Começar → 3-2-1 → **Gravando notas** com medidor → **Parar** → selos **Cantada** e **Referência experimental** | `finish_performance` com `capturedReference` (MockSpec do script); ticks injetados |
 
 ### 06-cantar.md
 | ID | Tipo | Conteúdo | Estado do mock |
@@ -109,18 +111,19 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 | atualizacao-disponivel | P | "Versão X disponível" + notas + **Baixar atualização** | `plugin:updater|check` com versão fictícia (MockSpec do script) |
 | atualizacao-instalar | P | Diálogo **Instalar agora?** | download simulado (só no script de captura) |
 | atualizacao-em-dia | P (recorte) | "Você já está na versão mais recente." | `check` → null |
+| atualizacao-sem-versao | P (recorte) | "Nenhuma versão nova pelo canal de atualizações automáticas." + **Abrir página de versões** | `check` rejeita com "valid release JSON" (404 do endpoint) |
 
 
 ### 12-privacidade.md, 13-problemas-e-faq.md, 14-glossario.md
 Só texto; reusam recortes das páginas 03, 04 e 06 (ex.: `detalhes-incompativel`, `microfone-calibrar-problemas`).
 
-## Totais (gerados em 2026-11-19, main 7caa1c9)
+## Totais (2026-11-19, main b87d18d; página 05 e atualizacao-sem-versao regeneradas na T-011-06)
 | Tipo | Qtd | Tamanho |
 |---|---|---|
-| PNG | 38 | 4,1 MB |
-| GIF | 9 | 2,8 MB (maior: 0,65 MB) |
+| PNG | 41 (inclui a captura real `instalador-concluido`) | 4,3 MB |
+| GIF | 10 | 3,2 MB (maior: 0,65 MB) |
 | Vídeo | 1 | 3,1 MB |
-| **Total** | 48 | **10,0 MB** (limite 40 MB) |
+| **Total** | 52 | **10,6 MB** (limite 40 MB) |
 
 ## GIF sem ffmpeg (aprovado pelo coordenador)
 1. O script tira screenshots em sequência (≈ 8 fps) com `page.screenshot()` durante o fluxo.
