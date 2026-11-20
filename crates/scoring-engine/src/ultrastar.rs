@@ -12,6 +12,8 @@
 //!
 //! The result goes through the same validation/skyline as the other sources.
 
+use std::num::IntErrorKind;
+
 use serde::Serialize;
 
 use crate::reference::{MelodyReference, Note, RefError, validate};
@@ -160,11 +162,18 @@ fn number(s: &str) -> Option<f64> {
 }
 
 /// Beats and pitches are read as `i32` and summed as `i64`: no overflow from
-/// any file (a beat count beyond ±2³¹ is an error, not a wrap).
+/// any file (a beat count beyond ±2³¹ is an error, not a wrap). Err = reason.
+fn int32(t: &str) -> Result<i64, &'static str> {
+    t.parse::<i32>().map(i64::from).map_err(|e| match e.kind() {
+        IntErrorKind::PosOverflow | IntErrorKind::NegOverflow => {
+            "é um número fora do limite permitido"
+        }
+        _ => "não é um número inteiro",
+    })
+}
+
 fn integer(t: &str, line: usize) -> Result<i64, RefError> {
-    t.parse::<i32>()
-        .map(i64::from)
-        .map_err(|_| line_err(line, format!("\"{t}\" não é um número inteiro")))
+    int32(t).map_err(|why| line_err(line, format!("\"{t}\" {why}")))
 }
 
 /// Next whitespace-separated integer of a note line, and the text after it.
@@ -174,12 +183,8 @@ fn field<'a>(s: &'a str, line: usize, what: &str) -> Result<(i64, &'a str), RefE
     if end == 0 {
         return Err(line_err(line, format!("a nota não tem {what}")));
     }
-    let v = s[..end].parse::<i32>().map(i64::from).map_err(|_| {
-        line_err(
-            line,
-            format!("{what} \"{}\" não é um número inteiro", &s[..end]),
-        )
-    })?;
+    let v = int32(&s[..end])
+        .map_err(|why| line_err(line, format!("{what} \"{}\" {why}", &s[..end])))?;
     Ok((v, &s[end..]))
 }
 
