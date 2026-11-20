@@ -159,8 +159,11 @@ fn number(s: &str) -> Option<f64> {
         .filter(|v: &f64| v.is_finite())
 }
 
+/// Beats and pitches are read as `i32` and summed as `i64`: no overflow from
+/// any file (a beat count beyond ±2³¹ is an error, not a wrap).
 fn integer(t: &str, line: usize) -> Result<i64, RefError> {
-    t.parse()
+    t.parse::<i32>()
+        .map(i64::from)
         .map_err(|_| line_err(line, format!("\"{t}\" não é um número inteiro")))
 }
 
@@ -169,9 +172,9 @@ fn field<'a>(s: &'a str, line: usize, what: &str) -> Result<(i64, &'a str), RefE
     let s = s.trim_start();
     let end = s.find(char::is_whitespace).unwrap_or(s.len());
     if end == 0 {
-        return Err(line_err(line, format!("falta a {what} da nota")));
+        return Err(line_err(line, format!("a nota não tem {what}")));
     }
-    let v = s[..end].parse().map_err(|_| {
+    let v = s[..end].parse::<i32>().map(i64::from).map_err(|_| {
         line_err(
             line,
             format!("{what} \"{}\" não é um número inteiro", &s[..end]),
