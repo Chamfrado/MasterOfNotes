@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as ipc from "./lib/ipc";
-import { SAMPLE_RATE, decodeMono44k, resetSongAudio, withSongAudio } from "./songAudio";
+import { SAMPLE_RATE, UNDECODABLE, decodeMono44k, resetSongAudio, withSongAudio } from "./songAudio";
 
 vi.mock("./lib/ipc", () => ({ uploadSongAudio: vi.fn(), videoSrc: (s: { id: string }) => `asset://${s.id}.mp4` }));
 
@@ -61,6 +61,15 @@ describe("decodeMono44k", () => {
     decodedChannels = 1;
     await decodeMono44k("asset://a.mp4");
     expect(contexts).toHaveLength(1);
+  });
+
+  it("explains a video without a decodable audio track in pt-BR (detail only in the log)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const decode = vi.spyOn(FakeOfflineAudioContext.prototype, "decodeAudioData").mockRejectedValue(new Error("Unable to decode audio data"));
+    await expect(decodeMono44k("asset://mudo.mp4")).rejects.toThrow(UNDECODABLE);
+    expect(warn).toHaveBeenCalledWith("decodeAudioData:", expect.any(Error));
+    decode.mockRestore();
+    warn.mockRestore();
   });
 
   it("reports an unreadable video", async () => {

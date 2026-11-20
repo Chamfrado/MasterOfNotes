@@ -286,6 +286,7 @@ describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
     renderRef();
     await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
     expect(screen.getByText("A referência atual vai para o histórico; a nova nasce experimental.")).toBeInTheDocument();
+    expect(screen.getByText("Fique nesta tela até terminar: se sair, a geração será cancelada.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Começar" }));
     expect(ipc.generateReference).toHaveBeenCalledWith("s1", "tok", expect.any(Function));
     act(() => progress({ stage: "separating", fraction: 0.4 }));
@@ -330,17 +331,45 @@ describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
     expect(navigate).toHaveBeenCalledWith({ name: "settings", section: "autoReference" });
   });
 
-  it("cancel stops the Rust job and keeps the current reference", async () => {
+  /** Like Rust: the job keeps running after cancel_generate_reference until `end` rejects it with `cancelled`. */
+  const cancellableJob = () => {
+    let end = () => {};
+    vi.mocked(ipc.generateReference).mockImplementation(
+      () => new Promise((_ok, fail) => (end = () => fail({ code: "cancelled", message: "Geração cancelada." }))),
+    );
+    return () => act(async () => end());
+  };
+
+  it("cancel stops the Rust job, keeps the current reference and keeps the keyboard on the panel", async () => {
     withModel();
     vi.mocked(ipc.getReference).mockResolvedValue(ref({ status: "validated" }));
-    vi.mocked(ipc.generateReference).mockImplementation(() => new Promise(() => {}));
+    const end = cancellableJob();
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    const cancel = await screen.findByRole("button", { name: "Cancelar" });
+    await vi.waitFor(() => expect(cancel).toHaveFocus()); // "Começar" unmounted: focus must not fall to <body>
+    await userEvent.click(cancel);
+    expect(ipc.cancelGenerateReference).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Geração cancelada.")).toBeInTheDocument();
+    expect(screen.getByText("Referência validada")).toBeInTheDocument();
+    await end();
+  });
+
+  it("a new start waits until the cancelled job really ended (never `busy`)", async () => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    const end = cancellableJob();
     renderRef();
     await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
     await userEvent.click(screen.getByRole("button", { name: "Começar" }));
     await userEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
-    expect(ipc.cancelGenerateReference).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText("Geração cancelada.")).toBeInTheDocument();
-    expect(screen.getByText("Referência validada")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Gerar automaticamente" }));
+    expect(screen.getByRole("button", { name: "Começar" })).toBeDisabled();
+    expect(screen.getByText("Encerrando a geração anterior…")).toBeInTheDocument();
+    await end();
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Começar" })).toBeEnabled());
+    expect(screen.queryByText("Encerrando a geração anterior…")).not.toBeInTheDocument();
   });
 });
 
