@@ -159,7 +159,8 @@ Os motivos mais comuns de *"arquivo UltraStar, linha N: …"*:
 |---|---|
 | *#BPM "…" não é um número positivo* / *#GAP "…" não é um número* | O andamento ou o atraso inicial do cabeçalho está escrito errado. |
 | *nota antes do #BPM* | As notas começam antes da linha `#BPM:`. Ela precisa vir no cabeçalho, antes das notas. |
-| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *a nota não tem início* (ou *duração*, ou *altura*) | A linha da nota está incompleta ou tem um valor que não é um número inteiro (ou é um número grande demais). |
+| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *a nota não tem início* (ou *duração*, ou *altura*) | A linha da nota está incompleta ou tem um valor que não é um número inteiro. |
+| *início "…"*, *duração "…"* ou *altura "…" é um número fora do limite permitido* | Um número da nota é grande demais (provavelmente um erro de digitação ou um arquivo corrompido). |
 | *duração … (deve ser maior que zero)* | Uma nota tem duração zero ou negativa. |
 | *altura … (MIDI …) fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada. |
 | *a nota cai fora da música (antes de 0 ms)* | O `#GAP` negativo empurrou uma nota para antes do começo da música. |
@@ -195,7 +196,7 @@ Feche o app e copie a pasta `%APPDATA%\com.masterofnotes.karaoke\`. Para restaur
 
 ### "Não foi possível abrir o banco de dados em …. Nenhum dado foi apagado."
 
-O app não conseguiu abrir o arquivo de dados. Feche e abra o app de novo. Se continuar, confira se há espaço livre no disco e se a pasta indicada na mensagem existe. Seus dados não foram apagados.
+O app não conseguiu abrir o arquivo de dados. Se a mensagem disser que o banco *"foi criado por uma versão mais nova do MasterOfNotes"*, você está abrindo uma versão mais antiga do app depois de usar uma mais nova: instale a versão mais recente (veja [Atualizações](11-atualizacoes.md#versões-que-atualizam-os-seus-dados)). Nos outros casos, feche e abra o app de novo. Se continuar, confira se há espaço livre no disco e se a pasta indicada na mensagem existe. Seus dados não foram apagados.
 
 ### O app não abre ou mostra uma tela em branco
 

@@ -36,7 +36,7 @@ Os arquivos aceitos:
 2. Clique em **Importar referência**.
 3. Escolha o arquivo `.mid`, `.midi`, `.json` ou `.txt` (UltraStar). Na janela de escolha, o filtro se chama **MIDI, JSON ou UltraStar (.txt)**.
 
-![Tela de referência sem referência, com os botões Cantar, Gravar cantando e Importar referência: "Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz) ou um JSON no formato mon-melody v1, ou grave cantando a melodia junto com o vídeo."](media/referencia-vazia.png)
+![Tela de referência sem referência, com os botões Cantar, Gravar cantando, Gerar automaticamente e Importar referência: "Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz), um JSON no formato mon-melody v1 ou um UltraStar (.txt), grave cantando a melodia junto com o vídeo ou gere automaticamente a partir da voz do vídeo."](media/referencia-vazia.png)
 
 ### Escolher a trilha da voz (MIDI)
 
@@ -47,8 +47,6 @@ Se o MIDI tiver mais de uma trilha com notas, o app pergunta **Qual trilha é a 
 *Nomes de trilha de exemplo.*
 
 ### Arquivos UltraStar (.txt)
-
-<!-- TODO(T-013-05): rótulos conferidos em agent-3/work @ fdaa975 (reconferir na integ/014). Mídia: referencia-ultrastar.png (selo + sugestão de alinhar). -->
 
 O **UltraStar** é um formato de karaokê criado pela comunidade de fãs do jogo de mesmo nome. Um arquivo UltraStar é um texto (`.txt`) com as notas da melodia, a letra sílaba por sílaba e o andamento da música. Muita gente que faz karaokê já tem esses arquivos.
 
@@ -64,6 +62,10 @@ A referência entra como **experimental**, com o selo **UltraStar**.
 **Dueto.** Se o arquivo for de dueto (duas vozes, P1 e P2), o app importa **só a parte do primeiro cantor** (incluindo os trechos que os dois cantam juntos) e mostra o aviso *"Arquivo de dueto: importamos a parte do primeiro cantor."*
 
 **Alinhe depois de importar.** O arquivo UltraStar marca o tempo das notas em relação à **gravação original** da música, e não ao seu vídeo de karaokê. Se o vídeo tem uma introdução diferente, as notas ficam adiantadas ou atrasadas. Por isso, logo depois de importar, aparece abaixo do título da tela: *"Arquivos UltraStar costumam seguir o tempo da gravação original, não o deste vídeo. Use Alinhar automaticamente antes de validar."* Clique em **[Alinhar automaticamente](#alinhar-automaticamente)**: o app propõe o offset, e você confere sobre o vídeo antes de aplicar. O aviso some quando você usa Alinhar automaticamente (e também se sair da tela).
+
+![Tela da referência logo depois de importar um UltraStar de dueto: abaixo do título, o aviso "Arquivos UltraStar costumam seguir o tempo da gravação original, não o deste vídeo. Use Alinhar automaticamente antes de validar."; os selos Referência experimental e UltraStar; e os avisos "Arquivo de dueto: importamos a parte do primeiro cantor." e "Referência importada. Confira o alinhamento e valide."](media/referencia-ultrastar.png)
+
+*Arquivo de exemplo, de autoria própria.*
 
 Se o arquivo tiver um erro, a mensagem diz **em qual linha** ele está, por exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura "x" não é um número inteiro."* Abra o arquivo num editor de texto e confira essa linha. A lista de mensagens está em [Problemas e FAQ](13-problemas-e-faq.md#referência-melódica).
 

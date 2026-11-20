@@ -24,7 +24,7 @@ Critérios:
 | T-013-02 | Migração 002 (`source` com `'ultrastar'`) + teste de migração com dados da 0.1.3; `import_reference` aceita `.txt` | Agente 1 | review |
 | T-013-03 | UI: filtro `.txt` no diálogo, selo "UltraStar", aviso de dueto, sugestão de alinhar | Agente 3 | review |
 | T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | review |
-| T-013-05 | Guia (05, FAQ): o que é UltraStar, como importar, por que alinhar, aviso de direitos | Agente 5 | in_progress |
+| T-013-05 | Guia (05, FAQ): o que é UltraStar, como importar, por que alinhar, aviso de direitos | Agente 5 | review |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
@@ -76,3 +76,4 @@ Criada em 2026-11-20 (coordenador), janela autônoma.
     - Referência pendurada → rollback, com o banco v1 intacto.
   - **E2E:** fake com `ultrastar` e `notice`; contrato + UI (selo, sugestão de alinhar, dueto, linha inválida, filtro .txt) + a11y da tela importada.
   - Baixo B1 (texto de estouro "não é um número inteiro"); observações O1 (`~` vira sílaba vazia) e O2 (downgrade pelo `.bak-v1`).
+- T-013-05 `review` (Agente 5, 2026-11-20), sobre integ/014: 05 com 4 caminhos, seção "Arquivos UltraStar (.txt)" (rótulos e avisos conferidos em Reference.tsx e reference.rs: filtro "MIDI, JSON ou UltraStar (.txt)", selo UltraStar, aviso de dueto, sugestão de alinhar que some ao alinhar ou sair da tela), aviso de direitos. 13-FAQ: mensagens exatas do import_ultrastar (Agente 2, incluindo "a nota não tem …" e "é um número fora do limite permitido"), o que é ignorado sem erro, 3 perguntas novas; o caso "versão mais nova" no erro de banco. 11: "Versões que atualizam os seus dados" (QA O2: a 0.1.4 migra o banco, cópia `masterofnotes.db.bak-v1`, versão anterior não abre e avisa, voltar não é suportado; mensagem conferida em db.rs e na v0.1.3). Mídia: nova `referencia-ultrastar.png`; regenerada `referencia-vazia.png` (texto cita UltraStar); `referencia-trilha` descartada (só o fundo esmaecido mudou). Playwright `-g "05 referência melódica$|UltraStar"` ✅ 2/2; typecheck ✅; verificador de links ✅. Total: 57 arquivos, 11,6 MB.

@@ -39,6 +39,12 @@ A atualização **nunca acontece no meio de uma música**: a tela de atualizaç�
 
 **Suas músicas, rankings, cantores e ajustes são mantidos.** Eles ficam numa pasta separada do programa (veja [Instalação](01-instalacao.md#onde-as-coisas-ficam)). Se uma versão nova precisar mudar o formato dos dados, o app faz uma cópia de segurança do banco antes.
 
+### Versões que atualizam os seus dados
+
+Algumas versões mudam o formato do banco de dados. A **0.1.4** é uma delas. Antes de mudar, o app guarda uma cópia do banco antigo, `masterofnotes.db.bak-v1`, na mesma pasta dos seus dados (`%APPDATA%\com.masterofnotes.karaoke\`).
+
+Depois dessa atualização, **uma versão anterior do app não abre mais o banco**: ela avisa que o banco *"foi criado por uma versão mais nova do MasterOfNotes"* e pede para atualizar. Voltar para uma versão anterior **não é suportado**. A cópia `.bak-v1` existe só para emergências: ela tem os dados de antes da atualização, sem nada do que você fez depois.
+
 ## Segurança
 
 Cada atualização é **assinada digitalmente** pelo projeto. Se a assinatura não bater, o app recusa a atualização e não instala nada.
