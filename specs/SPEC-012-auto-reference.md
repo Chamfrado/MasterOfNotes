@@ -32,8 +32,8 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-012-01 | `song-analysis`: runtime ONNX + separação em trechos + nível de voz + transcrição + testes (modelo real só em `#[ignore]`) | Agente 2 | todo |
-| T-012-02 | `song-analysis`: DTW em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | todo |
+| T-012-01 | `song-analysis`: runtime ONNX + separação em trechos + nível de voz + transcrição + testes (modelo real só em `#[ignore]`) | Agente 2 | review |
+| T-012-02 | `song-analysis`: DTW em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | review |
 | T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | todo |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | todo |
 | T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | todo |
@@ -41,3 +41,16 @@ Critérios:
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
+- 2026-11-20 · Agente 2 · T-012-01/02 em `review`. O crate `crates/song-analysis` segue a API do contracts.md §2.5. Há dois extras, propostos ao coordenador: as variantes `AnalysisError::Input` e `pub const LOW_CONFIDENCE: f32 = 0.5`. Evidência completa em [docs/testing/auto-reference.md](../docs/testing/auto-reference.md).
+  - **R7 com o modelo real** (`#[ignore]`):
+    - voz-guia sintética: **precisão 98,3%**, recall 77,2%, cantor perfeito 98,2;
+    - pico de **1353 MiB**;
+    - tempo: ~145–150 s por música de 4 min com a CPU livre, 160–231 s com outros builds na máquina;
+    - nível de voz: −3,1 dB com voz, −55 dB sem voz. `NO_VOICE_DB = −20`.
+  - **R5:**
+    - MIDI deslocado 1,2 s: erro de 17 ms (voz-guia) e 5 ms (melodia instrumental), confiança 0,94–0,95;
+    - karaokê sem melodia: confiança ≤ 0,02. Ele não alinha, e diz isso.
+    - Foi implementado como busca exaustiva de lag no croma, não DTW: o offset é constante (justificativa no doc).
+  - **Limites:**
+    - cancelamento entre trechos: pior caso de ~1 trecho, ~3,6 s;
+    - voz real sem verdade anotada ⏳.
