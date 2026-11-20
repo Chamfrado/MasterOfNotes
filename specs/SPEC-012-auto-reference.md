@@ -26,7 +26,7 @@ Critérios:
 
 ### Decisões de runtime (coordenador, 2026-11-20, com medições do Agente 2)
 - **ONNX Runtime:** `ort` (MIT/Apache) em modo **load-dynamic** + `onnxruntime.dll` **oficial da Microsoft** (NuGet `Microsoft.ML.OnnxRuntime` 1.31.1, `runtimes/win-x64/native/onnxruntime.dll`, 17,3 MB, MIT). Medido: ~150 s por música de 4 min, pico de 1,23 GB, +4,5 MB no instalador. A DLL só carrega ao gerar; se faltar, a mensagem de erro é clara (não há crash). Rejeitados: `tract` (~220 s, acima da meta) e o `ort` estático (2,5 GB de pico; importa DirectML/D3D12 na partida do app inteiro).
-- **Distribuição da DLL:** **não** é commitada. Um script do build (`src-tauri`) baixa a DLL do pacote NuGet oficial (range requests) e **verifica o SHA-256 fixado**; se o hash não bater, falha. A DLL entra no instalador como resource, ao lado do .exe. Build reprodutível pelo hash (Lei 12).
+- **Distribuição da DLL:** **não** é commitada e **não** está na config base (o `tauri-build` exige o resource em toda compilação, inclusive no `cargo test` do CI). Entra **só no build de release**: o `release.yml` roda o script de `src-tauri` que baixa a DLL do NuGet oficial (range requests), **verifica o SHA-256 fixado** (falha se divergir) e passa `bundle.resources` pelo overlay `--config` do release, junto do `createUpdaterArtifacts`. Dev, testes e `pnpm build` local funcionam sem a DLL; nesse caso, "gerar" devolve um erro claro. Build reprodutível pelo hash (Lei 12).
 - **Créditos (Lei 19):** o aviso de licença MIT da ONNX Runtime vai num `THIRD-PARTY-NOTICES` empacotado e é citado no guia.
 
 ## TASKS
