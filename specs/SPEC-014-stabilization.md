@@ -12,7 +12,7 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | todo |
+| T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | review |
 | T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | todo |
 | T-014-03 | Auditoria Ponytail (R3) | Agente 0 | todo |
 | T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | todo |
@@ -20,3 +20,14 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
+- T-014-01 `review` (Agente 4, 2026-11-20). Revisão de segurança em [security-review.md](../docs/testing/evidence/security-review.md).
+  - **A1 ALTO, corrigido** (5365a23): a chave de assinatura do updater estava no env do job de release, visível a actions de terceiros por tag mutável. Agora fica só nos 2 passos que a usam; as actions estão fixadas por SHA; o checkout não guarda credenciais; permissões mínimas por job.
+  - **Nenhum médio.**
+  - **Baixos:**
+    - B1: TOCTOU entre o hash e a cópia do modelo;
+    - B2: o asset protocol não revoga caminhos removidos;
+    - B3: oráculo de leitura no eco de linha do UltraStar;
+    - B4: tamanho no `metadata` com leitura sem limite;
+    - B5: `opener:default` mais largo que o uso;
+    - B6: `set_library_folder` aceita qualquer pasta.
+  - Junctions confirmadas como não seguidas, por sonda.
