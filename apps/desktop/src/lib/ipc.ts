@@ -136,6 +136,8 @@ export interface MelodyReference {
   revision: number;
   offsetMs: number;
   notes: RefNote[];
+  /** pt-BR, only on importReference results (e.g. UltraStar duet). Show as a toast. */
+  notice?: string | null;
 }
 export interface MidiTrackInfo {
   index: number;

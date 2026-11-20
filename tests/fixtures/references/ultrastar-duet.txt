@@ -1,0 +1,15 @@
+#TITLE:Dueto do Teste
+#ARTIST:Master Of Notes
+#BPM:300
+#GAP:0
+P1
+: 0 4 0 eu
+: 4 4 2 can
+- 10
+P2
+: 0 4 7 vo
+: 4 4 9 cê
+- 10
+P3
+: 12 8 4 nós
+E

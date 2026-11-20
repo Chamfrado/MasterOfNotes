@@ -20,12 +20,59 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-013-01 | `scoring-engine`: `import_ultrastar(bytes) -> Result<(MelodyReference, UltraStarInfo), RefError>` + testes (BPM/GAP, relativo, F/R/G, dueto, encoding, linha inválida) | Agente 2 | todo |
-| T-013-02 | Migração 002 (`source` com `'ultrastar'`) + teste de migração com dados da 0.1.3; `import_reference` aceita `.txt` | Agente 1 | todo |
-| T-013-03 | UI: filtro `.txt` no diálogo, selo "UltraStar", aviso de dueto, sugestão de alinhar | Agente 3 | todo |
-| T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | todo |
+| T-013-01 | `scoring-engine`: `import_ultrastar(bytes) -> Result<(MelodyReference, UltraStarInfo), RefError>` + testes (BPM/GAP, relativo, F/R/G, dueto, encoding, linha inválida) | Agente 2 | review |
+| T-013-02 | Migração 002 (`source` com `'ultrastar'`) + teste de migração com dados da 0.1.3; `import_reference` aceita `.txt` | Agente 1 | review |
+| T-013-03 | UI: filtro `.txt` no diálogo, selo "UltraStar", aviso de dueto, sugestão de alinhar | Agente 3 | review |
+| T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | review |
 | T-013-05 | Guia (05, FAQ): o que é UltraStar, como importar, por que alinhar, aviso de direitos | Agente 5 | in_progress |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
-- T-013-05 `in_progress` (Agente 5, 2026-11-20): texto a partir desta spec e do contracts.md, sem mídia. 05: tabela com 4 caminhos (UltraStar: notas escritas, mas tempo da gravação original → alinhar), lista de arquivos aceitos, seção "Arquivos UltraStar (.txt)" (o que é, douradas como normais, freestyle/rap fora, acentos de arquivos antigos, selo UltraStar, dueto só P1 com o aviso do R3, alinhar depois com Alinhar automaticamente, erro com número da linha), aviso de direitos (o app não inclui nem baixa). 13-FAQ: 3 perguntas (o que é/onde conseguir, notas adiantadas, dueto) + linha de erro genérica. README e glossário. Verificador de links ✅. ⏳ Rótulos (TODO em comentários) e mídia quando a UI da T-013-03 existir; mensagens exatas de erro do import_ultrastar.
+- T-013-03 `review` (Agente 3, 2026-11-20):
+  - Selo "UltraStar". O diálogo de importação aceita `.txt`, com o filtro "MIDI, JSON ou UltraStar (.txt)", e o texto de "Sem referência" cita UltraStar.
+  - Se `importReference` devolve `notice` (ex.: dueto, R3), ele aparece em toast.
+  - R6: depois de importar um UltraStar, um aviso (`role="status"`) sugere "Alinhar automaticamente". Ele some quando o alinhamento é pedido ou quando outra referência substitui a importada.
+  - Testes: `Reference.test.tsx` +1 (filtro, selo, dueto, sugestão até alinhar). ⏳ Não visto com o `import_ultrastar` real (T-013-01/02).
+- 2026-11-20 · Agente 2 · T-013-01 em `review`. Novo `crates/scoring-engine/src/ultrastar.rs`; `import_ultrastar` e `UltraStarInfo` (com `Serialize` em camelCase) são exportados.
+  - **Formato:**
+    - `#BPM` é obrigatório e aceita vírgula decimal;
+    - `#GAP` vale 0 se faltar;
+    - `#RELATIVE:yes`, com quebra de linha de 1 ou 2 números (soma o 2º, ou o único);
+    - `:`/`*` viram notas; `F`/`R`/`G` ficam fora; `-`/`E` são estrutura, e o que vem depois de `E` é ignorado;
+    - `P1`/`P3` entram, `P2` fica fora, e `duet` vale `true` se houver `P2`;
+    - a sílaba é aparada, e `~` de continuação vira `lyric` vazia;
+    - UTF-8 com ou sem BOM; CP1252 se os bytes não forem UTF-8 válido ou se `#ENCODING` declarar CP1252/Latin-1.
+  - **Erros (contrato, a aprovar):** duas variantes novas de `RefError`, com Display em pt-BR:
+    - `UltraStarHeader(String)` → "arquivo UltraStar inválido: falta o #BPM";
+    - `UltraStarLine { line, reason }` → "arquivo UltraStar, linha N: …".
+  - **Validação e skyline:** as mesmas das outras fontes (`validate`).
+  - **Fixtures próprias:** `ultrastar-simple.txt`, `ultrastar-cp1252-relative.txt` e `ultrastar-duet.txt`. O CRLF é testado inline, porque o repo normaliza as fixtures para LF.
+  - **Testes:**
+    - `cargo test -p scoring-engine` ✅ (lib 32, reference 16 com 7 novos, regression 33);
+    - clippy `-D warnings` ✅;
+    - `ALGORITHM_VERSION` não mudou.
+- T-013-02 em `review` (Agente 1, 2026-11-20).
+  - **Migração 002** (`src-tauri/migrations/002_ultrastar_source.sql`): recria `melody_references` pelo procedimento oficial do SQLite (CREATE nova + INSERT SELECT com os ids + DROP + RENAME + índice parcial `one_active_reference` recriado), para o CHECK de `source` aceitar `'ultrastar'`.
+  - O runner (`db.rs`) desliga `foreign_keys` antes das migrações, porque o PRAGMA não muda dentro de transação, e religa depois. Cada migração roda `pragma_foreign_key_check` antes do commit: qualquer violação vira `db_migration_failed` em pt-BR, com rollback, e nada é alterado. O backup `.bak-v1` continua automático (`VACUUM INTO`).
+  - **Teste de migração** (portão 6): `db::tests::migration_002_keeps_013_data_and_accepts_ultrastar`. O banco é montado só com a migração 001, o formato exato da 0.1.3, com 15 linhas: settings, 2 músicas (uma indisponível), referências ativa + inativa + extracted com offset negativo, participantes, sessão party, rodadas e 3 performances apontando para as referências 1, 2 e 5.
+    - Ao abrir com o app novo: `user_version` 2; dump de TODAS as tabelas idêntico, ids incluídos; `foreign_key_check` vazio; FKs religadas; `.bak-v1` com versão 1 e os mesmos dados.
+    - O novo esquema aceita 'ultrastar', recusa fonte desconhecida, mantém o índice parcial e as FKs (para `songs` e a de `performances.reference_id` para a tabela recriada). Reabrir um banco v2 não gera backup.
+    - `db::tests::migration_with_dangling_reference_rolls_back`: uma migração que deixa referência pendurada é desfeita e o banco fica em v1, idêntico.
+  - **Import UltraStar:** `import_reference` aceita `.txt` → `scoring_engine::import_ultrastar` (Agente 2, agent-2/work @ 220b8f6) → `source = 'ultrastar'`, experimental, ativa, pelo mesmo `store()`.
+    - Dueto: `MelodyReference.notice` = "Arquivo de dueto: importamos a parte do primeiro cantor." (opção A aprovada). Só o retorno do import tem o campo; fora isso, ele não aparece no JSON.
+    - Arquivo inválido → `invalid_reference` com "linha N" na mensagem.
+  - Testes ✅ `reference::tests::import_ultrastar_txt_with_duet_notice` (critério 300 BPM/GAP 1000 → 1000 ms/200 ms/MIDI 60/"Lá"; F fora; dueto só P1 + aviso; notice omitido; "linha 2") e `rejects_bad_files_and_saves_nothing` (.txt que não é UltraStar → `invalid_reference`). `cargo test -p master-of-notes`: 71 ok, 7 ignorados. Clippy `-D warnings` limpo.
+- T-013-04 `review` (Agente 4, 2026-11-20). Relatório em [ultrastar-qa.md](../docs/testing/evidence/ultrastar-qa.md). **Sem achado ALTO nem MÉDIO.**
+  - **Fixtures:** 25 arquivos UltraStar de autoria própria em `tests/fixtures/references/ultrastar/` (válidos, inválidos e de limite), com os valores esperados e `.gitattributes` para manter os bytes exatos.
+  - **Parser** (92fb1ad):
+    - 9/9 válidos corretos (BPM com vírgula, RELATIVE, dueto, CP1252, BOM, CRLF);
+    - 11/11 inválidos com erro em pt-BR e a linha certa;
+    - 4/4 casos de limite sensatos;
+    - fuzz leve com 8.493 execuções, 0 pânicos.
+  - **Migração 002** (49d15ca): replicação independente em Python com dados em todas as tabelas da 0.1.3.
+    - Nada perdido; só o CHECK de source mudou; índice e FKs iguais.
+    - Backup `.bak-v1` igual ao original.
+    - `ultrastar` aceito e fonte inválida recusada.
+    - Referência pendurada → rollback, com o banco v1 intacto.
+  - **E2E:** fake com `ultrastar` e `notice`; contrato + UI (selo, sugestão de alinhar, dueto, linha inválida, filtro .txt) + a11y da tela importada.
+  - Baixo B1 (texto de estouro "não é um número inteiro"); observações O1 (`~` vira sílaba vazia) e O2 (downgrade pelo `.bak-v1`).

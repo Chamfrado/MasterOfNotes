@@ -37,6 +37,9 @@ pub struct Reference {
     pub revision: i64,
     pub offset_ms: i32,
     pub notes: Vec<RefNote>,
+    /// pt-BR, only on `import_reference` results (e.g. UltraStar duet). Omitted when `None`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
 }
 
 /// Statuses the user can set (`processing` is internal).
@@ -76,6 +79,7 @@ fn row(r: &rusqlite::Row) -> rusqlite::Result<(Reference, String)> {
             revision: r.get(4)?,
             offset_ms: r.get(5)?,
             notes: Vec::new(),
+            notice: None,
         },
         r.get(6)?,
     ))
@@ -174,16 +178,31 @@ pub fn import(
     midi_track: Option<usize>,
 ) -> AppResult<Reference> {
     library::get_song(conn, song_id)?;
-    let (bytes, ext) = read_file(file_path, &["mid", "midi", "json"])?;
-    let (parsed, source) = if ext == "json" {
-        let text = String::from_utf8(bytes)
-            .map_err(|_| AppError::new("invalid_reference", "O arquivo JSON não está em UTF-8."))?;
-        (scoring_engine::parse_reference_json(&text), "json")
-    } else {
-        (scoring_engine::import_midi(&bytes, midi_track), "midi")
+    let (bytes, ext) = read_file(file_path, &["mid", "midi", "json", "txt"])?;
+    let mut notice = None;
+    let (parsed, source) = match ext.as_str() {
+        "json" => {
+            let text = String::from_utf8(bytes).map_err(|_| {
+                AppError::new("invalid_reference", "O arquivo JSON não está em UTF-8.")
+            })?;
+            (scoring_engine::parse_reference_json(&text), "json")
+        }
+        // UltraStar (SPEC-013): duets import only the first singer (R3).
+        "txt" => {
+            let (r, info) = scoring_engine::import_ultrastar(&bytes).map_err(ref_err)?;
+            notice = info.duet.then(|| DUET_NOTICE.to_owned());
+            (Ok(r), "ultrastar")
+        }
+        _ => (scoring_engine::import_midi(&bytes, midi_track), "midi"),
     };
-    store(conn, song_id, source, &parsed.map_err(ref_err)?)
+    let reference = store(conn, song_id, source, &parsed.map_err(ref_err)?)?;
+    Ok(Reference {
+        notice,
+        ..reference
+    })
 }
+
+const DUET_NOTICE: &str = "Arquivo de dueto: importamos a parte do primeiro cantor.";
 
 /// Detected notes become the new active reference: sung (T-005-07, `source = 'manual'`) or
 /// extracted from the video (SPEC-012, `'extracted'`). Same parser as an imported file.
@@ -400,12 +419,65 @@ mod tests {
     }
 
     #[test]
+    fn import_ultrastar_txt_with_duet_notice() {
+        let mut e = env();
+        // SPEC-013 criterion: #BPM:300, #GAP:1000, ": 0 4 0 Lá" → 1000 ms, 200 ms, MIDI 60.
+        let solo = e.file(
+            "song.txt",
+            "#TITLE:Teste\n#BPM:300\n#GAP:1000\n: 0 4 0 Lá\nF 8 2 0 x\n: 12 4 2 la\nE\n".as_bytes(),
+        );
+        let r = import(&mut e.conn, &e.song, &solo, None).unwrap();
+        assert_eq!(
+            (r.source.as_str(), r.status.as_str()),
+            ("ultrastar", "experimental")
+        );
+        assert_eq!(
+            (r.notes[0].start_ms, r.notes[0].dur_ms, r.notes[0].midi),
+            (1000, 200, 60.0)
+        );
+        assert_eq!(r.notes[0].lyric.as_deref(), Some("Lá"));
+        assert_eq!(r.notes.len(), 2, "freestyle F left out");
+        assert_eq!(r.notice, None);
+        assert!(
+            serde_json::to_value(&r).unwrap().get("notice").is_none(),
+            "omitted, not null"
+        );
+
+        let duet = e.file(
+            "duet.txt",
+            b"#BPM:300\nP1\n: 0 4 0 a\n: 8 4 2 b\nP2\n: 0 4 7 c\nE\n",
+        );
+        let r = import(&mut e.conn, &e.song, &duet, None).unwrap();
+        assert_eq!(r.notice.as_deref(), Some(DUET_NOTICE));
+        assert_eq!(r.notes.len(), 2, "only P1");
+        assert_eq!(
+            serde_json::to_value(&r).unwrap()["notice"],
+            "Arquivo de dueto: importamos a parte do primeiro cantor."
+        );
+        // Stored reference does not carry the notice.
+        assert_eq!(active(&e.conn, &e.song).unwrap().unwrap().notice, None);
+
+        // Bad line: pt-BR message with the line number (R4), nothing stored.
+        let bad = e.file("bad.txt", b"#BPM:300\n: 0 4 x a\nE\n");
+        let err = import(&mut e.conn, &e.song, &bad, None).unwrap_err();
+        assert_eq!(err.code, "invalid_reference");
+        assert!(err.message.contains("linha 2"), "{}", err.message);
+        assert_eq!(active(&e.conn, &e.song).unwrap().unwrap().notice, None);
+    }
+
+    #[test]
     fn rejects_bad_files_and_saves_nothing() {
         let mut e = env();
+        let wav = e.file("ref.wav", JSON.as_bytes());
+        assert_eq!(
+            import(&mut e.conn, &e.song, &wav, None).unwrap_err().code,
+            "invalid_input"
+        );
+        // A .txt that is not UltraStar (no #BPM).
         let txt = e.file("ref.txt", JSON.as_bytes());
         assert_eq!(
             import(&mut e.conn, &e.song, &txt, None).unwrap_err().code,
-            "invalid_input"
+            "invalid_reference"
         );
         let empty = e.file(
             "empty.json",

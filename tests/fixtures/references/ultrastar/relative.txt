@@ -1,0 +1,12 @@
+#TITLE:Canção de Teste
+#ARTIST:Master Of Notes
+#MP3:teste.mp3
+#BPM:300
+#GAP:500
+#RELATIVE:yes
+: 0 4 0 um
+: 4 4 2 dois
+- 10 12
+: 0 4 4 três
+: 6 2 5 quatro
+E

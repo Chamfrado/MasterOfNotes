@@ -139,3 +139,16 @@ export const setReply =(page: Page, cmd: string, reply: MockReply) =>
 
 export const ipcCalls = (page: Page, cmd: string) =>
   page.evaluate((cmd) => (window.__E2E_CALLS__ ?? []).filter((c) => c.cmd === cmd), cmd);
+
+type Ipc = typeof import("../src/lib/ipc");
+
+/** Runs `fn` in the page with the app's real ipc module (src/lib/ipc.ts, served by Vite): contract tests of a
+ * fake through the client the screens use. Returns `fn`'s result, or `{ rejected: AppError }`. */
+export const withIpc = <T,>(page: Page, fn: (ipc: Ipc, arg: string) => Promise<T>, arg: string | null) =>
+  page.evaluate(
+    async ([src, arg]) => {
+      const ipc = (await import("/src/lib/ipc.ts" as string)) as Ipc;
+      return (new Function(`return ${src}`)() as typeof fn)(ipc, arg ?? "").catch((e: unknown) => ({ rejected: e }));
+    },
+    [fn.toString(), arg] as const,
+  );

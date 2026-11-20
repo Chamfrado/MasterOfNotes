@@ -1,0 +1,14 @@
+#TITLE:Canção de Teste
+#ARTIST:Master Of Notes
+#MP3:teste.mp3
+#BPM:300
+#GAP:1000
+: 0 4 0 Lá
+* 4 4 2 ri
+F 8 2 4 hey
+R 10 2 0 yo
+G 12 2 0 yo
+- 16
+: 18 4 4 la
+: 22 2 5 ~
+E

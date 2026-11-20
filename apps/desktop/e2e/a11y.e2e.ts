@@ -252,6 +252,20 @@ const screens: ScreenDef[] = [
     },
     backTo: dialogClosed,
   },
+  // SPEC-013 (T-013-04)
+  {
+    name: "Referência UltraStar recém-importada",
+    spec: {
+      "plugin:dialog|open": { ok: "C:/Karaoke/c3.txt" },
+      import_reference: { ok: { ...reference, source: "ultrastar", status: "experimental" } },
+    },
+    reach: async (p) => {
+      await openReference(p);
+      await p.getByRole("button", { name: "Importar outra" }).click();
+      await expect(p.getByRole("status").filter({ hasText: "Arquivos UltraStar costumam seguir" })).toBeVisible();
+    },
+    backTo: libraryVisible,
+  },
   // SPEC-012 (T-012-05)
   {
     name: "Ajustes: Referência automática sem modelo",
