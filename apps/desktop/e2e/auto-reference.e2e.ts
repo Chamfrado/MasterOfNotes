@@ -312,3 +312,21 @@ test("vídeo sem trilha de áudio: a geração falha com mensagem em pt-BR e per
   expect(pageErrors).toEqual([]);
 });
 
+
+test("voz fraca (QA M2): referência salva com aviso de revisão, que some quando uma geração com voz boa a substitui", async ({ page }) => {
+  const weak = { notes: [60, 62, 64].map((midi, i) => ({ startMs: 800 + i * 400, durMs: 350, midi, lyric: null })), voiceLevelDb: -14 };
+  const { pageErrors } = await openApp(page, { separationModel: installed, generated: [weak], generateStepMs: 50 });
+  await openReference(page, "Canção da Manhã");
+  const warning = page.getByRole("status").filter({ hasText: "A voz deste vídeo está fraca" });
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(warning).toHaveText("A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar.");
+  await expect(page.getByText("3 notas", { exact: true })).toBeVisible();
+
+  // Generate again: the fake's default run has a clear voice (−6.2 dB).
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(page.getByText("5 notas", { exact: true })).toBeVisible();
+  await expect(warning).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+});
