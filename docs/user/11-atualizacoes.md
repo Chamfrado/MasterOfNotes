@@ -47,9 +47,18 @@ Cada atualização é **assinada digitalmente** pelo projeto. Se a assinatura n�
 
 *"Não foi possível verificar ou baixar a atualização. O app continua funcionando normalmente."* Isso costuma ser falta de internet. Clique em **Tentar de novo** mais tarde. O detalhe técnico aparece logo abaixo da mensagem.
 
-> **Versões de testes (pré-releases).** Durante as versões de testes, como a 0.1.1, a verificação automática pode mostrar que não foi possível verificar. Isso é esperado: confira as novidades na [página de releases](https://github.com/Chamfrado/MasterOfNotes/releases).
-
 Se aparecer *"Atualizações automáticas ainda não estão configuradas nesta versão. O app funciona normalmente."*, a sua versão não tem atualização automática. Baixe a versão nova pela página do projeto (veja [Instalação](01-instalacao.md#instalar)).
+
+## Nenhuma versão nova pelo canal automático
+
+O canal de atualizações automáticas só oferece **versões normais**. As versões de testes (pré-releases) ficam só na [página de versões do projeto](https://github.com/Chamfrado/MasterOfNotes/releases). Quando não há versão normal publicada, a tela mostra *"Nenhuma versão nova pelo canal de atualizações automáticas."*, com os botões:
+
+- **Abrir página de versões**: abre a página de versões no navegador, para você ver se há uma versão de testes;
+- **Verificar de novo**.
+
+<!-- A capturar (T-011-06, depois da UI do Agente 3 no main): media/atualizacao-sem-versao.png. -->
+
+> **Na versão 0.1.1**, essa situação aparece como erro: *"Não foi possível verificar ou baixar a atualização."*, mesmo com internet. Isso é esperado e o app continua funcionando normalmente. Confira as novidades na [página de versões](https://github.com/Chamfrado/MasterOfNotes/releases).
 
 ---
 

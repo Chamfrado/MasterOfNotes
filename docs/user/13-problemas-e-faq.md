@@ -66,6 +66,14 @@ A tela Resultado mostra o motivo, e a tabela completa está em [Quando a partida
 
 A música não tem referência melódica. Veja [Referência melódica](05-referencia-melodica.md).
 
+### Não tenho o MIDI da música. Dá para pontuar?
+
+Sim: crie a referência com [Gravar cantando](05-referencia-melodica.md#gravar-cantando). Quem grava deve conhecer bem a melodia e cantar afinado, de fones, porque as notas gravadas viram o gabarito de todo mundo.
+
+### A gravação cantando não salvou nada
+
+O app detectou menos de 3 notas. Confira se o microfone certo está escolhido e se o selo **Voz detectada** acende quando você canta (veja [Microfone](04-microfone.md)), e clique em **Gravar de novo**.
+
 ### A música não aparece para escolher na Festa, no Duelo ou no Desafio
 
 Esses modos só mostram músicas com **referência validada** e que tocam neste computador. Valide a referência da música. Veja [Modos de jogo](08-modos-de-jogo.md).
@@ -102,7 +110,11 @@ Não. Sair (**Esc** ou **Sair**) descarta a apresentação. Numa partida, a roda
 
 ### "Não foi possível verificar ou baixar a atualização"
 
-Sem internet, essa mensagem é normal. Durante as versões de testes (pré-releases), como a 0.1.1, ela também pode aparecer com internet. Isso é esperado: confira as novidades na [página de releases](https://github.com/Chamfrado/MasterOfNotes/releases). O app continua funcionando normalmente. Veja [Atualizações](11-atualizacoes.md#se-der-erro).
+Sem internet, essa mensagem é normal. Na versão 0.1.1, ela também aparece com internet quando ainda não há versão normal publicada, só versões de testes. Isso é esperado: confira as novidades na [página de versões](https://github.com/Chamfrado/MasterOfNotes/releases). O app continua funcionando normalmente. Veja [Atualizações](11-atualizacoes.md#se-der-erro).
+
+### "Nenhuma versão nova pelo canal de atualizações automáticas"
+
+Não há versão normal mais nova que a sua. Versões de testes, quando houver, ficam na página de versões: clique em **Abrir página de versões**. Veja [Atualizações](11-atualizacoes.md#nenhuma-versão-nova-pelo-canal-automático).
 
 ### Funciona sem internet?
 
