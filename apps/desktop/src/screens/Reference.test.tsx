@@ -303,6 +303,34 @@ describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
     expect(screen.getByRole("button", { name: "Validar alinhamento" })).toBeEnabled();
   });
 
+  it.each([
+    [-16.8, true],
+    [-8, false],
+  ])("voice at %d dB: weak-voice warning shown = %s (SPEC-012 R3, QA M2)", async (voiceLevelDb, warned) => {
+    withModel();
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    vi.mocked(ipc.generateReference).mockResolvedValue({
+      reference: ref({ id: 21, source: "extracted" }),
+      reason: null,
+      voiceLevelDb,
+      elapsedMs: 90_000,
+    });
+    vi.mocked(open).mockResolvedValue("C:/r/aquarela.json");
+    vi.mocked(ipc.importReference).mockResolvedValue(ref({ id: 22, source: "json" }));
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Gerar automaticamente" }));
+    await userEvent.click(screen.getByRole("button", { name: "Começar" }));
+    expect(await screen.findByText("Extraída")).toBeInTheDocument();
+    const warning = screen.queryByText(
+      "A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar.",
+    );
+    if (!warned) return expect(warning).not.toBeInTheDocument();
+    expect(warning?.closest('[role="status"]')).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Importar outra" })); // another reference replaces it
+    expect(await screen.findByText("JSON")).toBeInTheDocument();
+    expect(screen.queryByText(/A voz deste vídeo está fraca/)).not.toBeInTheDocument();
+  });
+
   it("shows the reason when nothing was saved (instrumental video)", async () => {
     withModel();
     vi.mocked(ipc.getReference).mockResolvedValue(null);

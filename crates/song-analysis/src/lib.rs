@@ -31,6 +31,9 @@ pub struct KnownModel {
     pub file_name: &'static str,
     /// Exact file size (checked before hashing).
     pub size_bytes: u64,
+    /// Project page (README, credits, code license): read before downloading.
+    pub page_url: &'static str,
+    /// The `.onnx` file itself.
     pub source_url: &'static str,
     /// License summary in pt-BR (shown to the user).
     pub license: &'static str,
@@ -42,6 +45,9 @@ const MODELS: &[KnownModel] = &[KnownModel {
     name: "UVR-MDX-NET Voc_FT",
     file_name: "UVR-MDX-NET-Voc_FT.onnx",
     size_bytes: 66_762_490,
+    // The UVR README credits the MDX-Net model authors and states the code's
+    // MIT license; the release page of the file has no terms at all.
+    page_url: "https://github.com/Anjok07/ultimatevocalremovergui",
     source_url: "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Voc_FT.onnx",
     license: "Modelo do projeto Ultimate Vocal Remover (UVR). Os autores não declararam uma licença para os pesos do modelo; o código do UVR é MIT e os autores pedem crédito. Não sabemos se o uso comercial é permitido. O Master Of Notes não distribui este arquivo: você o baixa da fonte original e o uso é de sua responsabilidade.",
     sample_rate: 44_100,
@@ -199,6 +205,7 @@ mod tests {
                     .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
             );
             assert!(m.source_url.starts_with("https://") && m.size_bytes > 0);
+            assert!(m.page_url.starts_with("https://") && m.page_url != m.source_url);
         }
     }
 }

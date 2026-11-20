@@ -27,6 +27,8 @@ Tudo fica em `%APPDATA%\com.masterofnotes.karaoke\`, num banco de dados local (`
 
 Seus **vídeos não são copiados**: o app guarda só o caminho deles.
 
+Se você instalar o [modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação), uma cópia dele fica em `%APPDATA%\com.masterofnotes.karaoke\models\`. Ao gerar uma referência a partir do vídeo, o áudio do vídeo é analisado na memória e descartado: nenhum arquivo de áudio é criado e só as notas são guardadas.
+
 O app também mantém um **registro técnico** (log) em `%LOCALAPPDATA%\com.masterofnotes.karaoke\logs\`, para ajudar a entender erros. Ele não contém áudio.
 
 Para apagar tudo, desinstale o app e apague a pasta `%APPDATA%\com.masterofnotes.karaoke\` (veja [Desinstalar](01-instalacao.md#desinstalar)).
@@ -37,6 +39,8 @@ O único acesso à internet é a **verificação de atualizações**, na página
 
 - automática ao abrir o app, **só se você ligar** **Verificar atualizações ao abrir** (vem desligado);
 - ou quando você clica em **Verificar agora**.
+
+O app **não baixa** o modelo de separação: quem baixa é você, pelo navegador, na página da fonte.
 
 Nessa consulta, como em qualquer acesso a um site, o servidor do GitHub recebe dados técnicos da conexão, como o endereço de rede do seu computador. O app não envia nada sobre você, suas músicas ou suas notas.
 
