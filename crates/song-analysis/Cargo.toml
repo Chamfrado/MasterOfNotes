@@ -1,0 +1,15 @@
+[package]
+name = "song-analysis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+audio-engine = { path = "../audio-engine" }
+scoring-engine = { path = "../scoring-engine" }
+# ONNX Runtime loaded at run time from the official Microsoft DLL (SPEC-012, runtime decision):
+# no build-time download, no import of the DLL at app start.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic", "api-24"] }
+rustfft = "6"
+sha2 = "0.10"
+thiserror = "2"
