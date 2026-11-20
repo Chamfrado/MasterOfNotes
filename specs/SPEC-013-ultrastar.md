@@ -23,7 +23,7 @@ Critérios:
 | T-013-01 | `scoring-engine`: `import_ultrastar(bytes) -> Result<(MelodyReference, UltraStarInfo), RefError>` + testes (BPM/GAP, relativo, F/R/G, dueto, encoding, linha inválida) | Agente 2 | review |
 | T-013-02 | Migração 002 (`source` com `'ultrastar'`) + teste de migração com dados da 0.1.3; `import_reference` aceita `.txt` | Agente 1 | review |
 | T-013-03 | UI: filtro `.txt` no diálogo, selo "UltraStar", aviso de dueto, sugestão de alinhar | Agente 3 | review |
-| T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | todo |
+| T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | review |
 | T-013-05 | Guia (05, FAQ): o que é UltraStar, como importar, por que alinhar, aviso de direitos | Agente 5 | todo |
 
 ## STATUS
@@ -62,3 +62,17 @@ Criada em 2026-11-20 (coordenador), janela autônoma.
     - Dueto: `MelodyReference.notice` = "Arquivo de dueto: importamos a parte do primeiro cantor." (opção A aprovada). Só o retorno do import tem o campo; fora isso, ele não aparece no JSON.
     - Arquivo inválido → `invalid_reference` com "linha N" na mensagem.
   - Testes ✅ `reference::tests::import_ultrastar_txt_with_duet_notice` (critério 300 BPM/GAP 1000 → 1000 ms/200 ms/MIDI 60/"Lá"; F fora; dueto só P1 + aviso; notice omitido; "linha 2") e `rejects_bad_files_and_saves_nothing` (.txt que não é UltraStar → `invalid_reference`). `cargo test -p master-of-notes`: 71 ok, 7 ignorados. Clippy `-D warnings` limpo.
+- T-013-04 `review` (Agente 4, 2026-11-20). Relatório em [ultrastar-qa.md](../docs/testing/evidence/ultrastar-qa.md). **Sem achado ALTO nem MÉDIO.**
+  - **Fixtures:** 25 arquivos UltraStar de autoria própria em `tests/fixtures/references/ultrastar/` (válidos, inválidos e de limite), com os valores esperados e `.gitattributes` para manter os bytes exatos.
+  - **Parser** (92fb1ad):
+    - 9/9 válidos corretos (BPM com vírgula, RELATIVE, dueto, CP1252, BOM, CRLF);
+    - 11/11 inválidos com erro em pt-BR e a linha certa;
+    - 4/4 casos de limite sensatos;
+    - fuzz leve com 8.493 execuções, 0 pânicos.
+  - **Migração 002** (49d15ca): replicação independente em Python com dados em todas as tabelas da 0.1.3.
+    - Nada perdido; só o CHECK de source mudou; índice e FKs iguais.
+    - Backup `.bak-v1` igual ao original.
+    - `ultrastar` aceito e fonte inválida recusada.
+    - Referência pendurada → rollback, com o banco v1 intacto.
+  - **E2E:** fake com `ultrastar` e `notice`; contrato + UI (selo, sugestão de alinhar, dueto, linha inválida, filtro .txt) + a11y da tela importada.
+  - Baixo B1 (texto de estouro "não é um número inteiro"); observações O1 (`~` vira sílaba vazia) e O2 (downgrade pelo `.bak-v1`).

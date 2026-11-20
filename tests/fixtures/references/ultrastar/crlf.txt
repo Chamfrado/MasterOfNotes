@@ -1,0 +1,8 @@
+#TITLE:Canção de Teste
+#ARTIST:Master Of Notes
+#MP3:teste.mp3
+#BPM:300
+#GAP:0
+: 0 4 0 oi
+: 4 4 2 tchau
+E

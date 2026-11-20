@@ -75,11 +75,18 @@ export interface FakeOptions {
   generateStepMs?: number;
   /** auto_align_reference proposals (absolute offsets), in order. None left: current offset + 1200 ms, confidence 0.9. */
   alignments?: AlignProposal[];
+  /** UltraStar .txt files the "user" can pick, by file name (the fake does not parse: scoring_engine::import_ultrastar does).
+   * A file not listed here is refused like an unreadable one. */
+  ultrastar?: Record<string, UltraStarFile>;
 }
+/** What import_ultrastar gives for one file: its P1 notes (and whether it was a duet), or the invalid line. */
+export type UltraStarFile = { notes: RefNote[]; duet?: boolean } | { line: number; message: string };
+/** SPEC-013 R3 (MelodyReference.notice, import result only). */
+export const DUET_NOTICE = "Arquivo de dueto: importamos a parte do primeiro cantor.";
 
 export async function installFakeBackend(page: Page, scores: number[], options: FakeOptions = {}) {
   const opts = { knownModels: [knownModel], generateStepMs: 150, ...options };
-  await page.addInitScript(({ scores, opts, NO_VOICE_REASON, generatedNotes }) => {
+  await page.addInitScript(({ scores, opts, NO_VOICE_REASON, generatedNotes, DUET_NOTICE }) => {
     const KEY = "e2e-fake-db";
     const load = (): Db =>
       JSON.parse(localStorage.getItem(KEY) ?? "null") ?? {
@@ -123,11 +130,11 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
       db.activeRefs[songId] = r.id;
       return r;
     };
-    /** Settings stay in the static spec (setReply works); the fake owns only the read-only separationModel. */
-    const specSettings = (cmd: string): AppSettings | undefined => {
+    /** The static spec's reply (setReply works), for commands the fake only extends. */
+    const fromSpec = <T,>(cmd: string): T | undefined => {
       const r = window.__E2E_SPEC__?.[cmd];
       if (r && "err" in r) throw r.err;
-      return r?.ok as AppSettings | undefined;
+      return r?.ok as T | undefined;
     };
     // In memory only, like the Rust side: the uploaded audio (1 item) and the running generate job.
     let audio: { token: string; songId: string } | null = null;
@@ -236,8 +243,8 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
         }),
 
       // ---------- SPEC-012: separation model, song audio, automatic reference and alignment ----------
-      get_settings: () => ({ ...specSettings("get_settings"), separationModel: load().separationModel }),
-      update_settings: () => ({ ...specSettings("update_settings"), separationModel: load().separationModel }),
+      get_settings: () => ({ ...fromSpec<AppSettings>("get_settings"), separationModel: load().separationModel }),
+      update_settings: () => ({ ...fromSpec<AppSettings>("update_settings"), separationModel: load().separationModel }),
       list_known_separation_models: () => opts.knownModels,
       install_separation_model: ({ filePath, acceptTerms }) =>
         tx((db) => {
@@ -308,6 +315,18 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
           return db.alignments.shift() ?? { offsetMs: r.offsetMs + 1200, confidence: 0.9 };
         }),
 
+      // SPEC-013: .txt = UltraStar (source "ultrastar", duet → notice); MIDI/JSON keep the static spec reply.
+      import_reference: ({ songId, filePath }) => {
+        const name = String(filePath).split(/[\\/]/).pop() ?? "";
+        if (!/\.txt$/i.test(name)) return fromSpec<MelodyReference>("import_reference") ?? fail("Comando não mockado no teste: import_reference", "E2E_UNMOCKED");
+        const file = opts.ultrastar?.[name] ?? fail(`Não foi possível ler o arquivo: ${name}.`, "not_found");
+        if ("line" in file) return fail(`Referência inválida: arquivo UltraStar, linha ${file.line}: ${file.message}.` /* ref_err + RefError Display */, "invalid_reference");
+        return tx((db): MelodyReference => ({
+          ...storeRef(db, String(songId), "ultrastar", file.notes),
+          ...(file.duet ? { notice: DUET_NOTICE } : {}), // omitted (skip) when there is no notice, like the Rust JSON
+        }));
+      },
+
       start_performance: ({ args }) =>
         tx((db) => {
           const a = args as StartPerformance;
@@ -356,5 +375,5 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
         }),
     };
     window.__E2E_HANDLERS__ = handlers;
-  }, { scores, opts, NO_VOICE_REASON, generatedNotes });
+  }, { scores, opts, NO_VOICE_REASON, generatedNotes, DUET_NOTICE });
 }
