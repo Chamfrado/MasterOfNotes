@@ -19,6 +19,8 @@ strip = true
 opt-level = 3
 [profile.dev.package.scoring-engine]
 opt-level = 3
+[profile.dev.package.song-analysis]
+opt-level = 3
 
 # Disk budget: full debuginfo (.pdb) dominates target/ size on Windows.
 [profile.dev]

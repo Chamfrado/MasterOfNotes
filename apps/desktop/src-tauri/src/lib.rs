@@ -1,3 +1,4 @@
+mod analysis;
 mod commands;
 mod db;
 mod error;
@@ -27,6 +28,16 @@ fn updater_pubkey<R: tauri::Runtime>(context: &tauri::Context<R>) -> Option<&str
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let context = tauri::generate_context!();
+    // SPEC-012: ONNX Runtime ships as a resource (release builds only). Without it the
+    // `song-analysis` crate falls back to the exe folder and reports a clear error.
+    if std::env::var_os("ORT_DYLIB_PATH").is_none()
+        && let Ok(dir) =
+            tauri::utils::platform::resource_dir(context.package_info(), &tauri::Env::default())
+        && dir.join("onnxruntime.dll").is_file()
+    {
+        // SAFETY: first thing in `run`, before Tauri or any plugin spawns a thread.
+        unsafe { std::env::set_var("ORT_DYLIB_PATH", dir.join("onnxruntime.dll")) };
+    }
     let updater = updater_pubkey(&context).is_some();
     let mut builder = tauri::Builder::default()
         .plugin(
@@ -63,6 +74,7 @@ pub fn run() {
             app.manage(commands::AppState::new(db));
             app.manage(mic::MicMonitor::default());
             app.manage(live::LiveState::default());
+            app.manage(analysis::AnalysisState::default());
             commands::restore_library(app.handle());
             Ok(())
         })
@@ -95,6 +107,13 @@ pub fn run() {
             live::sync_performance,
             live::finish_performance,
             live::abort_performance,
+            analysis::list_known_separation_models,
+            analysis::install_separation_model,
+            analysis::remove_separation_model,
+            analysis::upload_song_audio,
+            analysis::generate_reference,
+            analysis::cancel_generate_reference,
+            analysis::auto_align_reference,
         ])
         .run(context)
         .expect("error while running tauri application");

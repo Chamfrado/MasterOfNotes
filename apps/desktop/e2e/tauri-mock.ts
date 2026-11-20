@@ -10,6 +10,11 @@ export type MockSpec = Record<string, MockReply>;
 export interface IpcCall {
   cmd: string;
   args: unknown;
+  /** Raw IPC (e.g. upload_song_audio): `args` is the Uint8Array body and the headers come here. */
+  options?: InvokeOptions;
+}
+export interface InvokeOptions {
+  headers?: Record<string, string>;
 }
 
 declare global {
@@ -17,8 +22,9 @@ declare global {
     __E2E_CALLS__?: IpcCall[];
     __E2E_SPEC__?: MockSpec;
     __E2E_VIDEO_URL__?: string;
-    /** Stateful handlers (e2e/fake-backend.ts); they win over the static spec. Throw an AppError to reject. */
-    __E2E_HANDLERS__?: Record<string, (args: Record<string, unknown>) => unknown>;
+    /** Stateful handlers (e2e/fake-backend.ts); they win over the static spec. Throw (or return a rejected
+     * promise with) an AppError to reject; a promise result is awaited (long jobs with progress). */
+    __E2E_HANDLERS__?: Record<string, (args: Record<string, unknown>, options?: InvokeOptions) => unknown>;
   }
 }
 
@@ -45,11 +51,11 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
         "plugin:window|is_fullscreen": false,
       };
 
-      const reply = (cmd: string, args: unknown): Promise<unknown> => {
+      const reply = (cmd: string, args: unknown, options?: InvokeOptions): Promise<unknown> => {
         const handler = window.__E2E_HANDLERS__?.[cmd];
         if (handler) {
           try {
-            return Promise.resolve(structuredClone(handler((args ?? {}) as Record<string, unknown>)));
+            return Promise.resolve(handler((args ?? {}) as Record<string, unknown>, options)).then((v) => structuredClone(v));
           } catch (e) {
             return Promise.reject(e);
           }
@@ -68,9 +74,9 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
         __E2E_SPEC__: spec,
         __TAURI_INTERNALS__: {
           metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
-          invoke: (cmd: string, args: unknown) => {
-            calls.push({ cmd, args });
-            return reply(cmd, args);
+          invoke: (cmd: string, args: unknown, options?: InvokeOptions) => {
+            calls.push({ cmd, args, options });
+            return reply(cmd, args, options);
           },
           transformCallback: (cb: (data: unknown) => void, once = false) => {
             const id = nextId++;
@@ -93,14 +99,24 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
 }
 
 /** Records a short synthetic WebM in the page (canvas + MediaRecorder, no binary fixture, Law 19)
- * and makes every video src resolve to it. Call after `page.goto`. */
-export const useSyntheticVideo = (page: Page, ms = 800) =>
-  page.evaluate(async (ms) => {
+ * and makes every video src resolve to it. Call after `page.goto`. `audio`: adds a 440 Hz Opus track
+ * (SPEC-012 decodes the video's audio in the WebView). */
+export const useSyntheticVideo = (page: Page, ms = 800, audio = false) =>
+  page.evaluate(async ([ms, audio]) => {
     const canvas = document.createElement("canvas");
     canvas.width = canvas.height = 64;
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas 2d unavailable");
-    const rec = new MediaRecorder(canvas.captureStream(30), { mimeType: "video/webm;codecs=vp8" });
+    const stream = canvas.captureStream(30);
+    const ac = audio ? new AudioContext() : null;
+    if (ac) {
+      const osc = ac.createOscillator();
+      const dest = ac.createMediaStreamDestination();
+      osc.connect(dest);
+      osc.start();
+      stream.addTrack(dest.stream.getAudioTracks()[0]);
+    }
+    const rec = new MediaRecorder(stream, { mimeType: audio ? "video/webm;codecs=vp8,opus" : "video/webm;codecs=vp8" });
     const chunks: Blob[] = [];
     rec.ondataavailable = (e) => chunks.push(e.data);
     const stopped = new Promise((resolve) => (rec.onstop = resolve));
@@ -114,8 +130,9 @@ export const useSyntheticVideo = (page: Page, ms = 800) =>
     rec.stop();
     clearInterval(draw);
     await stopped;
+    await ac?.close();
     window.__E2E_VIDEO_URL__ = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
-  }, ms);
+  }, [ms, audio] as const);
 
 export const setReply =(page: Page, cmd: string, reply: MockReply) =>
   page.evaluate(([cmd, reply]) => void ((window.__E2E_SPEC__ ??= {})[cmd] = reply), [cmd, reply] as const);
