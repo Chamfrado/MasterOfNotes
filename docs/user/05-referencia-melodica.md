@@ -90,7 +90,7 @@ Uma referência cantada entra como **experimental**, igual a um arquivo importad
 
 ## Gerar automaticamente (a partir do vídeo)
 
-<!-- TODO(T-012-06): rótulos conferidos em agent-3/work @ 338aad6 (reconferir no main); confirmar em known_models() o resumo de licença de cada modelo; tempo medido em docs/testing/auto-reference.md. Mídia: ajustes-modelo.png, referencia-gerar.gif, referencia-sem-voz.png. -->
+<!-- TODO(T-012-06): rótulos conferidos em agent-3/work @ 04eb2d4 (reconferir no main); confirmar em known_models() o resumo de licença de cada modelo; tempo medido em docs/testing/auto-reference.md. Mídia: ajustes-modelo.png, referencia-gerar.gif, referencia-sem-voz.png. -->
 
 Se o vídeo tem a **voz do cantor**, o app pode criar a referência sozinho: ele **separa a voz da música** do vídeo e **anota as notas** que essa voz canta. Para isso, você precisa instalar antes um **modelo de separação** (veja abaixo).
 
@@ -121,7 +121,7 @@ O modelo fica no seu computador. O app nunca envia o modelo nem o áudio para lu
 1. Na tela da referência, clique em **Gerar automaticamente**. Sem o modelo instalado, o app avisa e abre **Ajustes → Referência automática**.
 2. No painel **Gerar automaticamente**, clique em **Começar**.
 3. O app trabalha em 4 etapas, com uma barra de progresso: **Etapa 1 de 4: Extraindo áudio**, **Etapa 2 de 4: Separando a voz** (com a porcentagem), **Etapa 3 de 4: Transcrevendo** e **Etapa 4 de 4: Salvando**.
-4. Isso leva **alguns minutos por música**, conforme a duração da música e a velocidade do computador. **Fique nesta tela**: sair dela cancela a geração.
+4. Isso leva **alguns minutos por música**, conforme a duração da música e a velocidade do computador. **Fique nesta tela**: o próprio painel avisa *"Fique nesta tela até terminar: se sair, a geração será cancelada."*
 5. **Cancelar** interrompe o trabalho e não salva nada (*"Geração cancelada."*). Fechar o app também cancela.
 6. No fim, a tela mostra as notas sobre o vídeo, com os selos **Extraída** e **Referência experimental**, e o aviso *"Referência gerada em m:ss. Pode ter erros: confira sobre o vídeo e valide."*
 
