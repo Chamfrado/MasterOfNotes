@@ -36,7 +36,7 @@ Critérios:
 | T-012-02 | `song-analysis`: alinhamento por busca de defasagem em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | review |
 | T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | review |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | review |
-| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | doing |
+| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | review |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | todo |
 
 ## STATUS
@@ -120,3 +120,18 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
   - **Áudio** (R6, `src/songAudio.ts`): `fetch(videoSrc)` → `decodeAudioData` num `OfflineAudioContext` de 44,1 kHz (reamostra), mono por downmix do Web Audio, `uploadSongAudio`. A referência ao arquivo codificado é largada logo após decodificar. A UI espelha o cache de 1 item do Rust (`{songId, token}`), reusa o token no alinhar e extrai de novo uma única vez em `audio_token_invalid`. Depende da CSP `connect-src asset: http://asset.localhost` (aprovada; aplicada pelo Agente 1).
   - Testes: `songAudio.test.ts` (7), `Settings.test.tsx` (+4), `Reference.test.tsx` (+8).
   - ⏳ Não visto no WebView2 real com o modelo e o backend do T-012-03; decodeAudioData de MP4/MKV no WebView2 ainda não conferido; e2e/fake-backend é o T-012-05.
+- T-012-05 `review` (Agente 4, 2026-11-20), parte 3 de 3: QA independente do `song-analysis` (agent-2/work @ 7876130) com o modelo real. Relatório em [song-analysis-qa.md](../docs/testing/evidence/song-analysis-qa.md); sondas arquivadas.
+  - **Sem achado ALTO.**
+  - Medido:
+    - 4 min em 132 s, pico de 1353 MiB, precisão de 99,3 %, pontuação simulada de 96,7;
+    - sem falso "tem voz" em karaokê, lead de piano, silêncio e ruído;
+    - voz em só 20 % da música dá −10,8 dB e é detectada;
+    - armadilhas de alinhamento (refrão parcial, música errada, mesmos acordes, transposta, fora de ±15 s) com confiança ≤ 0,37;
+    - cancelamento no meio do trecho em ≤ 2,85 s.
+  - **Médios:**
+    - M1: andamento 0,25–1 % diferente passa com confiança 0,68–0,88 e erro residual de até 464 ms;
+    - M2: voz baixa logo acima do limiar salva uma referência com 28 % das notas, sem aviso;
+    - M3: o texto "é só instrumental" aparece quando há voz baixa (o limiar está certo, o texto não);
+    - M4: a memória cresce cerca de 30 MiB/min (10 min = 1535 MiB).
+  - **Baixos:** B1 (NaN no upload), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
+  - O modelo e a DLL foram apagados ao final.
