@@ -7,13 +7,13 @@ Atualizado pelo coordenador. Última atualização: 2026-11-19 (fim da onda 2; M
 | Fase | Estado |
 |---|---|
 | 0–5 | ✅ Código completo: catálogo, player, captura, referência, pontuação **v3**, Solo/Festa/Duelo/Desafio, rankings, histórico, as 13 telas |
-| 6 Distribuição | ✅ **v0.1.1 publicada (pré-release)**: https://github.com/Chamfrado/MasterOfNotes/releases/tag/v0.1.1. Instalador assinado (updater), pontuação v5, guia do usuário |
+| 6 Distribuição | ✅ **v0.1.2 publicada (release normal, `latest`)**: https://github.com/Chamfrado/MasterOfNotes/releases/latest. Gravar cantando, atualização automática ativa (endpoint 200). v0.1.1 (pré-release) também publicada |
 | 7 Estabilização | 🔄 QA da pontuação v3 (3ª rodada); guia do usuário ✅; ⏳ roteiro manual com microfone real |
 
 Testes em `main`: `pnpm check` (Rust ≈ 160, Vitest 198) + Playwright 99, todos verdes; CI do GitHub verde.
 Desempenho: todas as metas cumpridas (`docs/testing/performance.md`, `performance-desktop.md`).
 
-## Backlog 0.1.2
+## Backlog 0.1.2 (entregue na v0.1.2, exceto o roteiro manual e a calibração com voz real)
 - **Publicar como release NORMAL** (não pré-release): sem nenhuma release normal, `releases/latest/download/latest.json` dá 404, e a verificação de atualização da 0.1.1 mostra erro. A primeira release normal resolve isso para quem está na 0.1.1.
 - UI de Atualizações: tratar 404 do endpoint como "nenhuma versão nova pelo canal automático" + link para a página de releases (Agente 3).
 - UI da sonda de latência: exibir o jitter e recomendar repetir se > 10 ms (SPEC-006 v3 N4) (Agente 3).
