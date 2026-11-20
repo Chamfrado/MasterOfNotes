@@ -4,7 +4,7 @@
 
 Clique em **Ajustes** no menu. Cada mudança é salva na hora; não há botão de salvar.
 
-![Tela Ajustes com as seções Jogo (Dificuldade, Painel de feedback no player), Tela e acessibilidade (Modo TV, Reduzir movimento), Biblioteca (Procurar também nas subpastas) e Atualizações (Verificar atualizações ao abrir, Verificar agora).](media/configuracoes.png)
+![Tela Ajustes com as seções Jogo (Dificuldade, Painel de feedback no player), Tela e acessibilidade (Modo TV, Reduzir movimento), Biblioteca (Procurar também nas subpastas) , Atualizações (Verificar atualizações ao abrir, Verificar agora) e Referência automática (modelo de separação de voz).](media/configuracoes.png)
 
 ## Jogo
 
@@ -30,8 +30,6 @@ Clique em **Ajustes** no menu. Cada mudança é salva na hora; não há botão d
 - **Verificar agora**: procura uma versão nova neste momento. Veja [Atualizações](11-atualizacoes.md).
 
 ## Referência automática
-
-<!-- TODO(T-012-06): rótulos conferidos em agent-3/work @ 338aad6 (reconferir no main); mídia ajustes-modelo.png. -->
 
 Aqui você instala o **modelo de separação** usado por **Gerar automaticamente**. A lista mostra os modelos aceitos, com nome, tamanho, licença, arquivo e SHA-256, e o botão **Abrir página do modelo**. O app não baixa o modelo: você baixa pelo navegador, marca **Li e aceito os termos da fonte…** e clica em **Escolher arquivo baixado…**. Com o modelo instalado, aparecem a data da instalação e o botão **Remover**. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação), com o aviso sobre a licença.
 

@@ -92,7 +92,7 @@ Marque antes **Li e aceito os termos da fonte; o modelo é de terceiros e o uso 
 
 ### Gerar automaticamente está demorando
 
-Leva alguns minutos por música, conforme a duração e o computador. Fique na tela da referência até terminar: sair dela cancela a geração. Para desistir, clique em **Cancelar**.
+Leva cerca de 2,5 minutos para uma música de 4 minutos num processador de notebook recente, e mais em computadores mais lentos ou ocupados. Fique na tela da referência até terminar: sair dela cancela a geração. Para desistir, clique em **Cancelar**.
 
 ### A gravação cantando não salvou nada
 

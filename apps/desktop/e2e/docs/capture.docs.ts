@@ -106,10 +106,15 @@ declare global {
     __docsStop?: () => void;
   }
 }
-type Internals = { invoke: (cmd: string, args: unknown) => Promise<unknown>; runCallback: (id: number, data: unknown) => void };
+type Internals = { invoke: (cmd: string, args: unknown, options?: unknown) => Promise<unknown>; runCallback: (id: number, data: unknown) => void };
 
-async function open(page: Page, spec: MockSpec = {}, opts: { fake?: number[]; delays?: Record<string, number> } = {}) {
-  if (opts.fake) await installFakeBackend(page, opts.fake);
+type FakeOptions = NonNullable<Parameters<typeof installFakeBackend>[2]>;
+async function open(
+  page: Page,
+  spec: MockSpec = {},
+  opts: { fake?: number[]; fakeOptions?: FakeOptions; delays?: Record<string, number>; video?: string } = {},
+) {
+  if (opts.fake || opts.fakeOptions) await installFakeBackend(page, opts.fake ?? [], opts.fakeOptions);
   await mockTauri(page, fullSpec({ ...BASE, ...spec }));
   await page.addInitScript(
     ({ delays, videoUrl }) => {
@@ -117,9 +122,9 @@ async function open(page: Page, spec: MockSpec = {}, opts: { fake?: number[]; de
       const tauri = (window as unknown as { __TAURI_INTERNALS__: Internals }).__TAURI_INTERNALS__;
       // Slow commands (scan, calibration) take real time in the app; keep that visible in the GIFs.
       const invoke = tauri.invoke;
-      tauri.invoke = (cmd, args) => {
+      tauri.invoke = (cmd, args, options) => {
         const ms = delays[cmd];
-        const p = invoke(cmd, args);
+        const p = invoke(cmd, args, options); // options: raw IPC headers (upload_song_audio)
         return ms ? p.then((v) => new Promise((r) => setTimeout(() => r(v), ms))) : p;
       };
       const next = new Map<number, number>();
@@ -133,7 +138,7 @@ async function open(page: Page, spec: MockSpec = {}, opts: { fake?: number[]; de
         return true;
       };
     },
-    { delays: opts.delays ?? {}, videoUrl: SONG_URL },
+    { delays: opts.delays ?? {}, videoUrl: opts.video ?? SONG_URL },
   );
   await page.goto("/");
 }
@@ -437,6 +442,66 @@ test("05 referência melódica — gravar cantando", async ({ page }) => {
     await expect(page.getByText("Cantada", { exact: true })).toBeVisible({ timeout: 6000 });
     await pause(page, 1500);
   });
+});
+
+/** song_analysis::known_models() (crates/song-analysis/src/lib.rs), as the Ajustes screen shows it. */
+const UVR_MODEL = {
+  id: "534b2070fcc7df514b13ef660dc8cbb328679c2374d04354a5c42bb14ecce111",
+  name: "UVR-MDX-NET Voc_FT",
+  fileName: "UVR-MDX-NET-Voc_FT.onnx",
+  sizeBytes: 66_762_490,
+  sourceUrl: "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Voc_FT.onnx",
+  license:
+    "Modelo do projeto Ultimate Vocal Remover (UVR). Os autores não declararam uma licença para os pesos do modelo; o código do UVR é MIT e os autores pedem crédito. Não sabemos se o uso comercial é permitido. O Master Of Notes não distribui este arquivo: você o baixa da fonte original e o uso é de sua responsabilidade.",
+};
+
+test("05 referência melódica — gerar e alinhar automaticamente", async ({ page }) => {
+  test.setTimeout(240_000);
+  await open(
+    page,
+    { "plugin:dialog|open": { ok: `C:/Downloads/${UVR_MODEL.fileName}` } },
+    {
+      fakeOptions: {
+        knownModels: [UVR_MODEL],
+        separationModel: null,
+        generated: [NOTES, "noVoice"],
+        generateStepMs: 450,
+        alignments: [{ offsetMs: 40, confidence: 0.92 }],
+      },
+      video: SONG_URL.replace(FILES.karaoke, FILES.guide), // generating needs the singer's voice in the video
+    },
+  );
+  await nav(page, "Ajustes");
+  const section = page.getByRole("heading", { name: "Referência automática" }).locator("..");
+  await expect(section.getByText(UVR_MODEL.name)).toBeVisible();
+  await shot(section, "ajustes-modelo");
+  await section.getByRole("checkbox").check();
+  await section.getByRole("button", { name: "Escolher arquivo baixado…" }).click();
+  await expect(section.getByText(/instalado em/)).toBeVisible();
+
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: "Referência de Música de teste" }).click();
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await expect(page.getByRole("button", { name: "Começar" })).toBeVisible();
+  await gif(page, "referencia-gerar", async () => {
+    await pause(page, 1200);
+    await page.getByRole("button", { name: "Começar" }).click();
+    await expect(page.getByText("Extraída", { exact: true })).toBeVisible({ timeout: 30_000 });
+    await pause(page, 2000);
+  });
+
+  await page.getByRole("button", { name: "Alinhar automaticamente" }).click();
+  await expect(page.getByText(/^Proposta:/)).toBeVisible({ timeout: 30_000 });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await shot(page, "referencia-alinhar-auto");
+
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: "Referência de Saudade Elétrica" }).click();
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await page.getByRole("button", { name: "Começar" }).click();
+  const panel = page.getByRole("heading", { name: "Gerar automaticamente" }).locator("..");
+  await expect(panel.getByText("Este vídeo não tem a voz da melodia", { exact: false })).toBeVisible({ timeout: 30_000 });
+  await shot(panel, "referencia-sem-voz");
 });
 
 // ---------- 06 cantar ----------

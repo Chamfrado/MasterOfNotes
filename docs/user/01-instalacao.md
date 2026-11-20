@@ -37,11 +37,15 @@ A instalação é **só para o seu usuário do Windows**: não pede senha de adm
 
 | O quê | Onde |
 |---|---|
-| O programa | `%LOCALAPPDATA%\Master Of Notes\` |
+| O programa (com o aviso de componentes de terceiros, `THIRD-PARTY-NOTICES.txt`) | `%LOCALAPPDATA%\Master Of Notes\` |
 | Seus dados (biblioteca, cantores, pontuações, ajustes) | `%APPDATA%\com.masterofnotes.karaoke\` |
 | Seus vídeos | Continuam na pasta onde você os guardou. O app não copia nem move nada. |
 
 Para abrir uma dessas pastas, cole o caminho na barra de endereço do Explorador de Arquivos.
+
+### Componente de terceiros
+
+A partir da versão 0.1.3, o instalador traz também o **ONNX Runtime**, da Microsoft (licença MIT). É ele que roda o modelo de separação de voz da [referência automática](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo). O aviso da licença está no arquivo `THIRD-PARTY-NOTICES.txt`, na pasta do programa. O modelo de separação em si **não** vem no instalador: quem o baixa é você.
 
 ## Atualizar
 
