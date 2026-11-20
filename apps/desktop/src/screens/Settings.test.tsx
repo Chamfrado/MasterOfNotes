@@ -43,7 +43,8 @@ const model: ipc.KnownSeparationModel = {
   name: "Separador Vocal X",
   fileName: "vocals-x.onnx",
   sizeBytes: 67_108_864,
-  sourceUrl: "https://example.org/vocals-x",
+  pageUrl: "https://example.org/vocals-x",
+  sourceUrl: "https://example.org/vocals-x/model.onnx",
   license: "MIT; pesos de terceiros",
 };
 const nav = { route: { name: "settings" as const }, navigate: vi.fn(), replace: vi.fn(), back: vi.fn() };
@@ -70,8 +71,14 @@ describe("Settings → Referência automática (SPEC-012 R1)", () => {
     expect(await screen.findByText("Separador Vocal X")).toBeInTheDocument();
     expect(screen.getByText("Licença: MIT; pesos de terceiros")).toBeInTheDocument();
     expect(screen.getByText(/64 MB/)).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Abrir página do modelo" }));
-    expect(openUrl).toHaveBeenCalledWith("https://example.org/vocals-x");
+    expect(screen.getByText("Leia a página do projeto antes de baixar.")).toBeInTheDocument();
+    const page = screen.getByRole("button", { name: "Abrir página do projeto" });
+    const download = screen.getByRole("button", { name: "Baixar o arquivo do modelo" });
+    expect(page.compareDocumentPosition(download) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); // terms first
+    await userEvent.click(page);
+    expect(openUrl).toHaveBeenLastCalledWith("https://example.org/vocals-x");
+    await userEvent.click(download);
+    expect(openUrl).toHaveBeenLastCalledWith("https://example.org/vocals-x/model.onnx");
 
     const choose = screen.getByRole("button", { name: "Escolher arquivo baixado…" });
     expect(choose).toBeDisabled();

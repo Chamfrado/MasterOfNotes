@@ -244,19 +244,23 @@ function AutoReference({
                   <p className="text-sm break-all text-muted">
                     Arquivo {m.fileName} · SHA-256 {m.id}
                   </p>
-                  <Button
-                    className="self-start"
-                    onClick={() => openUrl(m.sourceUrl).catch((e: unknown) => toast(errorMessage(e), "error"))}
-                  >
-                    Abrir página do modelo
-                  </Button>
+                  <p className="text-sm">Leia a página do projeto antes de baixar.</p>
+                  {/* Order matters: credits/terms first, then the file (the browser downloads it, never the app). */}
+                  <div className="flex flex-wrap gap-3">
+                    <Button onClick={() => openUrl(m.pageUrl).catch((e: unknown) => toast(errorMessage(e), "error"))}>
+                      Abrir página do projeto
+                    </Button>
+                    <Button onClick={() => openUrl(m.sourceUrl).catch((e: unknown) => toast(errorMessage(e), "error"))}>
+                      Baixar o arquivo do modelo
+                    </Button>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
           <p className="text-sm text-muted">
-            O modelo é de terceiros: baixe o arquivo na página da fonte original. O app nunca baixa nem envia o modelo e só
-            aceita os arquivos listados acima.
+            O modelo é de terceiros: o download acontece no seu navegador. O app nunca baixa nem envia o modelo e só aceita
+            os arquivos listados acima.
           </p>
           <label className="flex min-h-12 cursor-pointer items-start gap-4">
             <input

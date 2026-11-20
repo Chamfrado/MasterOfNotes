@@ -149,7 +149,7 @@ Os commands (Agente 1) carregam a referência ativa e as configurações, criam 
 ### 2.5 `song-analysis` (Agente 2) — referência automática e alinhamento (SPEC-012)
 
 ```rust
-pub struct KnownModel { pub id: &'static str /* sha256 hex */, pub name: &'static str, pub file_name: &'static str, pub size_bytes: u64, pub source_url: &'static str, pub license: &'static str /* resumo pt-BR */, pub sample_rate: u32 }
+pub struct KnownModel { pub id: &'static str /* sha256 hex */, pub name: &'static str, pub file_name: &'static str, pub size_bytes: u64, pub page_url: &'static str /* página do projeto: créditos/termos */, pub source_url: &'static str /* arquivo */, pub license: &'static str /* resumo pt-BR */, pub sample_rate: u32 }
 pub fn known_models() -> &'static [KnownModel];
 pub fn sha256_file(path: &Path) -> std::io::Result<String>;
 

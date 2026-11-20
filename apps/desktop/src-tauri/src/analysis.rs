@@ -42,6 +42,8 @@ pub struct KnownSeparationModel {
     pub name: &'static str,
     pub file_name: &'static str,
     pub size_bytes: u64,
+    /// Project page (credits/terms), read before downloading.
+    pub page_url: &'static str,
     pub source_url: &'static str,
     pub license: &'static str,
 }
@@ -305,15 +307,22 @@ fn shifted_notes(r: &Reference) -> Vec<Note> {
 pub async fn list_known_separation_models() -> AppResult<Vec<KnownSeparationModel>> {
     Ok(song_analysis::known_models()
         .iter()
-        .map(|m| KnownSeparationModel {
+        .map(KnownSeparationModel::from)
+        .collect())
+}
+
+impl From<&KnownModel> for KnownSeparationModel {
+    fn from(m: &KnownModel) -> Self {
+        Self {
             id: m.id,
             name: m.name,
             file_name: m.file_name,
             size_bytes: m.size_bytes,
+            page_url: m.page_url,
             source_url: m.source_url,
             license: m.license,
-        })
-        .collect())
+        }
+    }
 }
 
 #[tauri::command]
@@ -499,6 +508,7 @@ mod tests {
             name: "Modelo de teste",
             file_name: "test.onnx",
             size_bytes: size,
+            page_url: "https://example.invalid/project",
             source_url: "https://example.invalid/model",
             license: "teste",
             sample_rate: SAMPLE_RATE,
@@ -595,6 +605,20 @@ mod tests {
             "replaced"
         );
         assert_eq!(*st.get(&t2, "s2").unwrap(), vec![2.0]);
+    }
+
+    #[test]
+    fn known_models_serialize_as_in_ipc_ts() {
+        let json = serde_json::to_value(KnownSeparationModel::from(&fake_model("ab", 7))).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({"id": "ab", "name": "Modelo de teste", "fileName": "test.onnx", "sizeBytes": 7,
+                "pageUrl": "https://example.invalid/project", "sourceUrl": "https://example.invalid/model",
+                "license": "teste"})
+        );
+        for m in song_analysis::known_models() {
+            assert!(m.page_url.starts_with("https://") && m.source_url.starts_with("https://"));
+        }
     }
 
     #[test]
