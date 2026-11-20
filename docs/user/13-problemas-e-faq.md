@@ -150,9 +150,26 @@ Não. Sair (**Esc** ou **Sair**) descarta a apresentação. Numa partida, a roda
 | *formato não reconhecido (esperado "mon-melody")* | O JSON não está no formato do Master Of Notes. |
 | *a referência não tem notas* | O arquivo (ou a trilha escolhida) está vazio. |
 | *nota nº N: altura MIDI … fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada; confira o arquivo. |
-| Erro com o número da linha, num arquivo UltraStar | A linha indicada do `.txt` está fora do formato. Abra o arquivo num editor de texto e confira essa linha. |
+| *arquivo UltraStar inválido: falta o #BPM* | O arquivo não tem a linha `#BPM:` (o andamento), sem a qual não dá para saber o tempo das notas. Talvez não seja um arquivo UltraStar. |
+| *arquivo UltraStar, linha N: …* | Há um problema na linha **N** do `.txt` (contando do início do arquivo, com o cabeçalho). Abra o arquivo num editor de texto (o Bloco de Notas serve) e confira essa linha. Veja os motivos abaixo. |
 
-<!-- TODO(T-013-05): trocar a linha genérica do UltraStar pelas mensagens exatas do import_ultrastar (Agente 2) quando existirem. -->
+Os motivos mais comuns de *"arquivo UltraStar, linha N: …"*:
+
+| Motivo | O que significa |
+|---|---|
+| *#BPM "…" não é um número positivo* / *#GAP "…" não é um número* | O andamento ou o atraso inicial do cabeçalho está escrito errado. |
+| *nota antes do #BPM* | As notas começam antes da linha `#BPM:`. Ela precisa vir no cabeçalho, antes das notas. |
+| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *falta … da nota* | A linha da nota está incompleta ou com um valor que não é número. |
+| *duração … (deve ser maior que zero)* | Uma nota tem duração zero ou negativa. |
+| *altura … (MIDI …) fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada. |
+| *a nota cai fora da música (antes de 0 ms)* | O `#GAP` negativo empurrou uma nota para antes do começo da música. |
+| *cantor "P…" desconhecido* | Num dueto, só existem os cantores P1, P2 e P3. |
+| *quebra de linha sem a batida (modo RELATIVE)*; *"…" não é um número inteiro* | Em arquivos no modo `#RELATIVE`, cada quebra de linha (`-`) precisa trazer o número da batida. |
+| *linha não reconhecida: "…"* | A linha não segue o formato UltraStar. O começo dela aparece entre aspas. |
+
+Todas as mensagens aparecem depois de *"Referência inválida:"*. Exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura "x" não é um número inteiro."*
+
+Linhas de trecho livre (freestyle) ou falado (rap), o que vem depois do fim (`E`) e linhas de cabeçalho que o app não usa (como `#MP3` e `#VIDEO`) **não são erro**: o app simplesmente as ignora. Se o arquivo só tiver trechos livres ou falados, aparece *a referência não tem notas*.
 
 ## Geral
 
