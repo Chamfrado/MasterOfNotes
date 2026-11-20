@@ -32,7 +32,8 @@ Critérios:
 | T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | todo |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | todo |
 | T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | todo |
-| T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | todo |
+| T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | in_progress |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
+- T-012-06 `in_progress` (Agente 5, 2026-11-20): texto escrito a partir desta spec, do contracts.md §2.5 e da ADR-0004, sem mídia. 05: tabela "De onde tirar" com Gerar automaticamente (selo Extraída); seção "Gerar automaticamente (a partir do vídeo)" (quando funciona, só vídeo com voz e a mensagem do R3; instalar o modelo: o app não baixa, o usuário baixa da fonte, aceita os termos, checksum de modelos conhecidos; aviso de terceiros: a fonte não declara licença, responsabilidade do usuário; passo a passo com etapas, alguns minutos, Cancelar; revisar e validar, sem editor de notas); "Alinhar automaticamente" (propõe com confiança, nada é salvo sozinho; MIDI/JSON/Cantada). 10: seção Referência automática. 12: modelo em `models\`, áudio do vídeo não é salvo, o app não baixa o modelo. 13: 5 perguntas novas. Glossário: Extraída, Modelo de separação. Verificador de links ✅. ⏳ Rótulos exatos marcados com TODO (comentários ocultos) e mídia: quando a UI da T-012-04 existir. ❓ "A fonte não declara licença" vale para os modelos da ADR (MDX/UVR); confirmar com `known_models()`. ❓ "Alinhar automaticamente" sem exigir o modelo (R5 não exige).

@@ -70,6 +70,26 @@ A música não tem referência melódica. Veja [Referência melódica](05-refere
 
 Sim: crie a referência com [Gravar cantando](05-referencia-melodica.md#gravar-cantando). Quem grava deve conhecer bem a melodia e cantar afinado, de fones, porque as notas gravadas viram o gabarito de todo mundo.
 
+### Dá para o app tirar a melodia do próprio vídeo?
+
+Sim, se o vídeo tem a voz do cantor e você instalou o modelo de separação: use [Gerar automaticamente](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo). A referência gerada pode ter erros; revise antes de validar.
+
+### "Este vídeo não tem a voz da melodia (é só instrumental)"
+
+O vídeo é de karaokê só com a música, sem a voz do cantor, então não há melodia para separar. Use [Gravar cantando](05-referencia-melodica.md#gravar-cantando) ou importe um MIDI.
+
+### O app recusou o arquivo do modelo
+
+O app só aceita os modelos da lista em **Ajustes → Referência automática**, e o arquivo precisa ser exatamente o da fonte. Confira se baixou o arquivo indicado na lista e baixe de novo se o download pode ter sido interrompido.
+
+### Não aparece o botão "Gerar automaticamente"
+
+O botão só aparece com o modelo de separação instalado. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação).
+
+### Gerar automaticamente está demorando
+
+Leva alguns minutos por música, conforme a duração e o computador. Você pode continuar usando o app enquanto isso, ou clicar em **Cancelar**.
+
 ### A gravação cantando não salvou nada
 
 O app detectou menos de 3 notas. Confira se o microfone certo está escolhido e se o selo **Voz detectada** acende quando você canta (veja [Microfone](04-microfone.md)), e clique em **Gravar de novo**.

@@ -29,6 +29,12 @@ Clique em **Ajustes** no menu. Cada mudança é salva na hora; não há botão d
 - **Verificar atualizações ao abrir**: *é o único uso de internet do app. Nada é instalado sem você confirmar.* Desligado por padrão.
 - **Verificar agora**: procura uma versão nova neste momento. Veja [Atualizações](11-atualizacoes.md).
 
+## Referência automática
+
+<!-- TODO(T-012-06): conferir rótulos e o que a seção mostra quando a UI da T-012-04 existir; mídia ajustes-modelo.png. -->
+
+Aqui você instala o **modelo de separação** usado por **Gerar automaticamente**: a lista mostra os modelos aceitos, com nome, fonte, resumo da licença e tamanho, e o link para a fonte. O app não baixa o modelo: você baixa pelo navegador, escolhe o arquivo e aceita os termos da fonte. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação), com o aviso sobre a licença.
+
 ## Microfone e volume
 
 O microfone, a calibração, a latência e o volume da música ficam na tela [Microfone](04-microfone.md), não em Ajustes.
