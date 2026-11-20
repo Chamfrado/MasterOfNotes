@@ -30,7 +30,13 @@ const MAX_AUDIO_SAMPLES: usize = 20 * 60 * SAMPLE_RATE as usize;
 const MIN_NOTES: usize = 3;
 /// How long a new job waits for a cancelled one to stop (it checks between ~4 s chunks).
 const CANCELLED_JOB_WAIT: Duration = Duration::from_secs(30);
-const REASON_NO_VOICE: &str = "Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI.";
+/// SPEC-012 R3 (QA M3): the voice may be missing or just too quiet.
+const REASON_NO_VOICE: &str = "Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI.";
+
+/// Separated voice too far below the mix (R3). NaN counts as no voice (never "has voice").
+fn no_voice(voice_level_db: f32) -> bool {
+    voice_level_db.is_nan() || voice_level_db < song_analysis::NO_VOICE_DB
+}
 const REASON_FEW_NOTES: &str =
     "Quase nenhuma nota foi encontrada na voz do vídeo. Use Gravar cantando ou importe um MIDI.";
 
@@ -429,7 +435,7 @@ pub async fn generate_reference(
                 voice_level_db,
                 elapsed_ms: started.elapsed().as_millis() as u64,
             };
-        if voice_level_db < song_analysis::NO_VOICE_DB {
+        if no_voice(voice_level_db) {
             log::info!("auto reference: no voice ({voice_level_db:.1} dB)");
             return Ok(outcome((None, Some(REASON_NO_VOICE.to_owned()))));
         }
@@ -605,6 +611,18 @@ mod tests {
             "replaced"
         );
         assert_eq!(*st.get(&t2, "s2").unwrap(), vec![2.0]);
+    }
+
+    #[test]
+    fn no_voice_verdict_and_message() {
+        assert!(no_voice(song_analysis::NO_VOICE_DB - 0.1));
+        assert!(!no_voice(song_analysis::NO_VOICE_DB));
+        assert!(!no_voice(-3.0), "clear voice");
+        assert!(no_voice(f32::NAN), "NaN never reads as voice");
+        assert_eq!(
+            REASON_NO_VOICE,
+            "Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI."
+        );
     }
 
     #[test]

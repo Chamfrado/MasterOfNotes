@@ -138,9 +138,10 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
     - M2: voz baixa logo acima do limiar salva uma referência com 28 % das notas, sem aviso;
     - M3: o texto "é só instrumental" aparece quando há voz baixa (o limiar está certo, o texto não);
     - M4: a memória cresce cerca de 30 MiB/min (10 min = 1535 MiB).
-  - **Baixos:** B1 (NaN no upload), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
+  - **Baixos:** B1 (NaN; já recusado no upload do app, só pelo crate direto), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
   - O modelo e a DLL foram apagados ao final.
 - QA independente (Agente 4, 2026-11-20): sem achados ALTOS. M2/M3 corrigidos na 0.1.3; M1 (andamento ≠ vídeo) e M4 (memória em 10 min: ~1,5 GB) ficam para a 0.1.4/documentação; B1 já coberto pelo upload (NaN/Inf → audio_invalid). Relatório: docs/testing/evidence/song-analysis-qa.md.
+- T-012-06 (Agente 5, 2026-11-20), M2/M3: texto de "sem voz" novo (duas causas) e aviso de voz fraca em 05 e 13-FAQ (o aviso aparece logo depois de gerar, abaixo do cabeçalho, e some ao sair da tela: transitório na 0.1.3, decisão do coordenador); memória até ~1,5 GB em músicas de ~10 min. Mesclado agent-4/work @ 517f6ab (fake com o NO_VOICE_REASON novo). Regenerada só `referencia-sem-voz.png`; as outras saídas do mesmo teste foram descartadas. Playwright `-g "gerar e alinhar"` ✅ 1/1; typecheck ✅; verificador de links ✅.
 - 2026-11-20 · Agente 2 · T-012-07 em `review` (QA do Agente 4, achados M1 e M4).
   - **M1:** cada metade das notas é buscada de novo, a ±3 s do lag global. Se as metades divergem mais de 100 ms, a confiança fica ≤ 0,3. A checagem só vale com ≥ 3 s de notas em cada metade.
     - Teste sintético de 120 s: andamento 0,25 / 0,5 / 1% dá confiança 0,30 / 0,30 / 0,25; com 0%, erro de 4 ms e confiança 0,93.

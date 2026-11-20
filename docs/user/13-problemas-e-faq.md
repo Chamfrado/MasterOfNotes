@@ -74,9 +74,18 @@ Sim: crie a referência com [Gravar cantando](05-referencia-melodica.md#gravar-c
 
 Sim, se o vídeo tem a voz do cantor e você instalou o modelo de separação: use [Gerar automaticamente](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo). A referência gerada pode ter erros; revise antes de validar.
 
-### "Este vídeo não tem a voz da melodia (é só instrumental)"
+### "Não encontramos uma voz clara neste vídeo"
 
-O vídeo é de karaokê só com a música, sem a voz do cantor, então não há melodia para separar. Use [Gravar cantando](05-referencia-melodica.md#gravar-cantando) ou importe um MIDI.
+Há duas causas possíveis:
+
+- o vídeo é de karaokê só com a música, sem a voz do cantor, então não há melodia para separar;
+- a voz existe, mas está baixa demais na mixagem do vídeo.
+
+Nos dois casos, nada é salvo. Use [Gravar cantando](05-referencia-melodica.md#gravar-cantando) ou importe um MIDI.
+
+### "A voz deste vídeo está fraca"
+
+A referência foi gerada, mas pode ter ficado incompleta. Revise as notas sobre o vídeo com atenção antes de validar. Se faltarem muitas notas, use [Gravar cantando](05-referencia-melodica.md#gravar-cantando) ou importe um MIDI.
 
 ### O app recusou o arquivo do modelo
 

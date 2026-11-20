@@ -101,6 +101,7 @@ export function Reference({ songId }: { songId: string }) {
 const pct = (x: number) => `${Math.round(x * 100)}%`;
 const signedMs = (v: number) => `${v > 0 ? "+" : ""}${v} ms`;
 const LOW_CONFIDENCE = 0.5; // ❓ below this the proposal is flagged; tune with the T-012-05 QA
+const WEAK_VOICE_DB = -10; // SPEC-012 R3 display threshold: saved, but the voice was weak (QA M2: recall ~28% near the cut)
 
 type AlignState = { step: "extracting" | "aligning" } | { step: "proposal"; proposal: AlignProposal; before: number };
 
@@ -113,6 +114,7 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
   const [tracks, setTracks] = useState<{ path: string; list: MidiTrackInfo[] } | null>(null);
   const [panel, setPanel] = useState<"sing" | "generate" | null>(null);
   const [align, setAlign] = useState<AlignState | null>(null);
+  const [weakVoiceRef, setWeakVoiceRef] = useState<number | null>(null); // id of a generated reference from a weak voice
   const capturing = panel != null;
   const dirty = ref != null && offset !== ref.offsetMs;
 
@@ -221,6 +223,15 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
         </div>
       </header>
 
+      {/* Always mounted so the warning is announced when it appears; it follows the reference id (gone once replaced). */}
+      <div role="status">
+        {!capturing && ref != null && ref.id === weakVoiceRef && (
+          <p className="text-warning">
+            A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar.
+          </p>
+        )}
+      </div>
+
       {panel === "sing" ? (
         <SingCapture
           song={song}
@@ -236,9 +247,10 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
             setPanel(null);
             if (wasWorking) toast("Geração cancelada.");
           }}
-          onDone={(r, elapsedMs) =>
-            done(r, `Referência gerada em ${formatDuration(elapsedMs)}. Pode ter erros: confira sobre o vídeo e valide.`)
-          }
+          onDone={(r, elapsedMs, voiceLevelDb) => {
+            setWeakVoiceRef(voiceLevelDb < WEAK_VOICE_DB ? r.id : null);
+            done(r, `Referência gerada em ${formatDuration(elapsedMs)}. Pode ter erros: confira sobre o vídeo e valide.`);
+          }}
         />
       ) : !ref ? (
         <Card className="flex max-w-2xl flex-col gap-3">
@@ -409,7 +421,7 @@ function AutoGenerate({
 }: {
   song: Song;
   replacing: boolean;
-  onDone: (r: MelodyReference, elapsedMs: number) => void;
+  onDone: (r: MelodyReference, elapsedMs: number, voiceLevelDb: number) => void;
   onCancel: (wasWorking: boolean) => void;
 }) {
   const { navigate } = useNav();
@@ -468,7 +480,7 @@ function AutoGenerate({
       ));
       if (job.current !== j) return; // cancelled meanwhile
       job.current = null;
-      if (out.reference) onDone(out.reference, out.elapsedMs);
+      if (out.reference) onDone(out.reference, out.elapsedMs, out.voiceLevelDb);
       else setState({ step: "failed", reason: out.reason ?? "Nenhuma nota foi encontrada. Nada foi salvo." });
     } catch (e) {
       if (job.current !== j) return; // cancelled: the panel is already closed
