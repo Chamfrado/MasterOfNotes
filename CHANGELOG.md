@@ -4,6 +4,17 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-19
+
+### Adicionado
+- **Gravar cantando:** sem o arquivo MIDI da música, alguém que conhece a melodia canta junto com o vídeo e o app cria a referência a partir das notas cantadas. O app guarda só as notas, nunca a voz. Depois é só revisar sobre o vídeo e validar.
+- Medição de latência agora avisa quando a medida ficou imprecisa e recomenda repetir.
+
+### Corrigido
+- Atualizações: em vez de erro, o app mostra "Nenhuma versão nova pelo canal de atualizações automáticas" e um link para a página de versões.
+- Esta é a primeira versão **normal** (não pré-release): a partir dela, a verificação automática de atualização funciona também para quem instalou a 0.1.1.
+- O selo "Gravando notas" não cobre mais o vídeo.
+
 ## [0.1.1] - 2026-11-19 (pré-release)
 
 Primeira versão pública. Pré-release: a pontuação foi calibrada e auditada com vozes sintéticas; a validação com microfone e voz reais ainda está em andamento.
