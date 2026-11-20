@@ -34,7 +34,7 @@ Critérios:
 |---|---|---|---|
 | T-012-01 | `song-analysis`: runtime ONNX + separação em trechos + nível de voz + transcrição + testes (modelo real só em `#[ignore]`) | Agente 2 | todo |
 | T-012-02 | `song-analysis`: DTW em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | todo |
-| T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | todo |
+| T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | review |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | todo |
 | T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | todo |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | todo |
