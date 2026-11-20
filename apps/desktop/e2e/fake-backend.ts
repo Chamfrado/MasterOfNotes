@@ -26,7 +26,8 @@ export const knownModel: KnownSeparationModel = {
   name: "Separador Exemplo v1",
   fileName: "separador-exemplo-v1.onnx",
   sizeBytes: 66_000_000,
-  sourceUrl: "https://example.org/separador-exemplo",
+  pageUrl: "https://example.org/separador-exemplo",
+  sourceUrl: "https://example.org/separador-exemplo/separador-exemplo-v1.onnx",
   license: "Uso pessoal e não comercial; confira os termos na fonte.",
 };
 /** SPEC-012 R3. */

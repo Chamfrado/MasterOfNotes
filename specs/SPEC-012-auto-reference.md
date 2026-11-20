@@ -5,7 +5,7 @@ Decisão: [ADR-0004](../docs/adr/ADR-0004-auto-reference.md) frente B. Estudo: [
 ## SPEC
 - R1. **Modelo de separação baixado pelo usuário.** Em Ajustes → "Referência automática", o app mostra os modelos conhecidos (nome, fonte, licença resumida, tamanho, SHA-256) com o link para a fonte original. O usuário baixa o arquivo `.onnx` **por conta própria**, escolhe o arquivo no app e marca **"Li e aceito os termos da fonte"**. O app confere o SHA-256 contra a lista de conhecidos (**só modelos conhecidos são aceitos**), copia para `app_data_dir/models/` e grava a escolha nas settings. O app **nunca** baixa, distribui ou envia o modelo.
 - R2. **Gerar referência do vídeo:** na tela Referência, "Gerar automaticamente" (só com modelo instalado) extrai o áudio do vídeo, separa a voz, transcreve com o nosso YIN + `segment_notes` e salva como referência ativa `source = 'extracted'`, `status = 'experimental'` (a anterior vai para o histórico). **Nunca valida sozinha.**
-- R3. **Sem voz:** se o nível da voz separada ficar abaixo de `NO_VOICE_DB = −20 dB` em relação à mistura (medido: −3 dB com voz × −55 dB sem voz), nada é salvo: "Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI."
+- R3. **Sem voz clara:** se o nível da voz separada ficar abaixo de `NO_VOICE_DB = −20 dB` em relação à mistura (medido: −3 dB com voz × −39…−55 dB sem voz), nada é salvo e a mensagem é honesta sobre as duas causas possíveis: "Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI." (QA M3). **Voz fraca** (entre −20 e −10 dB): a referência é salva, mas a UI avisa que ela pode ter ficado incompleta e deve ser revisada com cuidado (QA M2).
 - R4. **Trabalho em segundo plano:** progresso por etapa (extraindo áudio / separando a voz / transcrevendo / salvando) com porcentagem, botão Cancelar, a tela continua responsiva, um trabalho por vez. **Sair da tela Referência ou fechar o app cancela** (a tela avisa antes e durante; decisão de 2026-11-20: trabalho global entre telas só se o uso real pedir).
 - R5. **Alinhamento automático:** na tela Referência, "Alinhar automaticamente" calcula o offset entre as notas da referência ativa e o áudio do vídeo (busca exaustiva de defasagem em croma, ±15 s, refinada por parábola; o ótimo exato para um offset constante. O DTW foi descartado porque resolve diferença de andamento, que um offset não representa) e **propõe** o valor com a confiança; o usuário vê a prévia e decide se salva (fluxo de offset já existente). Vale para MIDI, JSON e cantada.
 - R6. **Áudio do vídeo:** decodificado na WebView (cobre exatamente os formatos que o player toca), convertido para mono 44,1 kHz f32 e enviado ao Rust uma vez por música (cache de 1 item). Nada de áudio é salvo em disco.
@@ -36,7 +36,7 @@ Critérios:
 | T-012-02 | `song-analysis`: alinhamento por busca de defasagem em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | review |
 | T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | review |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | review |
-| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | doing |
+| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | review |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | review |
 
 ## STATUS
@@ -124,3 +124,19 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
   - Texto: 05 (três caminhos, Gerar automaticamente: quando funciona, instalar o modelo, aviso de terceiros com o resumo de `known_models()` (UVR: licença dos pesos não declarada, código MIT, crédito pedido, uso comercial incerto), passo a passo com as 4 etapas e "fique nesta tela", tempo medido ~2,5 min para 4 min e ~1,4 GB de memória (docs/testing/auto-reference.md), revisar e validar; Alinhar automaticamente com Proposta/Aplicar/Descartar). 01: ONNX Runtime (MIT) no instalador da 0.1.3 e `THIRD-PARTY-NOTICES.txt` na pasta do programa (`.github/tauri-release.conf.json`). 10, 12, 13, glossário, README. Rótulos conferidos no código final (Settings.tsx, Reference.tsx, `REASON_NO_VOICE` em analysis.rs); TODOs retirados.
   - Mídia (script `capture.docs.ts`, fake-backend do Agente 4; o wrapper de `invoke` do script agora repassa `options`, necessário ao IPC raw): novas `ajustes-modelo`, `referencia-gerar.gif` (vídeo de teste com voz-guia; legenda: animação encurtada), `referencia-sem-voz`, `referencia-alinhar-auto`; regeneradas porque a tela mudou: `configuracoes` (seção nova) e a página 05 (`referencia-vazia`, `-trilha`, `-alinhar.gif`, `-validar`, `-cantar` png/gif: cabeçalho com Gerar automaticamente, cartão com Alinhar automaticamente). `navegacao-setas.gif` saiu diferente só por ruído e foi descartada. Playwright `-g "05 referência|10 ajustes e modo TV"` ✅ 5/5 (a nova passou após a correção do wrapper); typecheck ✅; verificador de links ✅. Total: 56 arquivos, 11,4 MB.
 - T-012-06 (Agente 5, 2026-11-20), sobre integ/013 com `pageUrl`: passo a passo do modelo em três tempos (1. **Abrir página do projeto** e ler créditos e termos; 2. **Baixar o arquivo do modelo**, o download é no navegador; 3. aceitar e **Escolher arquivo baixado…**), em 05 e 10, com o aviso novo de terceiros. Regenerada só `ajustes-modelo.png` (o script ganhou `pageUrl` do `known_models()`); `referencia-gerar.gif`, que o mesmo teste reescreve, foi descartada sem mudança. Playwright `-g "gerar e alinhar"` ✅ 1/1; typecheck ✅; verificador de links ✅.
+- T-012-05 `review` (Agente 4, 2026-11-20), parte 3 de 3: QA independente do `song-analysis` (agent-2/work @ 7876130) com o modelo real. Relatório em [song-analysis-qa.md](../docs/testing/evidence/song-analysis-qa.md); sondas arquivadas.
+  - **Sem achado ALTO.**
+  - Medido:
+    - 4 min em 132 s, pico de 1353 MiB, precisão de 99,3 %, pontuação simulada de 96,7;
+    - sem falso "tem voz" em karaokê, lead de piano, silêncio e ruído;
+    - voz em só 20 % da música dá −10,8 dB e é detectada;
+    - armadilhas de alinhamento (refrão parcial, música errada, mesmos acordes, transposta, fora de ±15 s) com confiança ≤ 0,37;
+    - cancelamento no meio do trecho em ≤ 2,85 s.
+  - **Médios:**
+    - M1: andamento 0,25–1 % diferente passa com confiança 0,68–0,88 e erro residual de até 464 ms;
+    - M2: voz baixa logo acima do limiar salva uma referência com 28 % das notas, sem aviso;
+    - M3: o texto "é só instrumental" aparece quando há voz baixa (o limiar está certo, o texto não);
+    - M4: a memória cresce cerca de 30 MiB/min (10 min = 1535 MiB).
+  - **Baixos:** B1 (NaN no upload), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
+  - O modelo e a DLL foram apagados ao final.
+- QA independente (Agente 4, 2026-11-20): sem achados ALTOS. M2/M3 corrigidos na 0.1.3; M1 (andamento ≠ vídeo) e M4 (memória em 10 min: ~1,5 GB) ficam para a 0.1.4/documentação; B1 já coberto pelo upload (NaN/Inf → audio_invalid). Relatório: docs/testing/evidence/song-analysis-qa.md.

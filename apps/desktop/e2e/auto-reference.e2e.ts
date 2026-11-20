@@ -167,8 +167,13 @@ test("Ajustes: aceite obrigatório, arquivo desconhecido recusado, instala, sobr
   await expect(section.getByText(knownModel.name)).toBeVisible();
   await expect(section.getByText(`Licença: ${knownModel.license}`)).toBeVisible();
   await expect(section.getByText(`Arquivo ${knownModel.fileName} · SHA-256 ${knownModel.id}`)).toBeVisible();
-  await section.getByRole("button", { name: "Abrir página do modelo" }).click();
-  await expect.poll(async () => (await ipcCalls(page, "plugin:opener|open_url")).map((c) => c.args)).toEqual([expect.objectContaining({ url: knownModel.sourceUrl })]);
+  await expect(section.getByText("Leia a página do projeto antes de baixar.")).toBeVisible();
+  // Project page first (terms, credits), then the file itself: two distinct links.
+  await section.getByRole("button", { name: "Abrir página do projeto" }).click();
+  await section.getByRole("button", { name: "Baixar o arquivo do modelo" }).click();
+  await expect
+    .poll(async () => (await ipcCalls(page, "plugin:opener|open_url")).map((c) => (c.args as { url: string }).url))
+    .toEqual([knownModel.pageUrl, knownModel.sourceUrl]);
 
   const choose = section.getByRole("button", { name: "Escolher arquivo baixado…" });
   const terms = section.getByRole("checkbox", { name: /Li e aceito os termos da fonte/ });
