@@ -1,0 +1,2 @@
+# Fixtures test exact bytes (CRLF, CP1252, BOM): never normalise them.
+*.txt -text
