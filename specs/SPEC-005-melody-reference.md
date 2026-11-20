@@ -26,6 +26,7 @@ Critérios:
 | T-005-02 | Fixtures `tests/fixtures/references/` (sintéticas, autoria própria) | Agente 2 | done |
 | T-005-03 | Commands de referência + persistência | Agente 1 | done |
 | T-005-07 | Cantar a referência: `segment_notes` + modo `reference_capture` no performance.rs (Agente 2); command e persistência (Agente 1); UI "Gravar cantando" na tela Referência (Agente 3) | Agentes 2, 1 e 3 | done |
+| T-005-09 | E2E de "Gravar cantando": fake-backend com `referenceCapture` (regras do live.rs), `e2e/reference-capture.e2e.ts`, painel de gravação no axe/teclado | Agente 4 | review |
 | T-005-08 | Modelo opcional baixado pelo usuário (ADR-0004 B) | Agentes 2, 1 e 3 | todo (0.1.3) |
 | T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | done |
 
@@ -68,3 +69,15 @@ Critérios:
   - ⏳ Não visto no WebView2 real com microfone; a fake-backend do e2e não simula `referenceCapture`.
 - T-005-07, parte do Agente 2 `review` (2026-11-19): `scoring_engine::segment_notes` (Viterbi sobre semitons, custo de troca 8, trechos < 80 ms absorvidos, correção de oitava, semitom A440 escolhido por evidência contra fracionário e grade com afinação) e o modo `reference_capture` no `performance.rs` (`PerformanceSummary.captured_notes`; seek regrava a partir do ponto). Voz realista com ±40 ms de erro de tempo: recall 92–100%, precisão 82–100%, cantor perfeito contra a referência gravada 95,0–98,8. Números em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md#gravação-de-referência-cantada-segment_notes-t-005-07). ⏳ Voz real.
 - T-005-07 done (Agente 0, 2026-11-19): referência cantada de ponta a ponta (segment_notes + reference_capture do Agente 2, persistência do Agente 1, UI do Agente 3). Validação em main abaixo. ⏳ gravação real com microfone e voz.
+- T-005-09 `review` (Agente 4, 2026-11-19): E2E da referência cantada contra o fake com estado.
+  - `e2e/fake-backend.ts` passa a ter referências: `get_reference` mostra só a ativa e `set_reference_status` muda o status.
+  - Na captura, `start_performance({referenceCapture: true})` segue as regras do `live.rs`: roda sozinha (com teste de vazamento, sonda, rodada ou participante dá `invalid_input`) e nunca é competitiva.
+  - `finish_performance` com ≥ 3 notas grava uma referência `manual`, `experimental`, revisão 1, offset 0, que vira a ativa; a anterior fica no histórico, inativa. Com < 3 notas devolve `capturedReference: null` e o motivo "Poucas notas detectadas…".
+  - As notas "detectadas" vêm de `opts.captures`.
+  - `e2e/reference-capture.e2e.ts` (4 casos):
+    1. Música sem referência → contagem 3-2-1 → "Gravando notas" → Parar → selos Cantada, experimental, Revisão 1 e 5 notas → Validar alinhamento.
+    2. Poucas notas: aparece o motivo, nada é salvo, e "Gravar de novo" funciona.
+    3. Cancelar durante a gravação chama `abort_performance` e não chama `finish_performance`.
+    4. Gravar sobre uma referência existente mostra o aviso de histórico; a cantada vira a ativa e continua depois de reabrir o app.
+  - `a11y.e2e.ts`: telas "Gravar cantando" (apresentação, com aviso de substituição) e "Gravando notas" na rodada de axe, teclado, viewports e movimento reduzido.
+  - ❓ O fake não detecta notas; a segmentação real é testada no Rust (Agente 2).
