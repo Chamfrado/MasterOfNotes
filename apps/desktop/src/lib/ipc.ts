@@ -29,6 +29,8 @@ export interface AppSettings {
   updateConsentAsked: boolean;
   /** Last leak check (SPEC-004 R9 / T-004-06). Competitive play requires a passed check for the current device at <= this volume. Read-only via updateSettings. */
   leakCheck: LeakCheck | null;
+  /** Installed third-party separation model (SPEC-012). Read-only via updateSettings. */
+  separationModel?: InstalledSeparationModel | null;
 }
 export interface LeakCheck {
   deviceId: string | null;
@@ -317,5 +319,58 @@ export interface ListPerformances {
 }
 export const listPerformances = (args: ListPerformances) =>
   invoke<PerformanceRow[]>("list_performances", { args });
+
+// ---------- Automatic reference & alignment (SPEC-012, ADR-0004 B) ----------
+export interface KnownSeparationModel {
+  id: string; // sha256
+  name: string;
+  fileName: string;
+  sizeBytes: number;
+  sourceUrl: string; // the user downloads it there; the app never downloads models
+  license: string; // short pt-BR summary
+}
+export interface InstalledSeparationModel {
+  id: string;
+  name: string;
+  acceptedMs: number;
+}
+export const listKnownSeparationModels = () =>
+  invoke<KnownSeparationModel[]>("list_known_separation_models");
+/** Checks SHA-256 against the known list (unknown files are refused), copies into app data, saves settings.separationModel. Requires acceptTerms = true. */
+export const installSeparationModel = (filePath: string, acceptTerms: boolean) =>
+  invoke<InstalledSeparationModel>("install_separation_model", { filePath, acceptTerms });
+export const removeSeparationModel = () => invoke<void>("remove_separation_model");
+
+/** Mono 44.1 kHz audio of the song's video, decoded in the WebView. Returns a token valid until the next upload. Never written to disk. */
+export const uploadSongAudio = (songId: string, mono44k: Float32Array) =>
+  invoke<string>("upload_song_audio", new Uint8Array(mono44k.buffer, mono44k.byteOffset, mono44k.byteLength), {
+    headers: { "song-id": songId },
+  });
+
+export type AutoReferenceStage = "separating" | "transcribing" | "saving";
+export interface AutoReferenceProgress {
+  stage: AutoReferenceStage;
+  fraction: number; // 0..1 within the stage
+}
+export interface AutoReferenceOutcome {
+  reference: MelodyReference | null; // new active reference (extracted, experimental); null = nothing saved
+  reason: string | null; // pt-BR (e.g. no voice in the video)
+  voiceLevelDb: number;
+  elapsedMs: number;
+}
+export const generateReference = (songId: string, audioToken: string, onProgress: (p: AutoReferenceProgress) => void) => {
+  const ch = new Channel<AutoReferenceProgress>();
+  ch.onmessage = onProgress;
+  return invoke<AutoReferenceOutcome>("generate_reference", { songId, audioToken, onProgress: ch });
+};
+export const cancelGenerateReference = () => invoke<void>("cancel_generate_reference");
+
+export interface AlignProposal {
+  offsetMs: number; // proposed NEW offset for the reference (already includes the current one)
+  confidence: number; // 0..1
+}
+/** Proposes an offset; nothing is saved (the UI calls setReferenceOffset if the user accepts). */
+export const autoAlignReference = (referenceId: number, audioToken: string) =>
+  invoke<AlignProposal>("auto_align_reference", { referenceId, audioToken });
 
 // Updates (SPEC-009) use @tauri-apps/plugin-updater directly; no custom commands.

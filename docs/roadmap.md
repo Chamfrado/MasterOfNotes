@@ -19,6 +19,12 @@ Desempenho: todas as metas cumpridas (`docs/testing/performance.md`, `performanc
 - UI da sonda de latência: exibir o jitter e recomendar repetir se > 10 ms (SPEC-006 v3 N4) (Agente 3).
 - Achados do roteiro manual do proprietário e calibração com voz real (SPEC-006, backlog M1/M2/B1).
 
+## Janela autônoma (2026-11-20, 24 h, autorizada pelo proprietário)
+Releases automáticas conforme [release-process.md](release-process.md).
+- **0.1.3:** referência automática a partir do vídeo (SPEC-012 / ADR-0004 B, modelo baixado pelo usuário) + alinhamento automático de referências (DTW).
+- **0.1.4:** importação de UltraStar `.txt` (notas + letra; ADR-0002).
+- Fora da janela (dependem do proprietário): calibração com voz real, mudanças na pontuação, licença do produto, análise jurídica do modelo opcional.
+
 ## Próximos passos
 1. **Proprietário:** roteiro manual (`docs/testing/evidence/vertical-flow.md`), com o microfone liberado na privacidade do Windows.
 2. QA v3 (Agente 4) → ajustes, se houver → release **0.1.1** com o v3, publicado como release **normal** (auto-update).

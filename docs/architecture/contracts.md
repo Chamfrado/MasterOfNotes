@@ -146,6 +146,34 @@ Os commands (Agente 1) carregam a referência ativa e as configurações, criam 
 **Gravação de referência cantada (ADR-0004 frente A, T-005-07):** `PerformanceConfig.reference_capture: bool` (exclusivo com `leak_check` e `latency_probe`; sem referência; nunca competitivo; nada em `performances`). `PerformanceSummary.captured_notes: Option<Vec<Note>>`, produzido por `scoring_engine::segment_notes(frames: &[VoiceFrame]) -> Vec<Note>` (segmentação em notas: onset, duração e altura; parâmetros e quantização definidos pelo Agente 2 com evidência). O command grava as notas como nova referência ativa (`source = 'manual'`, `status = 'experimental'`, desativando a anterior, como no import) e devolve `outcome.capturedReference`. Com menos de 3 notas, nada é gravado e vem `reason` em pt-BR. **O áudio nunca é gravado**, só as notas.
 `scoring-engine` ganha `Scorer::skip(from_ms, to_ms)`: exclui da agregação as notas que começam no trecho pulado (só em treino; não altera `ALGORITHM_VERSION`).
 
+### 2.5 `song-analysis` (Agente 2) — referência automática e alinhamento (SPEC-012)
+
+```rust
+pub struct KnownModel { pub id: &'static str /* sha256 hex */, pub name: &'static str, pub file_name: &'static str, pub size_bytes: u64, pub source_url: &'static str, pub license: &'static str /* resumo pt-BR */, pub sample_rate: u32 }
+pub fn known_models() -> &'static [KnownModel];
+pub fn sha256_file(path: &Path) -> std::io::Result<String>;
+
+pub struct Separator;   // carrega um modelo conhecido; roda em trechos (overlap-add)
+impl Separator {
+    pub fn load(model_path: &Path, model: &KnownModel) -> Result<Self, AnalysisError>;
+    /// Voz separada, mono, mesma taxa da entrada. `progress` 0..1; `cancel` interrompe (Err(Cancelled)).
+    pub fn vocals(&mut self, mono: &[f32], sample_rate: u32, progress: &mut dyn FnMut(f32), cancel: &AtomicBool) -> Result<Vec<f32>, AnalysisError>;
+}
+/// Nível da voz separada em relação à mistura (dB). Abaixo do limiar ⇒ "sem voz".
+pub fn voice_level_db(vocals: &[f32], mix: &[f32]) -> f32;
+pub const NO_VOICE_DB: f32; // limiar decidido com evidência
+/// analyze_buffer + segment_notes sobre a voz separada.
+pub fn transcribe(vocals: &[f32], sample_rate: u32) -> Vec<Note>;
+pub struct AlignResult { pub offset_ms: i32, pub confidence: f32 /* 0..1 */ }
+/// DTW em croma entre as notas (sintetizadas) e a mistura; offset a somar ao offset atual da referência.
+pub fn align_offset_ms(notes: &[Note], mix: &[f32], sample_rate: u32) -> AlignResult;
+pub enum AnalysisError { Model(String), Cancelled, /* ... */ }  // Display pt-BR
+```
+
+Settings: `separationModel: { id, name, acceptedMs } | null` (somente leitura via `update_settings`; muda pelos commands de modelo). Modelo em `app_data_dir/models/<id>.onnx`.
+Áudio do vídeo: decodificado na WebView (`decodeAudioData` + `OfflineAudioContext` → mono 44,1 kHz) e enviado como bytes f32 little-endian por IPC **raw** (`upload_song_audio`, cabeçalho `song-id`); o Rust guarda **um** item em memória (token) e **nunca** grava áudio em disco.
+Referência gerada: `source = 'extracted'`, `status = 'experimental'`, ativa (a anterior vai para o histórico), como no import.
+
 ## 3. Esquema SQLite (migração 001)
 
 Dono da implementação: Agente 1 (`src-tauri/migrations/001_init.sql`). Mudanças de esquema = nova migração, nunca editar migração já integrada.
