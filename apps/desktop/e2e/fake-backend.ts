@@ -284,11 +284,14 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
             return { reference: storeRef(db, String(songId), "extracted", plan), reason: null, voiceLevelDb: -6.2, elapsedMs: Date.now() - started };
           });
         } finally {
-          job = null;
+          if (job === me) job = null;
         }
       },
+      // The slot is free when cancel returns (a new "Começar" right after it must not get `busy`); the old job
+      // still rejects with `cancelled` at its next step. ❓ Rust (T-012-03) must behave the same.
       cancel_generate_reference: () => {
         if (job) job.cancelled = true;
+        job = null;
         return null;
       },
       // Proposes only; the UI saves with set_reference_offset if the user accepts (R5).

@@ -1,10 +1,12 @@
-// T-012-05: SPEC-012 commands against the stateful fake, driven through the app's real client (src/lib/ipc.ts,
-// loaded by Vite in the page): raw upload (Uint8Array body + song-id header), progress Channel, cancel.
-// The UI flows (Ajustes → Referência automática; Referência → Gerar/Alinhar) join this file when T-012-04 lands.
+// T-012-05 (SPEC-012) against the stateful fake (e2e/fake-backend.ts):
+// - contract: the commands driven through the app's real client (src/lib/ipc.ts, loaded by Vite in the page):
+//   raw upload (Uint8Array body + song-id header), progress Channel, cancel;
+// - UI: Ajustes → Referência automática; Referência → Gerar automaticamente / Alinhar automaticamente.
 import { expect, test, type Page } from "@playwright/test";
+import type { MelodyReference } from "../src/lib/ipc";
 import { NO_VOICE_REASON, installFakeBackend, knownModel } from "./fake-backend";
-import { fullSpec } from "./fixtures";
-import { ipcCalls, mockTauri } from "./tauri-mock";
+import { fullSpec, nav } from "./fixtures";
+import { ipcCalls, mockTauri, setReply, useSyntheticVideo } from "./tauri-mock";
 
 type Ipc = typeof import("../src/lib/ipc");
 
@@ -116,4 +118,214 @@ test("gerar exige modelo; alinhar propõe sem salvar e o offset aceito sobe a re
     untouched: { offsetMs: 0, status: "validated", revision: 1 },
     saved: { offsetMs: 1200, status: "experimental", revision: 2 },
   });
+});
+
+// ---------- UI ----------
+
+const installed = { id: knownModel.id, name: knownModel.name, acceptedMs: Date.UTC(2026, 10, 20, 12, 0) };
+const imported: MelodyReference = {
+  id: 1,
+  songId: "c3",
+  source: "json",
+  status: "validated",
+  revision: 2,
+  offsetMs: 0,
+  notes: [{ startMs: 0, durMs: 500, midi: 60, lyric: null }],
+};
+
+/** App with the fake; `audio`: the synthetic video has an audio track (needed to decode, R6). */
+async function openApp(page: Page, opts: Parameters<typeof installFakeBackend>[2] = {}, audio = true) {
+  await installFakeBackend(page, [], { generateStepMs: 300, ...opts });
+  const tracker = await mockTauri(page, fullSpec());
+  await page.goto("/");
+  await useSyntheticVideo(page, 1500, audio);
+  return tracker;
+}
+
+async function openReference(page: Page, title: string) {
+  await nav(page, "Biblioteca");
+  await page.getByRole("button", { name: `Referência de ${title}` }).click();
+  await expect(page.getByRole("heading", { level: 1, name: title })).toBeVisible();
+}
+
+const generatePanel = (page: Page) =>
+  page.locator("div").filter({ has: page.getByRole("heading", { level: 2, name: "Gerar automaticamente" }) }).last();
+const status = (page: Page) => generatePanel(page).getByRole("status");
+/** Bytes of each upload_song_audio body (Uint8Array) and its song-id header. */
+const uploads = (page: Page) =>
+  page.evaluate(() =>
+    (window.__E2E_CALLS__ ?? [])
+      .filter((c) => c.cmd === "upload_song_audio")
+      .map((c) => ({ bytes: (c.args as Uint8Array).byteLength, songId: c.options?.headers?.["song-id"] })),
+  );
+
+test("Ajustes: aceite obrigatório, arquivo desconhecido recusado, instala, sobrevive à reabertura e remove", async ({ page }) => {
+  const { pageErrors } = await openApp(page);
+  await setReply(page, "plugin:opener|open_url", { ok: null });
+  await nav(page, "Ajustes");
+  const section = page.locator("div").filter({ has: page.getByRole("heading", { level: 2, name: "Referência automática" }) }).last();
+  await expect(section.getByText(knownModel.name)).toBeVisible();
+  await expect(section.getByText(`Licença: ${knownModel.license}`)).toBeVisible();
+  await expect(section.getByText(`Arquivo ${knownModel.fileName} · SHA-256 ${knownModel.id}`)).toBeVisible();
+  await section.getByRole("button", { name: "Abrir página do modelo" }).click();
+  await expect.poll(async () => (await ipcCalls(page, "plugin:opener|open_url")).map((c) => c.args)).toEqual([expect.objectContaining({ url: knownModel.sourceUrl })]);
+
+  const choose = section.getByRole("button", { name: "Escolher arquivo baixado…" });
+  const terms = section.getByRole("checkbox", { name: /Li e aceito os termos da fonte/ });
+  await expect(choose).toBeDisabled(); // R1: terms first
+  await terms.check();
+  await setReply(page, "plugin:dialog|open", { ok: "C:/Downloads/outro-modelo.onnx" });
+  await choose.click();
+  await expect(page.getByText('"outro-modelo.onnx" não é um modelo conhecido: só os modelos da lista são aceitos.')).toBeVisible();
+
+  await setReply(page, "plugin:dialog|open", { ok: `C:/Downloads/${knownModel.fileName}` });
+  await choose.click();
+  await expect(page.getByText(`Modelo ${knownModel.name} instalado.`)).toBeVisible();
+  await expect(section.getByText("· instalado em 20/11/2026")).toBeVisible();
+
+  await page.reload();
+  await nav(page, "Ajustes");
+  await expect(section.getByText("· instalado em 20/11/2026")).toBeVisible();
+  await section.getByRole("button", { name: "Remover" }).click();
+  await expect(page.getByText("Modelo removido.")).toBeVisible();
+  await expect(terms).not.toBeChecked();
+  await expect(choose).toBeDisabled();
+  expect(pageErrors).toEqual([]);
+});
+
+test("Gerar sem modelo leva a Ajustes, com o foco no título da seção", async ({ page }) => {
+  const { pageErrors } = await openApp(page);
+  await openReference(page, "Canção da Manhã");
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await expect(page.getByText("Instale um modelo de separação de voz para gerar a referência automaticamente.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Referência automática" })).toBeFocused();
+  expect(await ipcCalls(page, "generate_reference")).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
+
+test("Gerar: etapas anunciadas sem mover o foco, referência Extraída experimental, validar; alinhar reaproveita o áudio", async ({ page }) => {
+  const { pageErrors } = await openApp(page, { separationModel: installed });
+  await openReference(page, "Canção da Manhã");
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await expect(generatePanel(page).getByText("A referência atual vai para o histórico")).toHaveCount(0);
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+
+  await expect(status(page)).toContainText("Etapa 2 de 4: Separando a voz");
+  const focused = () => page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? null);
+  const before = await focused();
+  await expect(generatePanel(page).getByRole("progressbar", { name: "Separando a voz" })).toBeVisible();
+  for (const text of ["Etapa 3 de 4: Transcrevendo (50%)", "Etapa 4 de 4: Salvando"]) {
+    await expect(status(page)).toContainText(text);
+    expect(await focused()).toBe(before); // progress updates never move the focus
+  }
+  await expect(page.getByText(/^Referência gerada em .*Pode ter erros: confira sobre o vídeo e valide\.$/)).toBeVisible();
+  for (const badge of ["Referência experimental", "Extraída", "Revisão 1", "5 notas"]) await expect(page.getByText(badge, { exact: true })).toBeVisible();
+  const sent = await uploads(page);
+  expect(sent).toEqual([{ bytes: expect.any(Number), songId: "a1" }]);
+  expect(sent[0].bytes % 4).toBe(0);
+  expect(sent[0].bytes / 4 / 44_100).toBeGreaterThan(1); // ~1.5 s of mono 44.1 kHz f32
+
+  await page.getByRole("button", { name: "Validar alinhamento" }).click(); // R2: never validated by itself
+  await expect(page.getByText("Referência validada", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Alinhar automaticamente" }).click();
+  await expect(page.getByText(/Proposta: \+1200 ms \(confiança 90%\)/)).toBeVisible();
+  expect(await uploads(page)).toHaveLength(1); // one upload per song (R6 cache)
+  expect(pageErrors).toEqual([]);
+});
+
+test("Gerar: sem voz não salva e a referência anterior continua; Cancelar e sair da tela cancelam o trabalho", async ({ page }) => {
+  const { pageErrors } = await openApp(page, { separationModel: installed, references: [imported], generated: ["noVoice"], generateStepMs: 500 });
+  await openReference(page, "Pôr do Sol em Óculos");
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await expect(generatePanel(page).getByText("A referência atual vai para o histórico; a nova nasce experimental.")).toBeVisible();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(status(page)).toContainText(NO_VOICE_REASON);
+  await expect(generatePanel(page).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+  await generatePanel(page).getByRole("button", { name: "Cancelar" }).click();
+  for (const badge of ["Referência validada", "JSON", "Revisão 2"]) await expect(page.getByText(badge, { exact: true })).toBeVisible();
+
+  // Cancel in the middle.
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(status(page)).toContainText("Separando a voz");
+  await generatePanel(page).getByRole("button", { name: "Cancelar" }).click();
+  await expect(page.getByText("Geração cancelada.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Gerar automaticamente" })).toHaveCount(0);
+  await expect.poll(async () => (await ipcCalls(page, "cancel_generate_reference")).length).toBe(1);
+
+  // Leaving the screen cancels too.
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(status(page)).toContainText("Separando a voz");
+  await nav(page, "Biblioteca");
+  await expect.poll(async () => (await ipcCalls(page, "cancel_generate_reference")).length).toBe(2);
+  await openReference(page, "Pôr do Sol em Óculos");
+  await expect(page.getByText("JSON", { exact: true })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("Alinhar: proposta com prévia, Descartar não salva, confiança baixa avisa, Aplicar salva (revisão + 1)", async ({ page }) => {
+  const { pageErrors } = await openApp(page, {
+    references: [{ ...imported, source: "midi" }],
+    alignments: [
+      { offsetMs: 1200, confidence: 0.92 },
+      { offsetMs: -350, confidence: 0.3 },
+    ],
+  });
+  await openReference(page, "Pôr do Sol em Óculos");
+  const slider = page.getByRole("slider", { name: "Offset das notas" });
+  await page.getByRole("button", { name: "Alinhar automaticamente" }).click();
+  await expect(page.getByText(/Proposta: \+1200 ms \(confiança 92%\)\. A prévia já usa esse valor\./)).toBeVisible();
+  await expect(slider).toHaveValue("1200");
+  await expect(page.getByText("Confiança baixa: confira pelo vídeo antes de aplicar.")).toHaveCount(0);
+  await page.getByRole("button", { name: "Descartar" }).click();
+  await expect(slider).toHaveValue("0");
+  expect(await ipcCalls(page, "set_reference_offset")).toEqual([]);
+
+  await page.getByRole("button", { name: "Alinhar automaticamente" }).click();
+  await expect(page.getByText(/Proposta: -350 ms \(confiança 30%\)/)).toBeVisible();
+  await expect(page.getByText("Confiança baixa: confira pelo vídeo antes de aplicar.")).toBeVisible();
+  await page.getByRole("button", { name: "Aplicar" }).click();
+  await expect(page.getByText("Offset aplicado. Confira e valide de novo.")).toBeVisible();
+  for (const badge of ["Referência experimental", "MIDI", "Revisão 3"]) await expect(page.getByText(badge, { exact: true })).toBeVisible();
+  await expect(slider).toHaveValue("-350");
+  expect(await uploads(page)).toHaveLength(1);
+  expect(pageErrors).toEqual([]);
+});
+
+test("vídeo sem trilha de áudio: a geração falha com mensagem e permite tentar de novo", async ({ page }) => {
+  const { pageErrors } = await openApp(page, { separationModel: installed }, false);
+  await openReference(page, "Canção da Manhã");
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(generatePanel(page).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+  const message = await status(page).innerText();
+  console.log(`[sem áudio] mensagem mostrada: ${message}`);
+  expect(message.trim()).not.toBe("");
+  expect(await ipcCalls(page, "generate_reference")).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
+
+// ---------- Known UI findings (T-012-05 → Agent 3). test.fail: remove the marker when fixed. ----------
+
+test("ACHADO F1: Começar leva o foco para Cancelar em vez de perdê-lo no body", async ({ page }) => {
+  test.fail(true, "F1: autoFocus só vale na montagem; o Cancelar já existia, então o foco cai no body quando o Começar some");
+  await openApp(page, { separationModel: installed, generateStepMs: 1000 });
+  await openReference(page, "Canção da Manhã");
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(status(page)).toContainText("Separando a voz");
+  console.log(`[F1] foco depois de Começar: ${await page.evaluate(() => document.activeElement?.tagName)}`);
+  await expect(generatePanel(page).getByRole("button", { name: "Cancelar" })).toBeFocused({ timeout: 1000 });
+});
+
+test("ACHADO F2: vídeo sem trilha de áudio mostra mensagem em pt-BR", async ({ page }) => {
+  test.fail(true, "F2: o erro do decodeAudioData aparece cru, em inglês (\"Unable to decode audio data\")");
+  await openApp(page, { separationModel: installed }, false);
+  await openReference(page, "Canção da Manhã");
+  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
+  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
+  await expect(generatePanel(page).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
+  await expect(status(page)).not.toContainText("Unable to decode", { timeout: 1000 });
 });

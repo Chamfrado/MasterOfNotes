@@ -32,8 +32,44 @@ Códigos decididos no contrato (contracts.md §2.5, coordenador, 2026-11-20), j�
    - cancelar no meio dá `cancelled`, e um token velho é recusado.
 3. **Gerar sem modelo e alinhar:** gerar sem modelo é recusado. Alinhar só propõe; o offset aceito sobe a revisão e volta a referência a experimental.
 
-## 2. E2E e a11y da UI (⏳ quando a T-012-04 chegar)
-O vídeo sintético (`useSyntheticVideo`) não tem trilha de áudio, e a UI decodifica o áudio do vídeo. Por isso o `useSyntheticVideo` vai ganhar a opção de gravar com áudio (oscilador → `MediaStreamDestination`, como no gerador da música de teste).
+## 2. E2E e a11y da UI (✅ escrito sobre a agent-3/work @ 338aad6)
+O `useSyntheticVideo(page, ms, audio)` ganhou a trilha Opus de 440 Hz (oscilador → `MediaStreamDestination`), porque a UI decodifica o áudio do vídeo.
+
+**`e2e/auto-reference.e2e.ts`: 6 testes de UI, todos verdes**
+1. Ajustes: o aceite é obrigatório; o arquivo desconhecido é recusado; o modelo instala, continua instalado depois de reabrir o app e é removido; "Abrir página do modelo" chama o `open_url` com a URL da fonte.
+2. Gerar sem modelo leva a Ajustes, com o foco no título da seção.
+3. Gerar com modelo:
+   - as etapas aparecem em `role="status"` e o progresso não mexe no foco;
+   - o resultado é a referência Extraída, experimental, revisão 1, 5 notas, e ainda é preciso validar à mão;
+   - um único upload, com `song-id` e bytes f32 (múltiplo de 4, cerca de 1,5 s);
+   - alinhar depois reaproveita o áudio sem novo upload.
+4. Sem voz: mostra a mensagem de R3 e a referência anterior continua. Cancelar no meio e sair da tela chamam `cancel_generate_reference`.
+5. Alinhar:
+   - a proposta aparece com a confiança, e a prévia já move o slider;
+   - Descartar não salva;
+   - confiança baixa mostra o aviso;
+   - Aplicar faz revisão + 1 e volta a referência a experimental.
+6. Vídeo sem trilha de áudio: a geração falha com mensagem e oferece "Tentar de novo".
+
+**`a11y.e2e.ts`:** passam pela rodada de axe, teclado, viewports e movimento reduzido as telas Ajustes sem modelo, Ajustes com modelo, Gerar automaticamente em andamento e Proposta de alinhamento.
+
+A sonda de teclado foi corrigida:
+- a contagem inclui `video[controls]` e `audio[controls]`;
+- o teste percorre uma volta completa (os controles nativos acrescentam paradas de Tab dentro do shadow DOM);
+- cada elemento tem uma chave estável;
+- o teste detecta contorno de foco **cortado** por um ancestral com overflow.
+
+**Achados de UI (para o Agente 3).** Cada um tem um `test.fail`; quando for corrigido, o teste passa e a marca deve ser retirada.
+
+| ID | Gravidade | Achado | Sugestão |
+|---|---|---|---|
+| F1 | Média (a11y) | Ao clicar em Começar no painel Gerar, o foco cai no `body`. O `autoFocus` do Cancelar só vale na montagem, e o botão já existia. | Dar foco ao Cancelar por `ref` quando a etapa começar, ou trocar a `key` do botão. |
+| F2 | Média (pt-BR, Lei de textos) | Vídeo sem trilha de áudio mostra o erro cru do `decodeAudioData`: "Unable to decode audio data". | Traduzir em `songAudio.ts`, por exemplo: "Não foi possível ler o áudio deste vídeo." |
+| F3 | Média (a11y) | O `<video controls>` da prévia de alinhamento (telas Referência e Proposta) recebe foco sem indicador visível: o contorno é cortado pelo `overflow-hidden` do contêiner arredondado. Já existia desde a T-005-04; a sonda antiga não pegava. | `outline-offset` negativo no vídeo, ou tirar o `overflow-hidden` e arredondar o próprio vídeo. |
+
+Ponto de atenção para o Rust (T-012-03): Cancelar e depois Começar logo em seguida não pode dar `busy`. O `cancel_generate_reference` precisa liberar a vaga antes de retornar; a UI não espera o trabalho antigo terminar. O fake já se comporta assim.
+
+### Plano original
 
 **Ajustes → Referência automática**
 - Sem modelo:

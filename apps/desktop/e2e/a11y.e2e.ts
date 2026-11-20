@@ -2,7 +2,7 @@
 // Measurements are logged (`--reporter=list` shows them); findings go to docs/testing/evidence/a11y-audit.md.
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import type { GameSession, MelodyReference } from "../src/lib/ipc";
+import type { AppSettings, GameSession, MelodyReference } from "../src/lib/ipc";
 import { fullSpec, settings } from "./fixtures";
 import { mockTauri, useSyntheticVideo, type MockSpec } from "./tauri-mock";
 
@@ -19,6 +19,12 @@ interface ScreenDef {
   name: string;
   /** Length of the synthetic video, when the screen needs one that plays. */
   videoMs?: number;
+  /** The synthetic video carries an audio track (SPEC-012 decodes it). */
+  videoAudio?: boolean;
+  /** Known keyboard finding: the keyboard test is expected to fail until it is fixed (remove then). */
+  knownKeyboardIssue?: string;
+  /** Extra static replies for this screen. */
+  spec?: MockSpec;
   reach: (page: Page) => Promise<void>;
   /** Where Esc must lead. */
   backTo: ((page: Page) => Promise<void>) | null;
@@ -97,6 +103,17 @@ const openReference = async (page: Page) => {
   await nav(page, "Biblioteca");
   await page.getByRole("button", { name: "Referência de Pôr do Sol em Óculos" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Pôr do Sol em Óculos" })).toBeVisible();
+};
+
+/** T-012-05 finding (Agent 3): the alignment preview <video controls> gets focus with its ring clipped by the rounded overflow-hidden box. */
+const F3 = "F3: o <video controls> da prévia recebe foco sem indicador visível (contorno cortado pelo overflow-hidden do contêiner)";
+const withModel: MockSpec = {
+  get_settings: { ok: settings("C:/Karaoke", { separationModel: { id: "5e1f", name: "Separador Exemplo v1", acceptedMs: Date.UTC(2026, 10, 20, 12) } }) },
+  upload_song_audio: { ok: "tok" },
+};
+const openAutoReferenceSettings = async (page: Page) => {
+  await nav(page, "Ajustes");
+  await expect(page.getByRole("heading", { level: 2, name: "Referência automática" })).toBeVisible();
 };
 
 const screens: ScreenDef[] = [
@@ -196,7 +213,7 @@ const screens: ScreenDef[] = [
     },
     backTo: playVisible,
   },
-  { name: "Referência", reach: openReference, backTo: libraryVisible },
+  { name: "Referência", reach: openReference, backTo: libraryVisible, knownKeyboardIssue: F3 },
   {
     name: "Diálogo Qual trilha é a voz",
     reach: async (p) => {
@@ -239,12 +256,54 @@ const screens: ScreenDef[] = [
     },
     backTo: dialogClosed,
   },
+  // SPEC-012 (T-012-05)
+  {
+    name: "Ajustes: Referência automática sem modelo",
+    reach: openAutoReferenceSettings,
+    backTo: homeVisible,
+  },
+  {
+    name: "Ajustes: Referência automática com modelo",
+    spec: withModel,
+    reach: async (p) => {
+      await openAutoReferenceSettings(p);
+      await expect(p.getByRole("button", { name: "Remover" })).toBeVisible();
+    },
+    backTo: homeVisible,
+  },
+  {
+    name: "Gerar automaticamente em andamento",
+    videoMs: 1000,
+    videoAudio: true,
+    spec: withModel,
+    reach: async (p) => {
+      await p.evaluate(() => void ((window.__E2E_HANDLERS__ ??= {}).generate_reference = () => new Promise(() => {}))); // never ends
+      await openReference(p);
+      await p.getByRole("button", { name: "Gerar automaticamente" }).click();
+      await p.getByRole("button", { name: "Começar" }).click();
+      await expect(p.getByRole("status").filter({ hasText: "Etapa 2 de 4: Separando a voz" })).toBeVisible();
+    },
+    backTo: libraryVisible,
+  },
+  {
+    name: "Proposta de alinhamento",
+    videoMs: 1000,
+    videoAudio: true,
+    spec: { upload_song_audio: { ok: "tok" }, auto_align_reference: { ok: { offsetMs: 1200, confidence: 0.3 } } },
+    knownKeyboardIssue: F3,
+    reach: async (p) => {
+      await openReference(p);
+      await p.getByRole("button", { name: "Alinhar automaticamente" }).click();
+      await expect(p.getByText("Confiança baixa: confira pelo vídeo antes de aplicar.")).toBeVisible();
+    },
+    backTo: libraryVisible,
+  },
 ];
 
 async function open(page: Page, s: ScreenDef, spec: MockSpec = {}) {
-  const tracker = await mockTauri(page, fullSpec({ ...gameSpec, ...spec }));
+  const tracker = await mockTauri(page, fullSpec({ ...gameSpec, ...s.spec, ...spec }));
   await page.goto("/");
-  if (s.videoMs) await useSyntheticVideo(page, s.videoMs);
+  if (s.videoMs) await useSyntheticVideo(page, s.videoMs, s.videoAudio);
   await s.reach(page);
   return tracker;
 }
@@ -272,7 +331,7 @@ const countTabbable = (page: Page) =>
   page.evaluate(
     () =>
       // A modal dialog makes the rest of the page inert without marking it, so count only inside it.
-      [...(document.querySelector("dialog:modal") ?? document).querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, [tabindex]")].filter(
+      [...(document.querySelector("dialog:modal") ?? document).querySelectorAll<HTMLElement>("a[href], button, input, select, textarea, video[controls], audio[controls], [tabindex]")].filter(
         (el) =>
           el.tabIndex >= 0 &&
           !(el as HTMLButtonElement).disabled &&
@@ -295,31 +354,52 @@ const focusInfo = (page: Page) =>
     const cs = getComputedStyle(el);
     const r = el.getBoundingClientRect();
     const label = el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 40) ?? "";
+    const ring = cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2;
+    // The ring around the element: is it cut by an ancestor that clips (overflow other than visible)?
+    const grow = ring ? parseFloat(cs.outlineWidth) + parseFloat(cs.outlineOffset) : 0;
+    let clipped = false;
+    for (let a = el.parentElement; a && ring && grow > 0; a = a.parentElement) {
+      const o = getComputedStyle(a);
+      if (o.overflowX === "visible" && o.overflowY === "visible") continue;
+      const b = a.getBoundingClientRect();
+      clipped ||= r.left - grow < b.left || r.top - grow < b.top || r.right + grow > b.right || r.bottom + grow > b.bottom;
+    }
     return {
-      key: `${el.tagName.toLowerCase()}#${[...document.querySelectorAll("*")].indexOf(el)}`,
+      // Stable identity (a DOM index shifts when the page changes mid-cycle, e.g. a toast).
+      key: (el.dataset.e2eFocus ??= String(document.querySelectorAll("[data-e2e-focus]").length)),
       label: `${el.tagName.toLowerCase()} "${label || (el as HTMLInputElement).name || el.id}"`,
-      outline: cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2,
+      // Native media controls draw their own ring on the inner (closed shadow DOM) button: only the host is ours.
+      outline: (ring && !clipped) || (el instanceof HTMLMediaElement && !el.matches(":focus-visible")),
+      clipped,
       inViewport: r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth,
     };
   });
 
 for (const s of screens) {
   test(`teclado: ${s.name} — Tab percorre tudo com foco visível, sem armadilha; Esc volta`, async ({ page }) => {
+    test.fail(!!s.knownKeyboardIssue, s.knownKeyboardIssue);
     const { pageErrors } = await open(page, s);
     const n = await countTabbable(page);
     expect(n).toBeGreaterThan(0);
     const seen = new Set<string>();
-    const problems: string[] = [];
-    for (let i = 0; i < n + 1; i++) {
+    const problems = new Set<string>();
+    // One full cycle. Native <video controls> add Tab stops inside its (closed) shadow DOM, all reported as
+    // the <video>, so the loop stops when the first element comes back instead of after exactly n presses.
+    let first: string | null = null;
+    let prev: string | null = null;
+    for (let i = 0; i < 3 * n + 10; i++) {
       await page.keyboard.press("Tab");
       const f = await focusInfo(page);
       if (!f) continue; // document between the last and first element
+      if (f.key === first && prev !== first) break;
+      first ??= f.key;
+      prev = f.key;
       seen.add(f.key);
-      if (!f.outline) problems.push(`sem foco visível: ${f.label}`);
-      if (!f.inViewport) problems.push(`foco fora da tela: ${f.label}`);
+      if (!f.outline) problems.add(`sem foco visível${f.clipped ? " (contorno cortado por um ancestral com overflow)" : ""}: ${f.label}`);
+      if (!f.inViewport) problems.add(`foco fora da tela: ${f.label}`);
     }
     console.log(`[teclado] ${s.name}: ${n} alvos de Tab, ${seen.size} alcançados`);
-    expect(problems).toEqual([]);
+    expect([...problems]).toEqual([]);
     expect(seen.size, "Tab não alcança todos os elementos (armadilha ou elemento inalcançável)").toBe(n);
     if (s.backTo) {
       await page.keyboard.press("Escape");
@@ -424,7 +504,7 @@ for (const s of screens) {
       if (m.minFont < MIN_FONT_PX) problems.push(`${tag}: texto de ${m.minFont}px em ${m.minFontAt}`);
       await page.screenshot({ path: info.outputPath(`${s.name}-${tag}.png`) });
     }
-    expect(problems).toEqual([]);
+    expect([...problems]).toEqual([]);
   });
 }
 
@@ -475,7 +555,8 @@ for (const { mode, media, setting } of motionModes) {
   for (const s of screens) {
     test(`movimento reduzido (${mode}): ${s.name} sem animação nem transição`, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: media });
-      await open(page, s, { get_settings: { ok: settings("C:/Karaoke", { reducedMotion: setting }) } });
+      const base = s.spec?.get_settings && "ok" in s.spec.get_settings ? (s.spec.get_settings.ok as AppSettings) : settings("C:/Karaoke");
+      await open(page, s, { get_settings: { ok: { ...base, reducedMotion: setting } } });
       expect(await longMotion(page)).toEqual([]);
     });
   }

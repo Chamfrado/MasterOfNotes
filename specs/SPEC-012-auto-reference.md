@@ -59,3 +59,9 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
   - Plano de E2E/a11y da UI e da QA independente em [song-analysis-qa-plan.md](../docs/testing/evidence/song-analysis-qa-plan.md); o harness de sondas está pronto em rascunho.
   - ⏳ E2E/a11y esperam a T-012-04; as sondas esperam a T-012-01/02, e as com modelo esperam o comando de download e o SHA do Agente 2.
   - Códigos de erro do fake alinhados ao contrato (§2.5): cancelled, terms_not_accepted, model_unknown, model_not_installed, audio_invalid, audio_token_invalid, busy, not_found.
+- T-012-05, parte 2 de 3 pronta (Agente 4, 2026-11-20): E2E/a11y da UI, escritos sobre um merge local da agent-3/work @ 338aad6.
+  - `auto-reference.e2e.ts`: +6 testes de UI cobrindo Ajustes, Gerar (etapas, foco, sem voz, cancelar, sair da tela, sem modelo → Ajustes) e Alinhar (prévia, Descartar, confiança baixa, Aplicar).
+  - `a11y.e2e.ts`: +4 telas. A sonda de teclado agora conta controles de mídia, faz uma volta completa e detecta contorno de foco cortado.
+  - Playwright chromium: 143 passed.
+  - Achados de UI F1 (foco cai no body ao Começar), F2 (erro de decodificação em inglês) e F3 (foco do vídeo da prévia sem contorno visível, já existia), todos médios, ficam como `test.fail` em [song-analysis-qa-plan.md](../docs/testing/evidence/song-analysis-qa-plan.md) §2.
+  - ⏳ Parte 3: QA do `song-analysis`.
