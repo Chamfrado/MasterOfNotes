@@ -31,7 +31,10 @@ export const knownModel: KnownSeparationModel = {
   license: "Uso pessoal e não comercial; confira os termos na fonte.",
 };
 /** SPEC-012 R3. */
-export const NO_VOICE_REASON = "Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI.";
+export const NO_VOICE_REASON =
+  "Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI.";
+/** One generate_reference result in FakeOptions.generated. */
+type Generated = RefNote[] | "noVoice" | { notes: RefNote[]; voiceLevelDb: number };
 const generatedNotes: RefNote[] = [60, 62, 64, 65, 67].map((midi, i) => ({ startMs: 1000 + i * 500, durMs: 450, midi, lyric: null }));
 
 interface Db {
@@ -48,7 +51,7 @@ interface Db {
   captures: RefNote[][];
   /** settings.separationModel (SPEC-012 R1). */
   separationModel: InstalledSeparationModel | null;
-  generated: (RefNote[] | "noVoice")[];
+  generated: Generated[];
   alignments: AlignProposal[];
 }
 
@@ -65,8 +68,9 @@ export interface FakeOptions {
   knownModels?: KnownSeparationModel[];
   /** Model already installed when the app opens. */
   separationModel?: InstalledSeparationModel | null;
-  /** What each generate_reference run finds, in order: the notes, or "noVoice" (R3). None left: 5 notes. */
-  generated?: (RefNote[] | "noVoice")[];
+  /** What each generate_reference run finds, in order: the notes (voice at −6.2 dB), notes at a given voice level (e.g. weak voice,
+   * between −20 and −10 dB), or "noVoice" (R3). None left: 5 notes. */
+  generated?: Generated[];
   /** Pause between generate_reference progress messages (default 150 ms; 3 stages × 3 messages). */
   generateStepMs?: number;
   /** auto_align_reference proposals (absolute offsets), in order. None left: current offset + 1200 ms, confidence 0.9. */
@@ -261,7 +265,8 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
         if (job) fail("Já existe uma referência sendo gerada. Aguarde ou cancele.", "busy");
         const me = (job = { cancelled: false });
         const started = Date.now();
-        const plan = load().generated[0] ?? generatedNotes;
+        const next = load().generated[0] ?? generatedNotes;
+        const plan = Array.isArray(next) || next === "noVoice" ? { notes: next, voiceLevelDb: -6.2 } : next;
         let index = 0;
         const stage = async (s: AutoReferenceProgress["stage"]) => {
           for (const fraction of [0, 0.5, 1]) {
@@ -273,7 +278,7 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
         };
         try {
           await stage("separating");
-          if (plan === "noVoice")
+          if (plan.notes === "noVoice")
             return tx((db) => {
               db.generated.shift();
               return { reference: null, reason: NO_VOICE_REASON, voiceLevelDb: -41.5, elapsedMs: Date.now() - started };
@@ -282,7 +287,7 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
           await stage("saving");
           return tx((db) => {
             db.generated.shift();
-            return { reference: storeRef(db, String(songId), "extracted", plan), reason: null, voiceLevelDb: -6.2, elapsedMs: Date.now() - started };
+            return { reference: storeRef(db, String(songId), "extracted", plan.notes as RefNote[]), reason: null, voiceLevelDb: plan.voiceLevelDb, elapsedMs: Date.now() - started };
           });
         } finally {
           if (job === me) job = null;
