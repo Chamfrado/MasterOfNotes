@@ -196,7 +196,7 @@ Feche o app e copie a pasta `%APPDATA%\com.masterofnotes.karaoke\`. Para restaur
 
 ### "Não foi possível abrir o banco de dados em …. Nenhum dado foi apagado."
 
-O app não conseguiu abrir o arquivo de dados. Se a mensagem disser que o banco *"foi criado por uma versão mais nova do MasterOfNotes"*, você está abrindo uma versão mais antiga do app depois de usar uma mais nova: instale a versão mais recente (veja [Atualizações](11-atualizacoes.md#versões-que-atualizam-os-seus-dados)). Nos outros casos, feche e abra o app de novo. Se continuar, confira se há espaço livre no disco e se a pasta indicada na mensagem existe. Seus dados não foram apagados.
+O app não conseguiu abrir o arquivo de dados. Se a mensagem disser *"…foi criado por uma versão mais nova do Master Of Notes. Atualize o aplicativo."* (em versões antigas, com o nome escrito junto: "MasterOfNotes"), você está abrindo uma versão mais antiga do app depois de usar uma mais nova: instale a versão mais recente (veja [Atualizações](11-atualizacoes.md#versões-que-atualizam-os-seus-dados)). Nos outros casos, feche e abra o app de novo. Se continuar, confira se há espaço livre no disco e se a pasta indicada na mensagem existe. Seus dados não foram apagados.
 
 ### O app não abre ou mostra uma tela em branco
 
