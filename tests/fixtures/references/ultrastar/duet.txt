@@ -1,0 +1,12 @@
+#TITLE:Canção de Teste
+#ARTIST:Master Of Notes
+#MP3:teste.mp3
+#BPM:300
+#GAP:0
+P1
+: 0 4 0 eu
+: 4 4 2 vou
+P2
+: 0 4 12 você
+: 4 4 14 vem
+E

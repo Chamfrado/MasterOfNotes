@@ -6,19 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { MelodyReference } from "../src/lib/ipc";
 import { NO_VOICE_REASON, installFakeBackend, knownModel } from "./fake-backend";
 import { fullSpec, nav } from "./fixtures";
-import { ipcCalls, mockTauri, setReply, useSyntheticVideo } from "./tauri-mock";
-
-type Ipc = typeof import("../src/lib/ipc");
-
-/** Runs `fn` in the page with the app's ipc module; returns its result or the rejected AppError. */
-const withIpc = <T,>(page: Page, fn: (ipc: Ipc, arg: string) => Promise<T>, arg: string | null) =>
-  page.evaluate(
-    async ([src, arg]) => {
-      const ipc = (await import("/src/lib/ipc.ts" as string)) as Ipc;
-      return (new Function(`return ${src}`)() as typeof fn)(ipc, arg ?? "").catch((e: unknown) => ({ rejected: e }));
-    },
-    [fn.toString(), arg] as const,
-  );
+import { ipcCalls, mockTauri, setReply, useSyntheticVideo, withIpc } from "./tauri-mock";
 
 async function setup(page: Page, opts: Parameters<typeof installFakeBackend>[2] = {}) {
   await installFakeBackend(page, [], { generateStepMs: 20, ...opts });
