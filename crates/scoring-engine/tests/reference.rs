@@ -329,6 +329,15 @@ fn ultrastar_errors_name_the_line_in_portuguese() {
         err("#GAP:0\nE\n"),
         RefError::UltraStarHeader("falta o #BPM".into())
     );
+    assert_eq!(
+        err("#BPM:300\n:\n").to_string(),
+        "arquivo UltraStar, linha 2: a nota não tem início"
+    );
+    // QA B1: an integer beyond i32 is out of range, not "not an integer".
+    assert_eq!(
+        err("#BPM:300\n: 4294967296 4 0 a\n").to_string(),
+        "arquivo UltraStar, linha 2: início \"4294967296\" é um número fora do limite permitido"
+    );
     for (text, line) in [
         ("#BPM:abc\n", 1),                         // BPM not a number
         ("#BPM:300\n: 0 0 0 la\n", 2),             // zero length
