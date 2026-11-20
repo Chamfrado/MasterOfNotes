@@ -1,4 +1,5 @@
 //! Melody references: `mon-melody` v1 JSON and Standard MIDI File import (SPEC-005, ADR-0002).
+//! UltraStar `.txt` import lives in `ultrastar.rs` (SPEC-013).
 
 use midly::{Format, MetaMessage, MidiMessage, Smf, Timing, TrackEventKind};
 use serde::{Deserialize, Serialize};
@@ -66,6 +67,10 @@ pub enum RefError {
     NoSuchTrack(usize),
     #[error("o arquivo MIDI tem várias trilhas com notas; escolha a trilha vocal")]
     TrackRequired,
+    #[error("arquivo UltraStar inválido: {0}")]
+    UltraStarHeader(String),
+    #[error("arquivo UltraStar, linha {line}: {reason}")]
+    UltraStarLine { line: usize, reason: String },
 }
 
 #[derive(Serialize, Deserialize)]

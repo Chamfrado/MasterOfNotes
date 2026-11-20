@@ -1,0 +1,18 @@
+﻿#TITLE:Escala do Teste
+#ARTIST:Master Of Notes
+#MP3:escala.mp3
+#BPM:300
+#GAP:1000
+: 0 4 0 Lá
+: 4 4 2  vai
+* 8 8 4  a
+: 16 2 5  es
+: 18 2 5 ~
+- 22
+F 24 4 0  fa
+R 28 4 0  la
+: 32 8 7  ca
+G 40 4 0  da
+: 44 12 -12  fim
+E
+: 60 4 0  depois
