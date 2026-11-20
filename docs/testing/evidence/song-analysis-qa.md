@@ -132,3 +132,35 @@ Sem modelo. Música de 90 s com introdução instrumental de 15 s.
 - ❓ Voz sintética não é voz real. A precisão em voz real precisa de um trecho anotado por uma pessoa (⏳ proprietário), como já registrado no spike.
 - ❓ A banda sintética não cobre mixagens com reverb e efeitos na voz-guia; o efeito disso no limiar não foi medido.
 - O pico de memória é o do processo de teste, que também guarda o material gerado (cerca de 100 MB por cópia de 10 min). No app o perfil é parecido: áudio enviado + cópia com padding + saída.
+
+## Adendo: reteste da T-012-07 (agent-2/work @ ec3817d, 2026-11-20)
+Mesmas sondas e mesmo método, com a CPU livre. O modelo e a DLL foram baixados de novo (SHA-256 conferidos) e apagados ao final.
+
+**Veredito: M1 ✅ corrigido, M4 ✅ reduzido, nenhuma regressão e nenhum achado ALTO.**
+
+**M1, andamento diferente (Q3c):**
+
+| Vídeo mais lento | Proposta | Confiança antes → depois |
+|---|---|---|
+| 0 % | +31 ms | 0,91 → **0,91** |
+| 0,25 % | +157 ms | 0,88 → **0,30** |
+| 0,5 % | +286 ms | 0,84 → **0,30** |
+| 1 % | +419 ms | 0,68 → **0,30** |
+| 2 % | +1676 ms | 0,06 → 0,06 |
+| 4 % | +3322 ms | 0,14 → 0,14 |
+
+Todos os casos de 0,25 % a 1 % agora ficam abaixo do limiar da UI (0,5), e a UI mostra "confiança baixa".
+
+**Sem regressão na Q3a e na Q3b:**
+- Alinhamento normal, de −5 s a +14,5 s: mesmas propostas e confianças de antes (0,91–0,92 com voz, 0,83–0,86 com lead de piano).
+- A forma A-B-A-B-B continua em 0,74 e acerta; "só 6 notas" continua em 0,32 e acerta.
+- As armadilhas ficaram iguais ou caíram um pouco: karaokê ≤ 0,30, transposta +2 st com 0,36 → 0,30, fora de ±15 s com 0,30.
+
+**M4, pico de memória** (`PeakWorkingSet64` do processo de teste):
+
+| Música | Pico antes → depois | Separação |
+|---|---|---|
+| 4 min | 1353 → **1313 MiB** | 135,8 s |
+| 10 min | 1535 → **1434 MiB** | 331,2 s |
+
+1434 MiB = 1,40 GiB, ou 1,50 GB em unidades decimais: dentro da R7 (≤ 1,5 GB) também em 10 min, no limite se ela for lida em GB decimais. A precisão não mudou: 99,3 % em 4 min e 99,2 % em 10 min.
