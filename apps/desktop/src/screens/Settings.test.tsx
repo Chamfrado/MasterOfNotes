@@ -12,6 +12,8 @@ vi.mock("../lib/ipc", () => ({ getSettings: vi.fn(), updateSettings: vi.fn() }))
 vi.mock("@tauri-apps/api/app", () => ({ getVersion: () => Promise.resolve("0.1.0") }));
 vi.mock("@tauri-apps/plugin-updater", () => ({ check: vi.fn() }));
 import { check, type Update } from "@tauri-apps/plugin-updater";
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn().mockResolvedValue(undefined) }));
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 const base = {
   libraryFolder: "C:/k",
@@ -157,10 +159,20 @@ describe("Updates", () => {
   });
 
   it("explains failures (network / signature) and keeps the app usable", async () => {
-    vi.mocked(check).mockRejectedValue("Could not fetch a valid release JSON from the remote");
+    vi.mocked(check).mockRejectedValue("error sending request for url");
     wrap(<Updates />);
     expect(await screen.findByText(/O app continua funcionando normalmente\./)).toBeInTheDocument();
-    expect(screen.getByText(/Could not fetch a valid release JSON/)).toBeInTheDocument();
+    expect(screen.getByText(/error sending request for url/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tentar de novo" })).toBeInTheDocument();
+  });
+
+  it("treats a missing release manifest (404, pre-releases only) as no new version, with a link to the releases page", async () => {
+    vi.mocked(check).mockRejectedValue("Could not fetch a valid release JSON from the remote");
+    wrap(<Updates />);
+    expect(await screen.findByText("Nenhuma versão nova pelo canal de atualizações automáticas.")).toBeInTheDocument();
+    expect(screen.queryByText(/Could not fetch/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Não foi possível verificar/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Abrir página de versões" }));
+    expect(openUrl).toHaveBeenCalledWith("https://github.com/Chamfrado/MasterOfNotes/releases");
   });
 });
