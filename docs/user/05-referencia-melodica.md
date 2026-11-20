@@ -94,7 +94,8 @@ Se o vídeo tem a **voz do cantor**, o app pode criar a referência sozinho: ele
 
 ### Quando funciona
 
-- **Só em vídeos com a voz do cantor.** Num vídeo de karaokê só instrumental, não há voz para separar. O app percebe isso, não salva nada e avisa: *"Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI."*
+- **Só em vídeos com a voz do cantor, em volume claro.** Num vídeo de karaokê só instrumental, não há voz para separar. Se o app não encontra uma voz clara (vídeo instrumental ou voz baixa demais na mixagem), não salva nada e avisa: *"Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI."*
+- **Voz fraca.** Se a voz existe, mas está fraca, o app gera a referência e avisa: *"A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar."* Nesse caso, faltam notas com mais frequência.
 - **A voz do vídeo vira o gabarito.** Se o cantor original enfeita, improvisa ou sai da melodia num trecho, a referência gerada copia isso.
 - Coro, segunda voz, muito efeito na voz ou instrumentos com som parecido com o da voz podem gerar notas erradas. Por isso a revisão no fim é obrigatória.
 
@@ -121,7 +122,7 @@ O modelo fica no seu computador. O app nunca envia o modelo nem o áudio para lu
 1. Na tela da referência, clique em **Gerar automaticamente**. Sem o modelo instalado, o app avisa e abre **Ajustes → Referência automática**.
 2. No painel **Gerar automaticamente**, clique em **Começar**.
 3. O app trabalha em 4 etapas, com uma barra de progresso: **Etapa 1 de 4: Extraindo áudio**, **Etapa 2 de 4: Separando a voz** (com a porcentagem), **Etapa 3 de 4: Transcrevendo** e **Etapa 4 de 4: Salvando**.
-4. Isso leva **cerca de 2,5 minutos para uma música de 4 minutos** num processador de notebook recente, e mais em computadores mais lentos ou ocupados com outros programas. Durante a separação, o app usa bastante memória (até cerca de 1,4 GB). **Fique nesta tela**: o próprio painel avisa *"Fique nesta tela até terminar: se sair, a geração será cancelada."*
+4. Isso leva **cerca de 2,5 minutos para uma música de 4 minutos** num processador de notebook recente, e mais em computadores mais lentos ou ocupados com outros programas. Durante a separação, o app usa bastante memória: até cerca de 1,4 GB numa música comum e até cerca de 1,5 GB numa música muito longa (perto de 10 minutos). **Fique nesta tela**: o próprio painel avisa *"Fique nesta tela até terminar: se sair, a geração será cancelada."*
 5. **Cancelar** interrompe o trabalho e não salva nada (*"Geração cancelada."*). Fechar o app também cancela.
 6. No fim, a tela mostra as notas sobre o vídeo, com os selos **Extraída** e **Referência experimental**, e o aviso *"Referência gerada em m:ss. Pode ter erros: confira sobre o vídeo e valide."*
 
@@ -131,13 +132,13 @@ O modelo fica no seu computador. O app nunca envia o modelo nem o áudio para lu
 
 Se a música já tinha referência, o painel avisa: *"A referência atual vai para o histórico; a nova nasce experimental."* A anterior fica guardada e deixa de ser usada nas partidas, como em Gravar cantando.
 
-Num vídeo só instrumental, o painel mostra a mensagem de que o vídeo não tem a voz da melodia, e nada é salvo:
+Se o app não encontra uma voz clara, o painel mostra o motivo, e nada é salvo:
 
-![Painel Gerar automaticamente com a mensagem "Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI." e os botões Tentar de novo e Cancelar.](media/referencia-sem-voz.png)
+![Painel Gerar automaticamente com a mensagem "Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI." e os botões Tentar de novo e Cancelar.](media/referencia-sem-voz.png)
 
 ### Revise antes de validar
 
-**A referência gerada pode ter erros**: notas que faltam, notas a mais (de um coro ou de um instrumento que passou junto com a voz) ou notas na altura errada. Ela **nunca é validada sozinha**.
+**A referência gerada pode ter erros**: notas que faltam, notas a mais (de um coro ou de um instrumento que passou junto com a voz) ou notas na altura errada. Ela **nunca é validada sozinha**. Se o app avisou que a voz estava fraca (*"A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar."*), confira com atenção redobrada.
 
 1. Dê play e acompanhe as notas sobre o vídeo do começo ao fim, como em [Alinhar com o vídeo](#alinhar-com-o-vídeo).
 2. Se as notas acompanham a voz, clique em **Validar alinhamento**.
