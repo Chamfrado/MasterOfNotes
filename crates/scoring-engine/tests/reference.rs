@@ -360,3 +360,17 @@ fn ultrastar_goes_through_the_same_validation_and_skyline() {
     let back = parse_reference_json(&to_reference_json(&r)).unwrap();
     assert_eq!(back, r);
 }
+
+#[test]
+fn ultrastar_extreme_numbers_never_panic() {
+    // Largest values that parse: sums are done in i64, results are errors or notes.
+    for text in [
+        "#BPM:300\n: 2147483647 2147483647 0 la\n",
+        "#BPM:300\n: -2147483648 2147483647 0 la\n",
+        "#BPM:300\n#RELATIVE:yes\n- 2147483647 2147483647\n- 2147483647 2147483647\n: 2147483647 1 0 la\n",
+        "#BPM:0,0001\n: 0 2147483647 0 la\n",
+        "#BPM:1e300\n#GAP:1e300\n: 0 1 0 la\n",
+    ] {
+        let _ = import_ultrastar(text.as_bytes());
+    }
+}
