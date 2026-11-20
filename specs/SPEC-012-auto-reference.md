@@ -41,3 +41,29 @@ Critérios:
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
+- T-012-03 em `review` (Agente 1, 2026-11-20): `src-tauri/src/analysis.rs`, mais `settings.rs`, `reference.rs`, `lib.rs` e `tauri.conf.json`.
+  - **Modelo (R1):**
+    - `list_known_separation_models` lê `song_analysis::known_models()`.
+    - `install_separation_model(filePath, acceptTerms)` exige o aceite (`terms_not_accepted`). Confere primeiro o tamanho exato e depois o SHA-256 contra a lista (`model_unknown`; nada é copiado). Roda fora da main thread (`blocking`). Copia para `app_data_dir/models/<id>.onnx` (via `.part` + rename) e grava `settings.separationModel {id, name, acceptedMs}`. Um modelo anterior diferente é apagado.
+    - `remove_separation_model` apaga o arquivo e a setting, e é idempotente.
+    - `separationModel` é somente leitura em `update_settings` (`invalid_setting`).
+  - **Áudio (R6):** `upload_song_audio` é um command raw (`tauri::ipc::Request`): corpo f32 LE mono 44,1 kHz e header `song-id`.
+    - `audio_invalid` quando o corpo está vazio, não é múltiplo de 4, passa de 20 min ou tem amostra NaN/Inf. `not_found` quando a música não existe.
+    - Guarda 1 item em memória (`AnalysisState`) e devolve um token aleatório. O próximo upload substitui o item. Nunca grava em disco.
+    - Token velho ou de outra música dá `audio_token_invalid`. O token continua válido depois do generate.
+  - **Geração (R2–R4):** `generate_reference(songId, audioToken, onProgress)` roda em `spawn_blocking` com o progresso `separating` → `transcribing` → `saving` pelo Channel.
+    - Um job por vez (`busy`), com guarda que libera mesmo em panic. `cancel_generate_reference` usa um AtomicBool e o job rejeita com `cancelled`, sem salvar.
+    - `model_not_installed` quando falta a setting ou o arquivo. `AnalysisError::Model/Input` vira `analysis_failed`, com a mensagem pt-BR do crate.
+    - Com `voice_level_db < NO_VOICE_DB`, nada é salvo e a reason é a de R3. Com menos de 3 notas, nada é salvo e vem uma reason própria.
+    - Fora isso, `reference::store_notes(…, "extracted", …)`, a mesma inserção do import e da referência cantada: `experimental`, ativa, a anterior vai para o histórico. O retorno é `AutoReferenceOutcome {reference, reason, voiceLevelDb, elapsedMs}`.
+  - **Alinhar (R5):** `auto_align_reference(referenceId, audioToken)` passa as notas da referência ativa já deslocadas pelo offset atual (as de antes de 0 são descartadas) para `align_offset_ms` e devolve `AlignProposal {offsetMs = atual + proposta, confidence}`. Nada é salvo. Referência inexistente dá `not_found`; substituída ou sem notas, `invalid_input`.
+  - **ONNX Runtime (opção b):** `src-tauri/scripts/fetch-onnxruntime.mjs` (Node puro).
+    - Lê só o diretório central e a entrada `runtimes/win-x64/native/onnxruntime.dll` do nupkg oficial 1.31.1 por range requests (~6 MB de 160 MB). Confere o SHA-256 fixado `cb2fa518…92db0c` (falha se divergir) e grava `src-tauri/resources/onnxruntime.dll`, que é gitignored. É idempotente.
+    - Testado: download novo em 2 s; a 2ª execução não baixa; um arquivo corrompido é baixado de novo.
+    - `THIRD-PARTY-NOTICES.txt` (MIT da ONNX Runtime, Lei 19) em `src-tauri`. O `bundle.resources` fica só no overlay do release (Agente 4, `.github/tauri-release.conf.json`), porque o tauri-build exige o resource em toda compilação e isso quebraria o `cargo test` do CI.
+    - Em `run()`, antes de qualquer thread: `ORT_DYLIB_PATH = <resource_dir>/onnxruntime.dll`, só se o arquivo existir e a variável não estiver definida. Fora isso vale o fallback do crate.
+  - **CSP (aprovada pelo coordenador):** `connect-src` ganhou `asset: http://asset.localhost`. Justificativa: a UI lê o vídeo com `fetch(videoSrc)` para o `decodeAudioData` (R6). O escopo do asset protocol não mudou: só os vídeos indexados, um a um (`allow_file`). `script-src` continua `'self'`.
+  - Testes ✅ `analysis::tests::{install_checks_terms_size_and_hash_then_remove_cleans_up, audio_upload_is_validated_and_kept_once, generated_reference_is_extracted_experimental_and_active, align_uses_notes_as_heard_in_the_video}`. `cargo test -p master-of-notes`: 65 ok, 7 ignorados (com a agent-2/work @ 3dcb936 mesclada). Clippy `-D warnings` limpo.
+  - ⏳ Pendentes:
+    - build release com o overlay: a DLL e os avisos no instalador ainda não foram verificados, porque o disco tem 2,2 GB livres e a regra pede ≥ 4 GB;
+    - geração real com modelo (testes `#[ignore]` do Agente 2).
