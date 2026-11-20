@@ -21,8 +21,6 @@ interface ScreenDef {
   videoMs?: number;
   /** The synthetic video carries an audio track (SPEC-012 decodes it). */
   videoAudio?: boolean;
-  /** Known keyboard finding: the keyboard test is expected to fail until it is fixed (remove then). */
-  knownKeyboardIssue?: string;
   /** Extra static replies for this screen. */
   spec?: MockSpec;
   reach: (page: Page) => Promise<void>;
@@ -105,8 +103,6 @@ const openReference = async (page: Page) => {
   await expect(page.getByRole("heading", { level: 1, name: "Pôr do Sol em Óculos" })).toBeVisible();
 };
 
-/** T-012-05 finding (Agent 3): the alignment preview <video controls> gets focus with its ring clipped by the rounded overflow-hidden box. */
-const F3 = "F3: o <video controls> da prévia recebe foco sem indicador visível (contorno cortado pelo overflow-hidden do contêiner)";
 const withModel: MockSpec = {
   get_settings: { ok: settings("C:/Karaoke", { separationModel: { id: "5e1f", name: "Separador Exemplo v1", acceptedMs: Date.UTC(2026, 10, 20, 12) } }) },
   upload_song_audio: { ok: "tok" },
@@ -213,7 +209,7 @@ const screens: ScreenDef[] = [
     },
     backTo: playVisible,
   },
-  { name: "Referência", reach: openReference, backTo: libraryVisible, knownKeyboardIssue: F3 },
+  { name: "Referência", reach: openReference, backTo: libraryVisible },
   {
     name: "Diálogo Qual trilha é a voz",
     reach: async (p) => {
@@ -290,7 +286,6 @@ const screens: ScreenDef[] = [
     videoMs: 1000,
     videoAudio: true,
     spec: { upload_song_audio: { ok: "tok" }, auto_align_reference: { ok: { offsetMs: 1200, confidence: 0.3 } } },
-    knownKeyboardIssue: F3,
     reach: async (p) => {
       await openReference(p);
       await p.getByRole("button", { name: "Alinhar automaticamente" }).click();
@@ -377,7 +372,6 @@ const focusInfo = (page: Page) =>
 
 for (const s of screens) {
   test(`teclado: ${s.name} — Tab percorre tudo com foco visível, sem armadilha; Esc volta`, async ({ page }) => {
-    test.fail(!!s.knownKeyboardIssue, s.knownKeyboardIssue);
     const { pageErrors } = await open(page, s);
     const n = await countTabbable(page);
     expect(n).toBeGreaterThan(0);

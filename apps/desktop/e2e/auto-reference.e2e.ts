@@ -211,12 +211,12 @@ test("Gerar: etapas anunciadas sem mover o foco, referência Extraída experimen
   await generatePanel(page).getByRole("button", { name: "Começar" }).click();
 
   await expect(status(page)).toContainText("Etapa 2 de 4: Separando a voz");
-  const focused = () => page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80) ?? null);
-  const before = await focused();
+  const cancel = generatePanel(page).getByRole("button", { name: "Cancelar" });
+  await expect(cancel).toBeFocused(); // "Começar" left: the focus goes to Cancelar, never to the body (F1)
   await expect(generatePanel(page).getByRole("progressbar", { name: "Separando a voz" })).toBeVisible();
   for (const text of ["Etapa 3 de 4: Transcrevendo (50%)", "Etapa 4 de 4: Salvando"]) {
     await expect(status(page)).toContainText(text);
-    expect(await focused()).toBe(before); // progress updates never move the focus
+    await expect(cancel).toBeFocused(); // progress updates never move the focus
   }
   await expect(page.getByText(/^Referência gerada em .*Pode ter erros: confira sobre o vídeo e valide\.$/)).toBeVisible();
   for (const badge of ["Referência experimental", "Extraída", "Revisão 1", "5 notas"]) await expect(page.getByText(badge, { exact: true })).toBeVisible();
@@ -294,38 +294,16 @@ test("Alinhar: proposta com prévia, Descartar não salva, confiança baixa avis
   expect(pageErrors).toEqual([]);
 });
 
-test("vídeo sem trilha de áudio: a geração falha com mensagem e permite tentar de novo", async ({ page }) => {
+test("vídeo sem trilha de áudio: a geração falha com mensagem em pt-BR e permite tentar de novo", async ({ page }) => {
   const { pageErrors } = await openApp(page, { separationModel: installed }, false);
   await openReference(page, "Canção da Manhã");
   await page.getByRole("button", { name: "Gerar automaticamente" }).click();
   await generatePanel(page).getByRole("button", { name: "Começar" }).click();
   await expect(generatePanel(page).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
-  const message = await status(page).innerText();
-  console.log(`[sem áudio] mensagem mostrada: ${message}`);
-  expect(message.trim()).not.toBe("");
+  await expect(status(page)).toHaveText(
+    "Não foi possível ler o áudio deste vídeo. O arquivo pode não ter som ou usar um formato de áudio não suportado.", // pt-BR, not the raw decoder error (F2)
+  );
   expect(await ipcCalls(page, "generate_reference")).toEqual([]);
   expect(pageErrors).toEqual([]);
 });
 
-// ---------- Known UI findings (T-012-05 → Agent 3). test.fail: remove the marker when fixed. ----------
-
-test("ACHADO F1: Começar leva o foco para Cancelar em vez de perdê-lo no body", async ({ page }) => {
-  test.fail(true, "F1: autoFocus só vale na montagem; o Cancelar já existia, então o foco cai no body quando o Começar some");
-  await openApp(page, { separationModel: installed, generateStepMs: 1000 });
-  await openReference(page, "Canção da Manhã");
-  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
-  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
-  await expect(status(page)).toContainText("Separando a voz");
-  console.log(`[F1] foco depois de Começar: ${await page.evaluate(() => document.activeElement?.tagName)}`);
-  await expect(generatePanel(page).getByRole("button", { name: "Cancelar" })).toBeFocused({ timeout: 1000 });
-});
-
-test("ACHADO F2: vídeo sem trilha de áudio mostra mensagem em pt-BR", async ({ page }) => {
-  test.fail(true, "F2: o erro do decodeAudioData aparece cru, em inglês (\"Unable to decode audio data\")");
-  await openApp(page, { separationModel: installed }, false);
-  await openReference(page, "Canção da Manhã");
-  await page.getByRole("button", { name: "Gerar automaticamente" }).click();
-  await generatePanel(page).getByRole("button", { name: "Começar" }).click();
-  await expect(generatePanel(page).getByRole("button", { name: "Tentar de novo" })).toBeVisible();
-  await expect(status(page)).not.toContainText("Unable to decode", { timeout: 1000 });
-});

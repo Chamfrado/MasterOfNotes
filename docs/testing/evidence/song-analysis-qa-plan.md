@@ -59,7 +59,7 @@ A sonda de teclado foi corrigida:
 - cada elemento tem uma chave estável;
 - o teste detecta contorno de foco **cortado** por um ancestral com overflow.
 
-**Achados de UI (para o Agente 3).** Cada um tem um `test.fail`; quando for corrigido, o teste passa e a marca deve ser retirada.
+**Achados de UI (para o Agente 3).** Os três foram ✅ **corrigidos** na agent-3/work @ 4b4e25e. As marcas `test.fail` saíram e as verificações viraram asserções normais: o foco vai para Cancelar, a mensagem está em pt-BR e o vídeo é alcançado no teclado com contorno visível. Resultado: 141 passed.
 
 | ID | Gravidade | Achado | Sugestão |
 |---|---|---|---|
