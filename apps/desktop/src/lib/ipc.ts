@@ -326,7 +326,8 @@ export interface KnownSeparationModel {
   name: string;
   fileName: string;
   sizeBytes: number;
-  sourceUrl: string; // the user downloads it there; the app never downloads models
+  pageUrl: string; // project page (credits/terms) the user reads BEFORE downloading
+  sourceUrl: string; // direct file download link; the app itself never downloads models
   license: string; // short pt-BR summary
 }
 export interface InstalledSeparationModel {
