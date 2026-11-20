@@ -24,7 +24,7 @@ Atualizada pelo coordenador em 2026-11-19. ✅ executado com evidência · 🟡 
 
 | AC | Spec | Teste automatizado | Evidência / estado |
 |---|---|---|---|
-| AC-001 instalar e executar | 001, 009 | build release + smoke | ✅ instalado e executado no Windows 11, sem UAC (`update-test.md`) |
+| AC-001 instalar e executar | 001, 009 | build release + smoke | ✅ instalado e executado no Windows 11, sem UAC (`update-test.md`); v0.1.1 instalada pelo proprietário |
 | AC-002 selecionar pasta | 002 | `library::tests` (9), E2E smoke | 🟡 `set_library_folder` real no WebView2 (passeio do Agente 1); diálogo nativo → roteiro passo 1 |
 | AC-003 listar/pesquisar | 002, 010 | `Library.test.tsx`, E2E busca sem acento | 🟡 roteiro passo 2 |
 | AC-004 reproduzir vídeo | 003 | E2E Player + vídeo sintético, `test-song.e2e` | 🟡 vídeo tocou no WebView2 real com CSP de produção; formatos → `codecs.md` |
@@ -37,8 +37,8 @@ Atualizada pelo coordenador em 2026-11-19. ✅ executado com evidência · 🟡 
 | AC-011 leaderboard persistente | 007 | `game` + `live` + E2E Ranking | 🟡 roteiro 16, 19 |
 | AC-012 partida Festa | 008 | `game` (15), telas + E2E Festa (em andamento) | ⏳ roteiro 17–18 |
 | AC-013 persistir após reabrir | 001 | `db::reopen_preserves_data`; dados sobreviveram ao update | ✅ via update 0.1.0 → 0.1.1 (`update-test.md`); roteiro 19 |
-| AC-014 instalador | 009 | `pnpm build` | ✅ NSIS por usuário, SHA-256 na SPEC-009 |
-| AC-015 update assinado | 009 | assinatura adulterada recusada + update real | ✅ **com chave de teste**; ⏳ produção (chave do proprietário) |
+| AC-014 instalador | 009 | `pnpm build` + workflow Release | ✅ NSIS por usuário; v0.1.1 e v0.1.2 publicadas e assinadas |
+| AC-015 update assinado | 009 | assinatura adulterada recusada + update real | ✅ chave de teste (`update-test.md`) **e produção**: 0.1.1 → 0.1.2 pela verificação automática, confirmado pelo proprietário (2026-11-20) |
 | AC-016 docs/specs/leis | — | `pnpm check`, CI | 🟡 revisão final do coordenador na Fase 7 |
 
 Evidências em `docs/testing/evidence/`.
