@@ -501,7 +501,7 @@ test("05 referência melódica — gerar e alinhar automaticamente", async ({ pa
   await page.getByRole("button", { name: "Gerar automaticamente" }).click();
   await page.getByRole("button", { name: "Começar" }).click();
   const panel = page.getByRole("heading", { name: "Gerar automaticamente" }).locator("..");
-  await expect(panel.getByText("Este vídeo não tem a voz da melodia", { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(panel.getByText("Não encontramos uma voz clara neste vídeo", { exact: false })).toBeVisible({ timeout: 30_000 });
   await shot(panel, "referencia-sem-voz");
 });
 
