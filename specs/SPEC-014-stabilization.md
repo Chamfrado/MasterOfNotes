@@ -15,8 +15,15 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 | T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | todo |
 | T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | todo |
 | T-014-03 | Auditoria Ponytail (R3) | Agente 0 | todo |
-| T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | todo |
+| T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | done |
 | T-014-05 | Revisão da documentação técnica (R5, AC-016) | Agente 0 | todo |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
+- T-014-04 done (Agente 0, 2026-11-20): `graphify update .` (local, sem LLM): 2.541 nós, 6.193 arestas, 144 comunidades. Nós mais conectados = utilitários e estruturas centrais esperados (errorMessage, useAsync, useNav, useToast, Session, AppState, AnalysisFrame, Reference). Invariantes conferidas por grep:
+  - (1) a UI só chama o backend via `lib/ipc.ts` (zero `invoke` fora dele);
+  - (2) `scoring-engine` e `game` sem I/O;
+  - (3) nenhum crate depende do app;
+  - (4) dependências entre crates: `scoring-engine → audio-engine` e `game → scoring-engine` são só `[dev-dependencies]` (testes de regressão do pipeline); a única de produção é `song-analysis → audio-engine + scoring-engine` (orquestração, conforme o desenho);
+  - (5) sem mocks em produção (Lei 03).
+  Sem dependência circular (o Cargo proíbe; não há ciclo no JS). `graphify-out/` é derivado e fica fora do git.
