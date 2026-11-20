@@ -72,6 +72,8 @@ Mede quanto de cada nota você **segurou afinado do começo ao fim**. Parar no m
 - **Trechos sem canto não contam.** Introdução, solos e pausas previstas na melodia não tiram nem dão pontos.
 - **Nota que você não canta conta zero.** Não dá para tirar nota alta cantando só um pedaço da música: cada nota da referência entra na conta, cantada ou não.
 - **Vibrato não é desafinação.** O vibrato é aquela oscilação natural da voz numa nota longa. O app compara a altura média da sua voz ao longo de cada oscilação (cerca de 0,2 segundo), e não cada instante isolado, então um vibrato centrado na nota não tira pontos. Nos testes, um vibrato de até ¾ de semitom para cada lado teve nota praticamente cheia. Enfeites curtos entre notas também são absorvidos. Já cantar a nota toda acima ou abaixo continua contando como desafinação.
+- **Oscilar em volta da nota não é acertá-la.** Um vibrato largo demais (bem mais que meio tom para cada lado), um trinado ou uma voz que treme de um lado para o outro sem parar na nota conta como desafinação.
+- **Gesto de estilo não é erro.** Deixar a voz cair no fim da nota, subir e voltar, ou chegar à nota deslizando de baixo são movimentos únicos de interpretação e praticamente não tiram pontos.
 - **A pontuação parcial**, mostrada durante a música, considera só as notas que já terminaram.
 - **Falha no áudio não é silêncio.** Se o computador perder pedacinhos do som do microfone (por exemplo, um cabo USB com mau contato), esses pedaços não contam contra você. Mas se faltar mais de 5% do áudio da música, a apresentação vira treino, porque a nota não seria confiável.
 

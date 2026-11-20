@@ -110,7 +110,7 @@ Não. Sair (**Esc** ou **Sair**) descarta a apresentação. Numa partida, a roda
 
 ### "Não foi possível verificar ou baixar a atualização"
 
-Sem internet, essa mensagem é normal. Na versão 0.1.1, ela também aparece com internet quando ainda não há versão normal publicada, só versões de testes. Isso é esperado: confira as novidades na [página de versões](https://github.com/Chamfrado/MasterOfNotes/releases). O app continua funcionando normalmente. Veja [Atualizações](11-atualizacoes.md#se-der-erro).
+Sem internet, essa mensagem é normal, e o app continua funcionando normalmente. Na versão 0.1.1, ela também aparecia com internet, porque ainda não havia versão normal publicada. A partir da 0.1.2 a verificação funciona, e quem está na 0.1.1 recebe a 0.1.2 pela atualização automática. Veja [Atualizações](11-atualizacoes.md#se-der-erro).
 
 ### "Nenhuma versão nova pelo canal de atualizações automáticas"
 

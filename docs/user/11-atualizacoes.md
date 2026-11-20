@@ -51,14 +51,14 @@ Se aparecer *"Atualizações automáticas ainda não estão configuradas nesta v
 
 ## Nenhuma versão nova pelo canal automático
 
-O canal de atualizações automáticas só oferece **versões normais**. As versões de testes (pré-releases) ficam só na [página de versões do projeto](https://github.com/Chamfrado/MasterOfNotes/releases). Quando não há versão normal publicada, a tela mostra *"Nenhuma versão nova pelo canal de atualizações automáticas."*, com os botões:
+O canal de atualizações automáticas só oferece **versões normais**. As versões de testes (pré-releases) ficam só na [página de versões do projeto](https://github.com/Chamfrado/MasterOfNotes/releases). Se o canal não tiver nenhuma versão normal publicada (por exemplo, quando só há versões de testes), a tela mostra *"Nenhuma versão nova pelo canal de atualizações automáticas."*, com os botões:
 
 - **Abrir página de versões**: abre a página de versões no navegador, para você ver se há uma versão de testes;
 - **Verificar de novo**.
 
 ![Mensagem "Nenhuma versão nova pelo canal de atualizações automáticas." com "Versões de teste, quando houver, ficam na página de versões do projeto." e os botões Abrir página de versões e Verificar de novo.](media/atualizacao-sem-versao.png)
 
-> **Na versão 0.1.1**, essa situação aparece como erro: *"Não foi possível verificar ou baixar a atualização."*, mesmo com internet. Isso é esperado e o app continua funcionando normalmente. Confira as novidades na [página de versões](https://github.com/Chamfrado/MasterOfNotes/releases).
+> **Quem instalou a 0.1.1.** Na 0.1.1, que era uma versão de testes, a verificação mostrava o erro *"Não foi possível verificar ou baixar a atualização."* mesmo com internet, porque ainda não havia versão normal publicada. A partir da **0.1.2**, a primeira versão normal, a verificação funciona: quem está na 0.1.1 recebe a 0.1.2 pela atualização automática, em **Ajustes → Verificar agora**.
 
 ---
 
