@@ -1,14 +1,19 @@
-//! Reference import tests (SPEC-005): JSON valid/invalid, MIDI tracks, tempo map, overlaps.
+//! Reference import tests (SPEC-005, SPEC-013): JSON valid/invalid, MIDI tracks, tempo map,
+//! overlaps, UltraStar .txt.
 
 use scoring_engine::{
-    MelodyReference, Note, RefError, import_midi, midi_tracks, parse_reference_json,
-    to_reference_json,
+    MelodyReference, Note, RefError, UltraStarInfo, import_midi, import_ultrastar, midi_tracks,
+    parse_reference_json, to_reference_json,
 };
 
 const SIMPLE: &str = include_str!("../../../tests/fixtures/references/simple.json");
 const OVERLAPS: &str = include_str!("../../../tests/fixtures/references/overlaps.json");
 const TWO_TRACKS: &[u8] = include_bytes!("../../../tests/fixtures/references/two-tracks.mid");
 const TEMPO_CHANGE: &[u8] = include_bytes!("../../../tests/fixtures/references/tempo-change.mid");
+const US_SIMPLE: &[u8] = include_bytes!("../../../tests/fixtures/references/ultrastar-simple.txt");
+const US_CP1252: &[u8] =
+    include_bytes!("../../../tests/fixtures/references/ultrastar-cp1252-relative.txt");
+const US_DUET: &[u8] = include_bytes!("../../../tests/fixtures/references/ultrastar-duet.txt");
 
 fn spans(r: &MelodyReference) -> Vec<(u32, u32, f32)> {
     r.notes
@@ -199,4 +204,159 @@ fn notes_are_sorted_on_import() {
             },
         ]
     );
+}
+
+// ---------- UltraStar .txt (SPEC-013, T-013-01) ----------
+
+fn lyrics(r: &MelodyReference) -> Vec<Option<&str>> {
+    r.notes.iter().map(|n| n.lyric.as_deref()).collect()
+}
+
+#[test]
+fn ultrastar_spec_example_bpm_gap_and_pitch() {
+    // SPEC-013: #BPM:300, #GAP:1000, ": 0 4 0 Lá" → 1000 ms, 200 ms, MIDI 60, "Lá".
+    let (r, _) = import_ultrastar("#BPM:300\n#GAP:1000\n: 0 4 0 Lá\nE\n".as_bytes()).unwrap();
+    assert_eq!(spans(&r), vec![(1000, 200, 60.0)]);
+    assert_eq!(lyrics(&r), vec![Some("Lá")]);
+}
+
+#[test]
+fn ultrastar_simple_file_golden_freestyle_rap_and_end() {
+    let (r, info) = import_ultrastar(US_SIMPLE).unwrap();
+    assert_eq!(
+        info,
+        UltraStarInfo {
+            title: Some("Escala do Teste".into()),
+            artist: Some("Master Of Notes".into()),
+            duet: false
+        }
+    );
+    // F, R and G lines are left out; the note after E is ignored; "*" is a note.
+    assert_eq!(
+        spans(&r),
+        vec![
+            (1000, 200, 60.0),
+            (1200, 200, 62.0),
+            (1400, 400, 64.0),
+            (1800, 100, 65.0),
+            (1900, 100, 65.0),
+            (2600, 400, 67.0),
+            (3200, 600, 48.0),
+        ]
+    );
+    // Syllables are trimmed; "~" (continuation) has no text of its own.
+    assert_eq!(
+        lyrics(&r),
+        vec![
+            Some("Lá"),
+            Some("vai"),
+            Some("a"),
+            Some("es"),
+            None,
+            Some("ca"),
+            Some("fim")
+        ]
+    );
+}
+
+#[test]
+fn ultrastar_cp1252_relative_with_decimal_comma_bpm() {
+    // BPM 250,0 → 60 ms per beat; GAP 500; RELATIVE line breaks add 12 then 20 beats.
+    let (r, info) = import_ultrastar(US_CP1252).unwrap();
+    assert_eq!(info.title.as_deref(), Some("Canção do Teste"));
+    assert_eq!(info.artist.as_deref(), Some("Autoria própria"));
+    assert_eq!(
+        spans(&r),
+        vec![
+            (500, 240, 60.0),
+            (740, 240, 62.0),
+            (1220, 240, 64.0),
+            (1460, 360, 65.0),
+            (1820, 240, 67.0),
+            (2420, 480, 60.0),
+        ]
+    );
+    assert_eq!(
+        lyrics(&r),
+        vec![
+            Some("Can"),
+            Some("ção"),
+            Some("co"),
+            Some("ra"),
+            Some("ção"),
+            Some("é")
+        ]
+    );
+}
+
+#[test]
+fn ultrastar_duet_keeps_only_the_first_singer() {
+    let (r, info) = import_ultrastar(US_DUET).unwrap();
+    assert!(info.duet);
+    // P1 notes and the P3 (both singers) note; P2 is left out.
+    assert_eq!(
+        spans(&r),
+        vec![(0, 200, 60.0), (200, 200, 62.0), (600, 400, 64.0)]
+    );
+    assert_eq!(lyrics(&r), vec![Some("eu"), Some("can"), Some("nós")]);
+}
+
+#[test]
+fn ultrastar_crlf_and_utf8_bom_are_accepted() {
+    // CRLF is tested inline: the repo normalises fixture line endings to LF.
+    let (r, _) =
+        import_ultrastar(b"\xEF\xBB\xBF#BPM:300\r\n#GAP:0\r\n: 0 4 0 a\r\n: 4 4 2 b\r\nE\r\n")
+            .unwrap();
+    assert_eq!(spans(&r), vec![(0, 200, 60.0), (200, 200, 62.0)]);
+    assert_eq!(lyrics(&r), vec![Some("a"), Some("b")]);
+}
+
+#[test]
+fn ultrastar_errors_name_the_line_in_portuguese() {
+    let err = |s: &str| import_ultrastar(s.as_bytes()).unwrap_err();
+    assert_eq!(
+        err("#BPM:300\n: 0 4 x la\n"),
+        RefError::UltraStarLine {
+            line: 2,
+            reason: "altura \"x\" não é um número inteiro".into()
+        }
+    );
+    assert_eq!(
+        err("#BPM:300\n: 0 4 x la\n").to_string(),
+        "arquivo UltraStar, linha 2: altura \"x\" não é um número inteiro"
+    );
+    assert_eq!(
+        err("#GAP:0\nE\n"),
+        RefError::UltraStarHeader("falta o #BPM".into())
+    );
+    for (text, line) in [
+        ("#BPM:abc\n", 1),                         // BPM not a number
+        ("#BPM:300\n: 0 0 0 la\n", 2),             // zero length
+        ("#BPM:300\n\n: 0 4 60 la\n", 3),          // MIDI 120, out of range
+        ("#BPM:300\n: 0 4\n", 2),                  // missing pitch
+        ("#BPM:300\nxyz\n", 2),                    // unknown line
+        ("#BPM:300\nP9\n", 2),                     // unknown singer
+        ("#BPM:300\n#GAP:-5000\n: 0 4 0 la\n", 3), // before 0 ms
+        (": 0 4 0 la\n#BPM:300\n", 1),             // note before #BPM
+    ] {
+        match err(text) {
+            RefError::UltraStarLine { line: l, .. } => assert_eq!(l, line, "{text:?}"),
+            e => panic!("{text:?}: {e:?}"),
+        }
+    }
+    // Only freestyle/rap: nothing to score.
+    assert_eq!(
+        err("#BPM:300\nF 0 4 0 la\nR 4 4 0 la\nE\n"),
+        RefError::Empty
+    );
+}
+
+#[test]
+fn ultrastar_goes_through_the_same_validation_and_skyline() {
+    // Overlapping notes (a lower one under a higher one) are resolved like MIDI/JSON.
+    let (r, _) = import_ultrastar(b"#BPM:300\n: 0 8 0 a\n: 4 8 5 b\nE\n").unwrap();
+    assert_eq!(spans(&r), vec![(0, 200, 60.0), (200, 400, 65.0)]);
+    // The result round-trips through the stored format.
+    let back = parse_reference_json(&to_reference_json(&r)).unwrap();
+    assert_eq!(back, r);
 }

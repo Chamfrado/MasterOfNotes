@@ -1,0 +1,14 @@
+#TITLE:Canção do Teste
+#ARTIST:Autoria própria
+#BPM:250,0
+#GAP:500
+#RELATIVE:yes
+: 0 4 0 Can
+: 4 4 2 ção
+- 10 12
+: 0 4 4 co
+: 4 6 5 ra
+: 10 4 7 ção
+- 16 20
+: 0 8 0 é
+E
