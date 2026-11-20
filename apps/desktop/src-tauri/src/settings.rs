@@ -64,6 +64,18 @@ pub struct AppSettings {
     pub tv_mode: bool,
     /// The first-run "check for updates?" consent card was answered.
     pub update_consent_asked: bool,
+    /// Installed third-party separation model (SPEC-012). Read-only for `update_settings`.
+    pub separation_model: Option<SeparationModel>,
+}
+
+/// Written only by `install_separation_model` / `remove_separation_model`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SeparationModel {
+    /// SHA-256 hex of the model file (= `KnownModel::id`).
+    pub id: String,
+    pub name: String,
+    pub accepted_ms: i64,
 }
 
 impl Default for AppSettings {
@@ -82,6 +94,7 @@ impl Default for AppSettings {
             leak_check: None,
             tv_mode: false,
             update_consent_asked: false,
+            separation_model: None,
         }
     }
 }
@@ -154,6 +167,11 @@ pub fn update(conn: &mut Connection, patch: Map<String, Value>) -> AppResult<App
     if patch.contains_key("leakCheck") {
         return Err(AppError::invalid_setting(
             "O teste de vazamento é gravado só pelo próprio teste.",
+        ));
+    }
+    if patch.contains_key("separationModel") {
+        return Err(AppError::invalid_setting(
+            "O modelo de separação é instalado ou removido pela tela de Ajustes.",
         ));
     }
     write(conn, patch)

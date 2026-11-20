@@ -117,7 +117,7 @@ pub fn active(conn: &Connection, song_id: &str) -> AppResult<Option<Reference>> 
     .transpose()
 }
 
-fn get_active_by_id(conn: &Connection, id: i64) -> AppResult<Reference> {
+pub fn get_active_by_id(conn: &Connection, id: i64) -> AppResult<Reference> {
     let (r, notes_json, active): (Reference, String, bool) = conn
         .query_row(
             "SELECT id, song_id, source, status, revision, offset_ms, notes_json, active
@@ -185,11 +185,12 @@ pub fn import(
     store(conn, song_id, source, &parsed.map_err(ref_err)?)
 }
 
-/// Sung reference (T-005-07): the detected notes become the new active reference
-/// (`source = 'manual'`). They go through the same parser as an imported file.
-pub fn store_captured(
+/// Detected notes become the new active reference: sung (T-005-07, `source = 'manual'`) or
+/// extracted from the video (SPEC-012, `'extracted'`). Same parser as an imported file.
+pub fn store_notes(
     conn: &mut Connection,
     song_id: &str,
+    source: &str,
     notes: Vec<scoring_engine::Note>,
 ) -> AppResult<Reference> {
     let json = scoring_engine::to_reference_json(&scoring_engine::MelodyReference {
@@ -197,7 +198,7 @@ pub fn store_captured(
         notes,
     });
     let parsed = scoring_engine::parse_reference_json(&json).map_err(ref_err)?;
-    store(conn, song_id, "manual", &parsed)
+    store(conn, song_id, source, &parsed)
 }
 
 /// Inserts `parsed` as the active experimental reference, deactivating the previous one.
