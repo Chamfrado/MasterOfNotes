@@ -15,7 +15,7 @@ const basic: RefNote[] = [
 const ultrastar = {
   "basic.txt": { notes: basic },
   "duet.txt": { notes: basic.slice(0, 2), duet: true },
-  "invalid-truncated-line.txt": { line: 4, message: "a nota precisa de início, duração, altura e sílaba" },
+  "invalid-truncated-line.txt": { line: 4, message: "a nota não tem altura" },
 };
 
 test("contrato: .txt vira referência UltraStar ativa; dueto traz o aviso; linha inválida dá invalid_reference com o número", async ({ page }) => {
@@ -30,7 +30,7 @@ test("contrato: .txt vira referência UltraStar ativa; dueto traz o aviso; linha
   expect(await withIpc(page, (ipc, s) => ipc.getReference(s), "c3")).toMatchObject({ source: "ultrastar" });
   expect(await imp("duet.txt")).toMatchObject({ notes: basic.slice(0, 2), notice: DUET_NOTICE });
   expect(await imp("invalid-truncated-line.txt")).toEqual({
-    rejected: { code: "invalid_reference", message: "Referência inválida: linha 4: a nota precisa de início, duração, altura e sílaba." },
+    rejected: { code: "invalid_reference", message: "Referência inválida: arquivo UltraStar, linha 4: a nota não tem altura." },
   });
 });
 
@@ -73,7 +73,7 @@ test("UI: dueto UltraStar mostra o aviso; linha inválida mostra o erro com o n�
 
   await setReply(page, "plugin:dialog|open", { ok: "C:/Karaoke/invalid-truncated-line.txt" });
   await page.getByRole("button", { name: "Importar outra" }).click();
-  await expect(page.getByText("Referência inválida: linha 4: a nota precisa de início, duração, altura e sílaba.")).toBeVisible();
+  await expect(page.getByText("Referência inválida: arquivo UltraStar, linha 4: a nota não tem altura.")).toBeVisible();
   await expect(page.getByText("2 notas", { exact: true })).toBeVisible(); // the duet import is still the active one
   expect(pageErrors).toEqual([]);
 });

@@ -1,13 +1,13 @@
 # UltraStar fixtures (SPEC-013, T-013-04)
 
 Self-authored for Master Of Notes tests (Law 19): invented melodies and syllables, no third-party song.
-Written by the Agent 4 QA script, archived in `docs/testing/evidence/ultrastar-qa.md`. The beat is
+Written by the Agent 4 QA script, archived in `docs/testing/evidence/ultrastar-fixtures-gen.py` (findings: `ultrastar-qa.md`). The beat is
 `60000 / (BPM × 4)` ms and the pitch is `midi = 60 + pitch` (SPEC-013 R2).
 
 ## Valid: expected notes `(start_ms, dur_ms, midi, lyric)`
 | File | What it tests | Expected |
 |---|---|---|
-| `basic.txt` | Criterion of the SPEC: BPM 300, GAP 1000; golden `*`; `F`/`R`/`G` skipped; `-` break; `~` continuation | (1000, 200, 60, "Lá"), (1200, 200, 62, "ri"), (1900, 200, 64, "la"), (2100, 100, 65, "~") |
+| `basic.txt` | Criterion of the SPEC: BPM 300, GAP 1000; golden `*`; `F`/`R`/`G` skipped; `-` break; `~` continuation | (1000, 200, 60, "Lá"), (1200, 200, 62, "ri"), (1900, 200, 64, "la"), (2100, 100, 65, "~" or empty: the continuation mark) |
 | `bpm-comma.txt` | `#BPM:150,5` (decimal comma, common in real files) | beat 99.67 ms: (0, ≈399, 60), (≈797, ≈399, 62) (±1 ms rounding) |
 | `relative.txt` | `#RELATIVE:yes`, GAP 500; `- 10 12` moves the base 12 beats | (500, 200, 60), (700, 200, 62), (1100, 200, 64), (1400, 100, 65) |
 | `duet.txt` | `P1`/`P2`: only P1, plus the duet notice | (0, 200, 60, "eu"), (200, 200, 62, "vou"); `duet = true` |

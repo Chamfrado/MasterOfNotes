@@ -320,7 +320,7 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
         const name = String(filePath).split(/[\\/]/).pop() ?? "";
         if (!/\.txt$/i.test(name)) return fromSpec<MelodyReference>("import_reference") ?? fail("Comando não mockado no teste: import_reference", "E2E_UNMOCKED");
         const file = opts.ultrastar?.[name] ?? fail(`Não foi possível ler o arquivo: ${name}.`, "not_found");
-        if ("line" in file) return fail(`Referência inválida: linha ${file.line}: ${file.message}.`, "invalid_reference");
+        if ("line" in file) return fail(`Referência inválida: arquivo UltraStar, linha ${file.line}: ${file.message}.` /* ref_err + RefError Display */, "invalid_reference");
         return tx((db): MelodyReference => ({
           ...storeRef(db, String(songId), "ultrastar", file.notes),
           ...(file.duet ? { notice: DUET_NOTICE } : {}), // omitted (skip) when there is no notice, like the Rust JSON
