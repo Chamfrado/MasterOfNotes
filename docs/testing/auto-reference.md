@@ -16,7 +16,7 @@ O modelo e a DLL ficaram só no scratchpad do Agente 2 e foram apagados ao final
 | Meta (SPEC-012 R7) | Resultado | |
 |---|---|---|
 | 4 min em ≤ 3 min de relógio | **~145–150 s** com a CPU livre; 160–231 s com builds de outros agentes rodando ao mesmo tempo (veja a tabela) | ✅ sem concorrência; ❓ com a máquina ocupada |
-| Pico de memória ≤ 1,5 GB | **1353 MiB** (processo inteiro, com as 3 músicas de 4 min analisadas em sequência) | ✅ |
+| Pico de memória ≤ 1,5 GB | **1313 MiB** em 4 min e 1435 MiB em 10 min, depois da T-012-07; antes, 1352 e 1535 MiB | ✅ |
 | ≥ 95% de notas corretas em voz sintética sobre acompanhamento | **precisão 98,3%** (292 de 297 geradas); recall 77,2%; cantor perfeito contra a referência gerada: **98,2** | ✅ |
 
 ## Runtime ONNX (decisão aprovada pelo coordenador)
@@ -67,6 +67,14 @@ Duas rodadas. Nas duas havia compilações de outros agentes na mesma máquina; 
 
 - **Cancelamento:** `cancel` é verificado entre trechos. No teste, o retorno veio 3 ms após o pedido feito entre dois trechos ✅. No pior caso, a espera é de um trecho inteiro, ~3,6 s nesta máquina ❓ (dedução).
 - **Progresso:** um passo por trecho, de 0 a 1 (42 passos em 4 min).
+- **Memória (T-012-07, QA M4):** o padding da música inteira virou um buffer de trecho reutilizável. Ficam duas cópias completas do áudio: a mistura do chamador e a voz devolvida. Teste `m4_peak_memory_one_song` (`SA_MINUTES`), pico do processo medido por fora ✅:
+
+| Música | Antes | Depois | Saída (energia dos vocais) |
+|---|---|---|---|
+| 4 min | 1352 MiB | **1313 MiB** | idêntica (0,560207) |
+| 10 min | 1535 MiB | **1435 MiB** | idêntica (1,416248) |
+
+Crescimento: ~30 → ~20 MiB por minuto de música.
 
 ## Nível de voz (`voice_level_db`, `NO_VOICE_DB = −20 dB`)
 
@@ -103,7 +111,18 @@ O croma ideal das notas (uma classe de altura por frame) é comparado com o crom
 
 **Por que não DTW.** O spike usou DTW para alinhar duas *gravações* cujo andamento podia diferir. Aqui a correção é um único offset constante. A busca exaustiva é o ótimo exato do mesmo casamento de croma sob essa restrição, e o formato do pico dá a confiança.
 
-**Confiança:** (pico − melhor rival a mais de 1 s) ÷ pico. Abaixo de 0,5 (limiar de exibição da UI, definido no contracts.md §2.5), a proposta não é confiável.
+**Andamento diferente (T-012-07, QA M1):** se a referência está um pouco mais rápida ou mais lenta que o vídeo, não existe um offset único, e a busca escolhe um meio-termo. Por isso cada metade das notas é buscada de novo, a ±3 s do lag global. Se as metades divergem mais de 100 ms, a confiança fica em no máximo 0,3. A checagem só vale quando cada metade tem ≥ 3 s de notas, para não penalizar referências curtas.
+
+Teste sintético de 120 s, MIDI deslocado −1,2 s:
+
+| Andamento da referência | Proposta | Erro nas pontas | Confiança | |
+|---|---|---|---|---|
+| igual | +1196 ms | 4 ms | 0,93 | ✅ |
+| +0,25% | +1057 ms | até 154 ms | **0,30** | ✅ |
+| +0,5% | +915 ms | até 309 ms | **0,30** | ✅ |
+| +1% | +230 ms | até 955 ms | **0,25** | ✅ |
+
+**Confiança:** (pico − melhor rival a mais de 1 s) ÷ pico, com o limite acima quando as metades divergem. Abaixo de 0,5 (limiar de exibição da UI, definido no contracts.md §2.5), a proposta não é confiável.
 
 | Áudio (4 min) | MIDI deslocado | Proposta | Erro | Confiança | Tempo (release) | |
 |---|---|---|---|---|---|---|

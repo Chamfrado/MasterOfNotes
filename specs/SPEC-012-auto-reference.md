@@ -38,6 +38,7 @@ Critérios:
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | review |
 | T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | review |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | review |
+| T-012-07 | `song-analysis`: QA M1 (andamento diferente → confiança ≤ 0,3, busca por metade) + M4 (buffer de trecho reutilizável, pico menor) | Agente 2 | review |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
@@ -140,3 +141,11 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
   - **Baixos:** B1 (NaN no upload), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
   - O modelo e a DLL foram apagados ao final.
 - QA independente (Agente 4, 2026-11-20): sem achados ALTOS. M2/M3 corrigidos na 0.1.3; M1 (andamento ≠ vídeo) e M4 (memória em 10 min: ~1,5 GB) ficam para a 0.1.4/documentação; B1 já coberto pelo upload (NaN/Inf → audio_invalid). Relatório: docs/testing/evidence/song-analysis-qa.md.
+- 2026-11-20 · Agente 2 · T-012-07 em `review` (QA do Agente 4, achados M1 e M4).
+  - **M1:** cada metade das notas é buscada de novo, a ±3 s do lag global. Se as metades divergem mais de 100 ms, a confiança fica ≤ 0,3. A checagem só vale com ≥ 3 s de notas em cada metade.
+    - Teste sintético de 120 s: andamento 0,25 / 0,5 / 1% dá confiança 0,30 / 0,30 / 0,25; com 0%, erro de 4 ms e confiança 0,93.
+    - O alinhamento normal (±1,2 s e armadilhas) não mudou: os mesmos números.
+  - **M4:** cada trecho é montado num buffer reutilizável, em vez de uma cópia da música inteira com padding.
+    - Pico em 4 min: 1352 → **1313 MiB**. Em 10 min: 1535 → **1435 MiB**.
+    - Crescimento: ~30 → ~20 MiB/min.
+    - Saída idêntica: a energia dos vocais bate em 6 casas.
