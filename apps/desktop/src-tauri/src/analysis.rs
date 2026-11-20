@@ -6,7 +6,7 @@ use std::hash::BuildHasher;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use rusqlite::Connection;
 use scoring_engine::Note;
@@ -28,6 +28,8 @@ const SAMPLE_RATE: u32 = 44_100;
 const MAX_AUDIO_SAMPLES: usize = 20 * 60 * SAMPLE_RATE as usize;
 /// Fewer notes than this is not a usable reference (same rule as the sung reference).
 const MIN_NOTES: usize = 3;
+/// How long a new job waits for a cancelled one to stop (it checks between ~4 s chunks).
+const CANCELLED_JOB_WAIT: Duration = Duration::from_secs(30);
 const REASON_NO_VOICE: &str = "Este vídeo não tem a voz da melodia (é só instrumental). Use Gravar cantando ou importe um MIDI.";
 const REASON_FEW_NOTES: &str =
     "Quase nenhuma nota foi encontrada na voz do vídeo. Use Gravar cantando ou importe um MIDI.";
@@ -121,9 +123,31 @@ impl AnalysisState {
                 )
             })
     }
+
+    /// Takes the single job slot. A cancelled job still finishing its current chunk is waited
+    /// for (never two separators at once: ~1.2 GB each); a live job → `busy`.
+    fn acquire(&self, wait: Duration) -> AppResult<JobGuard<'_>> {
+        let deadline = Instant::now() + wait;
+        while self
+            .busy
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
+            if !self.cancel.load(Ordering::SeqCst) || Instant::now() > deadline {
+                return Err(AppError::new(
+                    "busy",
+                    "Já existe uma referência sendo gerada. Aguarde ou cancele.",
+                ));
+            }
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        self.cancel.store(false, Ordering::SeqCst);
+        Ok(JobGuard(&self.busy))
+    }
 }
 
 /// Clears `busy` even if the job panics.
+#[derive(Debug)]
 struct JobGuard<'a>(&'a AtomicBool);
 impl Drop for JobGuard<'_> {
     fn drop(&mut self) {
@@ -354,14 +378,7 @@ pub async fn generate_reference(
 ) -> AppResult<AutoReferenceOutcome> {
     blocking(move || {
         let analysis = app.state::<AnalysisState>();
-        if analysis.busy.swap(true, Ordering::SeqCst) {
-            return Err(AppError::new(
-                "busy",
-                "Já existe uma referência sendo gerada. Aguarde ou cancele.",
-            ));
-        }
-        let _guard = JobGuard(&analysis.busy);
-        analysis.cancel.store(false, Ordering::SeqCst);
+        let _guard = analysis.acquire(CANCELLED_JOB_WAIT)?;
         let started = Instant::now();
         let progress = |stage, fraction| {
             let _ = on_progress.send(AutoReferenceProgress { stage, fraction }); // UI gone: keep going
@@ -578,6 +595,39 @@ mod tests {
             "replaced"
         );
         assert_eq!(*st.get(&t2, "s2").unwrap(), vec![2.0]);
+    }
+
+    #[test]
+    fn new_job_waits_for_a_cancelled_one_but_not_for_a_live_one() {
+        let st = AnalysisState::default();
+        // Live job: a second generate is refused at once.
+        let guard = st.acquire(Duration::from_secs(5)).unwrap();
+        let t = Instant::now();
+        assert_eq!(st.acquire(Duration::from_secs(5)).unwrap_err().code, "busy");
+        assert!(t.elapsed() < Duration::from_secs(1));
+        drop(guard);
+
+        // Cancel, then a new generate right away: it waits for the old job to see the flag.
+        std::thread::scope(|s| {
+            let job = st.acquire(Duration::from_secs(5)).unwrap();
+            let old = s.spawn(|| {
+                let _job = job;
+                // A chunk in progress; the flag is only checked between chunks.
+                std::thread::sleep(Duration::from_millis(200));
+                st.cancel.load(Ordering::SeqCst)
+            });
+            st.cancel.store(true, Ordering::SeqCst); // cancel_generate_reference
+            let new = st
+                .acquire(Duration::from_secs(5))
+                .expect("no busy after cancel");
+            assert!(old.join().unwrap(), "old job saw the cancel (→ cancelled)");
+            assert!(
+                !st.cancel.load(Ordering::SeqCst),
+                "new job starts uncancelled"
+            );
+            drop(new);
+        });
+        assert!(!st.busy.load(Ordering::SeqCst));
     }
 
     #[test]

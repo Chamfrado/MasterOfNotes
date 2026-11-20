@@ -67,3 +67,10 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
   - ⏳ Pendentes:
     - build release com o overlay: a DLL e os avisos no instalador ainda não foram verificados, porque o disco tem 2,2 GB livres e a regra pede ≥ 4 GB;
     - geração real com modelo (testes `#[ignore]` do Agente 2).
+- T-012-03, complemento (Agente 1, 2026-11-20).
+  - **Cancelar e gerar de novo:** um `generate_reference` novo que encontra a vaga ocupada por um job JÁ cancelado espera esse job terminar o trecho atual (limite de 30 s) em vez de dar `busy`. Nunca rodam dois separadores juntos. Só um job vivo (não cancelado) dá `busy`. O job antigo continua rejeitando com `cancelled`. Foi apontado pelo Agente 4, cujo fake já se comportava assim. Teste ✅ `analysis::tests::new_job_waits_for_a_cancelled_one_but_not_for_a_live_one`; `cargo test -p master-of-notes`: 66 ok.
+  - **Instalador validado** com `pnpm --filter desktop tauri build --bundles nsis --config <overlay>`. O overlay é igual ao `.github/tauri-release.conf.json` do Agente 4, sem `createUpdaterArtifacts`, porque não há chave de assinatura local.
+    - O `7z l` do setup (8,6 MB) lista `master-of-notes.exe`, `onnxruntime.dll` e `THIRD-PARTY-NOTICES.txt` na raiz, ou seja, em `$INSTDIR`, ao lado do .exe.
+    - No `installer.nsi` gerado, os dois arquivos estão em `File` e em `Delete` do uninstaller.
+    - O merge patch manteve o base: `INSTALLMODE currentUser`, PortugueseBR + English, só NSIS.
+    - O instalador não foi executado (instrução do coordenador). Depois, `cargo clean --release`.
