@@ -31,8 +31,18 @@ Critérios:
 | T-012-02 | `song-analysis`: DTW em croma (`align_offset_ms`) + testes sintéticos | Agente 2 | todo |
 | T-012-03 | Commands: modelo (listar conhecidos, instalar com checksum + aceite, remover), upload de áudio, job gerar/cancelar com progresso, alinhar | Agente 1 | todo |
 | T-012-04 | UI: Ajustes → Referência automática; Referência → Gerar/Alinhar automaticamente; decodificação do áudio na WebView | Agente 3 | todo |
-| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | todo |
+| T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | doing |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | todo |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
+- T-012-05 `doing` (Agente 4, 2026-11-20), parte 1 de 3 pronta.
+  - Fake: `e2e/fake-backend.ts` simula os commands novos do `ipc.ts`.
+    - Modelo: listar os conhecidos; instalar só um modelo conhecido e com aceite, senão erro em pt-BR; remover.
+    - `upload_song_audio`: IPC raw (`Uint8Array` + cabeçalho `song-id`); o `tauri-mock.ts` agora repassa as `options` e aguarda handlers assíncronos.
+    - `generate_reference`: progresso por etapa, cancelamento e o caso "sem voz".
+    - `auto_align_reference` só propõe; `set_reference_offset` sobe a revisão.
+  - Teste: `e2e/auto-reference.e2e.ts` exercita o contrato pelo cliente real `src/lib/ipc.ts` (3 testes).
+  - Plano de E2E/a11y da UI e da QA independente em [song-analysis-qa-plan.md](../docs/testing/evidence/song-analysis-qa-plan.md); o harness de sondas está pronto em rascunho.
+  - ⏳ E2E/a11y esperam a T-012-04; as sondas esperam a T-012-01/02, e as com modelo esperam o comando de download e o SHA do Agente 2.
+  - ❓ Semântica do cancelamento e códigos de erro a conferir com o Agente 1 (T-012-03).

@@ -10,6 +10,11 @@ export type MockSpec = Record<string, MockReply>;
 export interface IpcCall {
   cmd: string;
   args: unknown;
+  /** Raw IPC (e.g. upload_song_audio): `args` is the Uint8Array body and the headers come here. */
+  options?: InvokeOptions;
+}
+export interface InvokeOptions {
+  headers?: Record<string, string>;
 }
 
 declare global {
@@ -17,8 +22,9 @@ declare global {
     __E2E_CALLS__?: IpcCall[];
     __E2E_SPEC__?: MockSpec;
     __E2E_VIDEO_URL__?: string;
-    /** Stateful handlers (e2e/fake-backend.ts); they win over the static spec. Throw an AppError to reject. */
-    __E2E_HANDLERS__?: Record<string, (args: Record<string, unknown>) => unknown>;
+    /** Stateful handlers (e2e/fake-backend.ts); they win over the static spec. Throw (or return a rejected
+     * promise with) an AppError to reject; a promise result is awaited (long jobs with progress). */
+    __E2E_HANDLERS__?: Record<string, (args: Record<string, unknown>, options?: InvokeOptions) => unknown>;
   }
 }
 
@@ -45,11 +51,11 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
         "plugin:window|is_fullscreen": false,
       };
 
-      const reply = (cmd: string, args: unknown): Promise<unknown> => {
+      const reply = (cmd: string, args: unknown, options?: InvokeOptions): Promise<unknown> => {
         const handler = window.__E2E_HANDLERS__?.[cmd];
         if (handler) {
           try {
-            return Promise.resolve(structuredClone(handler((args ?? {}) as Record<string, unknown>)));
+            return Promise.resolve(handler((args ?? {}) as Record<string, unknown>, options)).then((v) => structuredClone(v));
           } catch (e) {
             return Promise.reject(e);
           }
@@ -68,9 +74,9 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
         __E2E_SPEC__: spec,
         __TAURI_INTERNALS__: {
           metadata: { currentWindow: { label: "main" }, currentWebview: { windowLabel: "main", label: "main" } },
-          invoke: (cmd: string, args: unknown) => {
-            calls.push({ cmd, args });
-            return reply(cmd, args);
+          invoke: (cmd: string, args: unknown, options?: InvokeOptions) => {
+            calls.push({ cmd, args, options });
+            return reply(cmd, args, options);
           },
           transformCallback: (cb: (data: unknown) => void, once = false) => {
             const id = nextId++;
