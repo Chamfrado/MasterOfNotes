@@ -29,8 +29,10 @@ fn env_path(k: &str) -> PathBuf {
 
 fn load(name: &str) -> Vec<f32> {
     let b = std::fs::read(env_path("SA_MATERIAL").join(name)).unwrap();
-    b.chunks_exact(4)
-        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+    b.as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| f32::from_le_bytes(*c))
         .collect()
 }
 
