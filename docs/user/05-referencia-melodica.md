@@ -90,7 +90,7 @@ Uma referência cantada entra como **experimental**, igual a um arquivo importad
 
 ## Gerar automaticamente (a partir do vídeo)
 
-<!-- TODO(T-012-06), quando a UI da T-012-04 existir: conferir os rótulos "Gerar automaticamente", "Referência automática" (Ajustes), "Li e aceito os termos da fonte", os nomes das etapas, o botão de remover o modelo e a mensagem de modelo recusado; conferir em known_models() o resumo de licença de cada modelo. Mídia: ajustes-modelo.png, referencia-gerar.gif, referencia-sem-voz.png. -->
+<!-- TODO(T-012-06): rótulos conferidos em agent-3/work @ 338aad6 (reconferir no main); confirmar em known_models() o resumo de licença de cada modelo; tempo medido em docs/testing/auto-reference.md. Mídia: ajustes-modelo.png, referencia-gerar.gif, referencia-sem-voz.png. -->
 
 Se o vídeo tem a **voz do cantor**, o app pode criar a referência sozinho: ele **separa a voz da música** do vídeo e **anota as notas** que essa voz canta. Para isso, você precisa instalar antes um **modelo de separação** (veja abaixo).
 
@@ -104,11 +104,13 @@ Se o vídeo tem a **voz do cantor**, o app pode criar a referência sozinho: ele
 
 O app **não vem com o modelo** e **não baixa nada sozinho**. O modelo é um arquivo `.onnx` feito por outros autores. Quem baixa é você, da fonte original:
 
-1. Em **[Ajustes](10-ajustes-e-modo-tv.md#referência-automática) → Referência automática**, veja a lista de modelos aceitos, com nome, fonte, resumo da licença e tamanho.
-2. Clique no link da fonte. A página abre no navegador. **Leia os termos da fonte.**
-3. Se concordar, baixe pelo navegador o arquivo `.onnx` indicado na lista.
-4. No app, escolha o arquivo baixado e marque **Li e aceito os termos da fonte**.
-5. O app confere se o arquivo é **exatamente** um dos modelos da lista, por uma espécie de impressão digital do arquivo (SHA-256). Se for, guarda uma cópia na pasta de dados do app e o modelo fica instalado. Um arquivo diferente (outro modelo, outra versão ou um download que veio corrompido) é **recusado**, com a explicação.
+1. Em **[Ajustes](10-ajustes-e-modo-tv.md#referência-automática) → Referência automática**, veja a lista de modelos aceitos. Cada um mostra nome, tamanho, **Licença**, o nome do arquivo e o SHA-256 (uma espécie de impressão digital do arquivo).
+2. Clique em **Abrir página do modelo**. A página da fonte abre no navegador. **Leia os termos da fonte.**
+3. Se concordar, baixe pelo navegador o arquivo com o nome indicado na lista.
+4. No app, marque **Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade.** Só então o botão **Escolher arquivo baixado…** fica disponível.
+5. Clique em **Escolher arquivo baixado…** e escolha o arquivo. O app mostra *"Conferindo o arquivo…"* e verifica se ele é **exatamente** um dos modelos da lista. Se for, guarda uma cópia na pasta de dados do app, e a seção passa a mostrar *"<nome do modelo> · instalado em <data>"*. Um arquivo diferente (outro modelo, outra versão ou um download que veio corrompido) é **recusado**, com a explicação.
+
+Para desinstalar o modelo, clique em **Remover** na mesma seção.
 
 > **Modelo de terceiros: leia antes de baixar.** O modelo não é do Master Of Notes, e o app não o distribui. Ele pertence aos autores da fonte, e valem os termos da fonte. **A fonte não declara uma licença** para o arquivo do modelo, então não há uma permissão de uso clara. A decisão de baixar e usar o modelo é sua, sob os termos da fonte e sob a sua responsabilidade.
 
@@ -116,13 +118,16 @@ O modelo fica no seu computador. O app nunca envia o modelo nem o áudio para lu
 
 ### Passo a passo
 
-1. Na tela da referência, clique em **Gerar automaticamente**. O botão só aparece com o modelo instalado.
-2. O app trabalha em etapas e mostra a porcentagem de cada uma: **extraindo o áudio**, **separando a voz**, **transcrevendo as notas** e **salvando**.
-3. Isso leva **alguns minutos por música**, conforme a duração da música e a velocidade do computador. Enquanto isso, você pode continuar usando o app. Só um vídeo é processado por vez.
-4. **Cancelar** interrompe o trabalho e não salva nada. Fechar o app também cancela.
-5. No fim, a tela mostra as notas sobre o vídeo, com os selos **Extraída** e **Referência experimental**.
+1. Na tela da referência, clique em **Gerar automaticamente**. Sem o modelo instalado, o app avisa e abre **Ajustes → Referência automática**.
+2. No painel **Gerar automaticamente**, clique em **Começar**.
+3. O app trabalha em 4 etapas, com uma barra de progresso: **Etapa 1 de 4: Extraindo áudio**, **Etapa 2 de 4: Separando a voz** (com a porcentagem), **Etapa 3 de 4: Transcrevendo** e **Etapa 4 de 4: Salvando**.
+4. Isso leva **alguns minutos por música**, conforme a duração da música e a velocidade do computador. **Fique nesta tela**: sair dela cancela a geração.
+5. **Cancelar** interrompe o trabalho e não salva nada (*"Geração cancelada."*). Fechar o app também cancela.
+6. No fim, a tela mostra as notas sobre o vídeo, com os selos **Extraída** e **Referência experimental**, e o aviso *"Referência gerada em m:ss. Pode ter erros: confira sobre o vídeo e valide."*
 
-Se a música já tinha referência, a anterior fica guardada no histórico e deixa de ser usada nas partidas, como em Gravar cantando.
+Se a música já tinha referência, o painel avisa: *"A referência atual vai para o histórico; a nova nasce experimental."* A anterior fica guardada e deixa de ser usada nas partidas, como em Gravar cantando.
+
+Num vídeo só instrumental, o painel mostra a mensagem de que o vídeo não tem a voz da melodia, e nada é salvo.
 
 ### Revise antes de validar
 
@@ -149,11 +154,16 @@ Salvar um novo offset volta a referência para **experimental**, porque o alinha
 
 ### Alinhar automaticamente
 
-<!-- TODO(T-012-06), quando a UI da T-012-04 existir: conferir o rótulo "Alinhar automaticamente" e como a confiança aparece. Não exige o modelo de separação (confirmado pelo coordenador: o alinhamento usa a música do vídeo). -->
+<!-- TODO(T-012-06): rótulos conferidos em agent-3/work @ 338aad6 (reconferir no main). Mídia: referencia-alinhar-auto.png. -->
 
-Em vez de procurar o offset à mão, clique em **Alinhar automaticamente**. O app compara as notas da referência com a música do vídeo e **propõe** um offset, junto com o grau de confiança da proposta. Funciona com referências **MIDI**, **JSON** e **Cantada**, e não precisa do modelo de separação.
+Em vez de procurar o offset à mão, clique em **Alinhar automaticamente**, no cartão do offset. O app compara as notas da referência com a música do vídeo e **propõe** um offset, por exemplo: *"Proposta: +1200 ms (confiança 92%). A prévia já usa esse valor."* Funciona com qualquer referência (MIDI, JSON, Cantada ou Extraída) e não precisa do modelo de separação.
 
-O app só propõe: **nada é salvo sozinho**. Confira a prévia sobre o vídeo. Se estiver certa, clique em **Salvar offset**. Se não estiver, ajuste à mão. Com confiança baixa, confira com mais cuidado.
+O app só propõe: **nada é salvo sozinho**. Dê play e confira a prévia sobre o vídeo:
+
+- se estiver certa, clique em **Aplicar** para salvar o offset;
+- se não estiver, clique em **Descartar** para voltar ao offset anterior, e ajuste à mão.
+
+Com *"Confiança baixa: confira pelo vídeo antes de aplicar."*, confira com mais cuidado. Se o offset atual já estiver certo, o app só avisa: *"O alinhamento atual já confere (confiança Y%)."*
 
 ## Validar
 

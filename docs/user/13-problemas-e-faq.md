@@ -82,13 +82,17 @@ O vídeo é de karaokê só com a música, sem a voz do cantor, então não há 
 
 O app só aceita os modelos da lista em **Ajustes → Referência automática**, e o arquivo precisa ser exatamente o da fonte. Confira se baixou o arquivo indicado na lista e baixe de novo se o download pode ter sido interrompido.
 
-### Não aparece o botão "Gerar automaticamente"
+### "Gerar automaticamente" me leva para Ajustes
 
-O botão só aparece com o modelo de separação instalado. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação).
+Falta instalar o modelo de separação. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação).
+
+### O botão "Escolher arquivo baixado…" está desativado
+
+Marque antes **Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade.**
 
 ### Gerar automaticamente está demorando
 
-Leva alguns minutos por música, conforme a duração e o computador. Você pode continuar usando o app enquanto isso, ou clicar em **Cancelar**.
+Leva alguns minutos por música, conforme a duração e o computador. Fique na tela da referência até terminar: sair dela cancela a geração. Para desistir, clique em **Cancelar**.
 
 ### A gravação cantando não salvou nada
 
