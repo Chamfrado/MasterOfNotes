@@ -6,6 +6,67 @@ Ambiente: Intel Core i5-11400H, 31,8 GB RAM, Windows 11, rustc 1.99.1. Medido em
 Todos os números abaixo vêm de testes executados e reproduzíveis (áudio gerado em código, sem arquivos binários).
 Com microfone físico, só o caminho da captura foi exercitado (seção "Dispositivo real"). Pitch com voz real está pendente (⏳).
 
+## Gravação de referência cantada (`segment_notes`, T-005-07)
+
+Frente A do [ADR-0004](../adr/ADR-0004-auto-reference.md): a pessoa canta a melodia uma vez e o app guarda só as notas. Não usa modelo de terceiros. Formulação no cabeçalho de `crates/scoring-engine/src/segment.rs`.
+
+**Reproduzir:**
+- `cargo test -p scoring-engine --lib quantization_evidence -- --nocapture`;
+- `cargo test -p scoring-engine --test regression t005 -- --nocapture`.
+
+**Algoritmo:**
+1. Mediana de 5 frames que respeita a oitava.
+2. Trechos vozeados separados por ≥ 30 ms de silêncio.
+3. Dentro de cada trecho, **Viterbi sobre estados de semitom**: cada frame custa a sua distância (em semitons) até o estado; cada troca de nota custa 8.
+4. Trechos < 80 ms absorvidos pela nota vizinha; erros de oitava dobrados para a oitava das vizinhas.
+5. Altura = semitom A440.
+
+A saída já sai válida para o `parse_reference_json`: ordenada, sem sobreposição, dentro de 24–108.
+
+**Por que o Viterbi e não cortes por limiar.** Os dois protótipos anteriores falharam em vibrato largo:
+- "corta quando a altura muda ≥ 0,6 st por ≥ 80 ms" virava uma escada de notas;
+- uma mediana centrada de 190 ms deixava notas intermediárias falsas nas transições ligadas.
+
+No Viterbi, um vibrato em torno de uma nota fica nela, porque os frames estão em média mais perto dela que das vizinhas, e a troca acontece onde a voz troca.
+
+### Quantização da altura (evidência)
+
+Cenário: quem grava canta 24 notas com um erro; depois, um cantor que segue **o vídeo** com perfeição é pontuado (Normal) contra a referência gravada.
+
+| Caso | Semitom (A440) | Fracionário (como foi cantado) | Grade com afinação global |
+|---|---|---|---|
+| afinado | 100,0 | 100,0 | 100,0 |
+| quem grava +20 c | 100,0 | 100,0 | 100,0 |
+| quem grava +35 c | **100,0** | 90,6 | 90,6 |
+| quem grava −30 c | **100,0** | 94,9 | 94,9 |
+| quem grava ±25 c por nota | 100,0 | 99,6 | 100,0 |
+| quem grava ±40 c por nota | **100,0** | 94,8 | 100,0 |
+| vídeo afinado +30 c fora de A440, quem grava segue o vídeo | 95,2 | **100,0** | **100,0** |
+
+**Escolha: semitom A440.**
+- Ele corrige o erro de quem grava (constante ou por nota, até ~40 c), que é o caso comum de quem canta para gravar.
+- Só perde no vídeo fora de A440, que é raro, e mesmo assim deixa 95,2.
+- O fracionário e a grade copiam o desvio de quem gravou para todos os jogadores seguintes.
+
+### Precisão com voz realista (pipeline completo)
+
+A pessoa que grava tem voz humana sintética (formantes, jitter, shimmer, drift de 15 c), vibrato tardio, scoop de −60 c a cada 3 notas, consoante de 40 ms antes de nota repetida e erro de tempo de até **±40 ms** em cada borda de nota. O áudio passa por `analyze_buffer` → `segment_notes`. Métrica do spike: onset ±100 ms e altura ±50 c.
+
+| Música, vibrato | Corretas (recall) | Precisão | Cantor perfeito contra a gravação |
+|---|---|---|---|
+| Música de teste T-003-05, ±0 c | 23/25 (92%) | 96% | 98,7 |
+| Música de teste, ±50 c | 23/25 (92%) | 96% | 98,8 |
+| Música de teste, ±100 c | 23/25 (92%) | 82% | 97,1 |
+| Melodia da regressão, ±0 / ±50 c | 10/10 (100%) | 100% | 97,2 |
+| Melodia da regressão, ±100 c | 10/10 (100%) | 83% | 95,0 |
+
+Custo de troca de nota (λ), varrido em 2 / 4 / 8 / 12 / 16:
+- com λ = 8, um vibrato de ±100 c gera menos notas extras (precisão de 56–70% para 82–83%) sem perder recall;
+- com λ ≥ 12, o recall já cai em vibrato largo;
+- uma nota de passagem cromática de 120 ms sobrevive (teste unitário).
+
+⏳ **Ainda não medido:** voz real, a do proprietário, gravando pela tela "Gravar cantando".
+
 ## Algoritmo v5 (`ALGORITHM_VERSION = 5`, atual; encerra o ciclo de ajuste com voz sintética)
 
 Decisões: SPEC-006, seção "Algoritmo v5", a partir da [4ª rodada de QA](evidence/scoring-review-v4.md).
