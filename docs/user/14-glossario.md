@@ -16,11 +16,15 @@
 
 **Dificuldade** — Fácil, Normal ou Difícil: quanto a afinação pode desviar e ainda contar como acerto. O ranking é separado por dificuldade.
 
-**Experimental** — Referência melódica importada ou gravada cantando, mas com alinhamento ainda não conferido. Partidas com ela são treino.
+**Experimental** — Referência melódica importada, gravada cantando ou gerada do vídeo, mas com alinhamento ainda não conferido. Partidas com ela são treino.
+
+**Extraída** — Referência melódica criada com [Gerar automaticamente](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo): o app separou a voz do vídeo e anotou as notas. Pode ter erros; revise antes de validar.
 
 **Latência** — O pequeno atraso entre o som acontecer e o computador ouvi-lo (ou tocá-lo). O app compensa com o **Ajuste de latência**. Veja [Microfone](04-microfone.md#5-latência-atraso).
 
 **MIDI** — Formato de arquivo que descreve música como notas (qual nota, quando, quanto tempo), sem som gravado. Usado para importar a referência melódica.
+
+**Modelo de separação** — Arquivo `.onnx`, feito por outros autores, que o app usa para separar a voz da música do vídeo em [Gerar automaticamente](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo). Você o baixa da fonte original; o app não o distribui.
 
 **mon-melody** — Formato JSON próprio do Master Of Notes para a referência melódica.
 

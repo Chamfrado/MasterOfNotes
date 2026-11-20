@@ -58,6 +58,10 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 | referencia-validar | P | Após **Validar alinhamento**: selo **Referência validada** | `set_reference_status` → validated |
 | referencia-cantar | P | Painel **Gravar cantando** (Começar/Cancelar) | `get_reference: null` |
 | referencia-cantar | G | Começar → 3-2-1 → **Gravando notas** com medidor → **Parar** → selos **Cantada** e **Referência experimental** | `finish_performance` com `capturedReference` (MockSpec do script); ticks injetados |
+| ajustes-modelo | P (recorte) | Ajustes → **Referência automática**: modelo conhecido com licença, SHA-256, **Abrir página do modelo**, aceite e **Escolher arquivo baixado…** | fake-backend (`knownModels` = dados reais de `known_models()`) |
+| referencia-gerar | G | **Gerar automaticamente** → **Começar** → 4 etapas → selos **Extraída** e experimental | fake-backend (`generated`, `generateStepMs` 450); vídeo de teste **com** voz-guia |
+| referencia-sem-voz | P (recorte) | Painel com a mensagem de vídeo só instrumental + **Tentar de novo** | fake-backend (`generated: "noVoice"`) |
+| referencia-alinhar-auto | P | **Alinhar automaticamente**: "Proposta: +40 ms (confiança 92%)" com **Aplicar**/**Descartar** | fake-backend (`alignments`) |
 
 ### 06-cantar.md
 | ID | Tipo | Conteúdo | Estado do mock |
@@ -117,13 +121,13 @@ Tipos: **P** = screenshot PNG · **G** = GIF (≤ 15 s) · **V** = vídeo WebM.
 ### 12-privacidade.md, 13-problemas-e-faq.md, 14-glossario.md
 Só texto; reusam recortes das páginas 03, 04 e 06 (ex.: `detalhes-incompativel`, `microfone-calibrar-problemas`).
 
-## Totais (2026-11-19, main b87d18d; página 05 e atualizacao-sem-versao regeneradas na T-011-06)
+## Totais (2026-11-20, integ/013; T-012-06 gerou as 4 novas e regenerou configuracoes e a página 05)
 | Tipo | Qtd | Tamanho |
 |---|---|---|
-| PNG | 41 (inclui a captura real `instalador-concluido`) | 4,3 MB |
-| GIF | 10 | 3,2 MB (maior: 0,65 MB) |
+| PNG | 44 (inclui a captura real `instalador-concluido`) | 4,8 MB |
+| GIF | 11 | 3,5 MB (maior: 0,65 MB) |
 | Vídeo | 1 | 3,1 MB |
-| **Total** | 52 | **10,6 MB** (limite 40 MB) |
+| **Total** | 56 | **11,4 MB** (limite 40 MB) |
 
 ## GIF sem ffmpeg (aprovado pelo coordenador)
 1. O script tira screenshots em sequência (≈ 8 fps) com `page.screenshot()` durante o fluxo.
