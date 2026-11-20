@@ -9,6 +9,7 @@ import { SYNC_EVERY_MS, warn } from "../player/sync";
 type Phase = { name: "idle" } | { name: "running" } | { name: "done"; verdict: LatencyVerdict } | { name: "error"; error: unknown };
 
 const ms = (n: number) => `${Math.round(n)} ms`;
+const JITTER_REPEAT_MS = 10; // SPEC-006 N4: above this, recommend measuring again
 
 /** `onFinished` reloads settings (a passed probe updated latencyOffsetMs) and restarts the mic monitor. */
 export function LatencyProbe({ onFinished }: { onFinished: () => void }) {
@@ -84,10 +85,19 @@ export function LatencyProbe({ onFinished }: { onFinished: () => void }) {
         )}
         {phase.name === "done" &&
           (phase.verdict.passed ? (
-            <p className="text-success">
-              Latência medida: {ms(phase.verdict.offsetMs)} (variação ±{ms(phase.verdict.jitterMs)}, {phase.verdict.detected} de{" "}
-              {phase.verdict.expected} palmas). Ajuste salvo.
-            </p>
+            <>
+              <p className="text-success">
+                Latência medida: {ms(phase.verdict.offsetMs)} (variação ±{ms(phase.verdict.jitterMs)}, {phase.verdict.detected} de{" "}
+                {phase.verdict.expected} palmas). Ajuste salvo.
+              </p>
+              {/* SPEC-006 N4: compare what is shown, so "±10 ms" never comes with "above 10 ms". */}
+              {Math.round(phase.verdict.jitterMs) > JITTER_REPEAT_MS && (
+                <p className="text-warning">
+                  A variação passou de {JITTER_REPEAT_MS} ms, então a medida é pouco precisa. Recomendamos medir de novo, com palmas
+                  secas e o ambiente em silêncio.
+                </p>
+              )}
+            </>
           ) : (
             <p className="text-danger">
               {phase.verdict.reason ?? "Não deu para medir."} O ajuste atual foi mantido.
