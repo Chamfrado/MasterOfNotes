@@ -19,7 +19,7 @@ use audio_engine::{CaptureConfig, analyze_buffer, window_len};
 use scoring_engine::{Note, VoiceFrame, segment_notes};
 use sha2::{Digest, Sha256};
 
-pub use align::{AlignResult, LOW_CONFIDENCE, align_offset_ms};
+pub use align::{AlignResult, align_offset_ms};
 pub use separate::Separator;
 
 /// A separation model the app accepts (identified by the SHA-256 of the file).

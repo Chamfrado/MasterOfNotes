@@ -103,7 +103,7 @@ O croma ideal das notas (uma classe de altura por frame) é comparado com o crom
 
 **Por que não DTW.** O spike usou DTW para alinhar duas *gravações* cujo andamento podia diferir. Aqui a correção é um único offset constante. A busca exaustiva é o ótimo exato do mesmo casamento de croma sob essa restrição, e o formato do pico dá a confiança.
 
-**Confiança:** (pico − melhor rival a mais de 1 s) ÷ pico. Abaixo de `LOW_CONFIDENCE = 0,5`, a proposta não é confiável.
+**Confiança:** (pico − melhor rival a mais de 1 s) ÷ pico. Abaixo de 0,5 (limiar de exibição da UI, definido no contracts.md §2.5), a proposta não é confiável.
 
 | Áudio (4 min) | MIDI deslocado | Proposta | Erro | Confiança | Tempo (release) | |
 |---|---|---|---|---|---|---|
