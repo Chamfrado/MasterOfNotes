@@ -671,7 +671,7 @@ fn unreceived_after(r0: f64, r1: f64, last: Option<f64>) -> u32 {
     }
 }
 
-fn median(v: &mut [f64]) -> Option<f64> {
+pub(crate) fn median(v: &mut [f64]) -> Option<f64> {
     if v.is_empty() {
         return None;
     }
@@ -685,11 +685,11 @@ fn median(v: &mut [f64]) -> Option<f64> {
 }
 
 /// `midi` moved by whole octaves to within ±6 semitones of `near`.
-fn fold_to(midi: f64, near: f64) -> f64 {
+pub(crate) fn fold_to(midi: f64, near: f64) -> f64 {
     midi - 12.0 * ((midi - near) / 12.0).round()
 }
 
-fn hz_to_midi(hz: f64) -> f64 {
+pub(crate) fn hz_to_midi(hz: f64) -> f64 {
     69.0 + 12.0 * (hz / 440.0).log2()
 }
 

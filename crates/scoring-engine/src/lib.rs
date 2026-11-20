@@ -4,6 +4,7 @@
 mod exploratory;
 mod reference;
 mod scorer;
+mod segment;
 
 pub use exploratory::{ExploratoryMetrics, exploratory_metrics};
 pub use reference::{
@@ -13,3 +14,4 @@ pub use reference::{
 pub use scorer::{
     ALGORITHM_VERSION, Difficulty, FeedbackLabel, LiveFeedback, ScoreResult, Scorer, VoiceFrame,
 };
+pub use segment::segment_notes;

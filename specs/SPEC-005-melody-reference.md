@@ -52,6 +52,14 @@ Critérios:
   - ⏳ Canvas e vídeo não vistos no WebView2 real (o jsdom não tem canvas; o desenho é ignorado nos testes).
 - T-005-04 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
 - T-005-06 `review` (Agente 2, 2026-11-19): spike de referência automática a partir do vídeo, em [auto-reference-spike.md](../docs/research/auto-reference-spike.md), com rascunho de [ADR-0004](../docs/adr/ADR-0004-auto-reference.md) para aprovação do Agente 0. Medido: separação (HTDemucs / MDX-Net ONNX) + YIN em voz sintética dá 97–98% de precisão e pontuação simulada de 98,2–98,7; nenhum modelo de separação tem licença comercial clara dos pesos; Basic Pitch (Apache-2.0) sem separação dá 70–78; "cantar a referência" dá 98,6 sem modelo; DTW de alinhamento com mediana de 7 ms. Sem código de produto. ⏳ Precisão com voz real (Vídeo A sem verdade anotada).
+- T-005-07, parte do Agente 1 em `review` (2026-11-19). Implementada em `src-tauri/src/live.rs` e `reference.rs`.
+  - `StartPerformance.referenceCapture` vira `PerformanceConfig.reference_capture`.
+  - O modo roda sozinho: com `leakCheck`, `latencyProbe`, rodada ou participante dá `invalid_input`.
+  - A música não precisa de referência. O modo nunca é competitivo e a referência ativa atual não entra na sessão.
+  - Ao terminar, com ≥ 3 `captured_notes`, as notas passam por `reference::store_captured` (`to_reference_json` → `parse_reference_json`, o mesmo parser do import). Viram a nova referência ativa (`manual`, `experimental`, revision 1, offset 0); a anterior é desativada e fica no histórico. A referência volta em `outcome.capturedReference`.
+  - Com menos de 3 notas, nada é gravado e vem `reason` "Poucas notas detectadas: cante a melodia mais perto do microfone e tente de novo.".
+  - Nunca grava nada em `performances`. O `import` e a captura agora usam a mesma função de inserção (`reference::store`).
+  - Testes ✅ `live::tests::reference_capture_stores_notes_as_new_active_reference`. `cargo test -p master-of-notes`: 61 ok, 7 ignorados (com a branch do Agente 2 @ 6612c44 mesclada).
 - T-005-07, parte UI, `review` (Agente 3, 2026-11-19): botão "Gravar cantando" na tela Referência, também visível sem referência. Quando a referência ativa é cantada (`source = manual`), o botão vira "Gravar de novo".
   - O painel explica: "Cante a melodia junto com o vídeo; o app grava só as notas, nunca a sua voz. Use fones de ouvido." Se já existe referência, avisa que a atual fica no histórico.
   - Fluxo: `startPerformance({referenceCapture: true})` → contagem 3-2-1 → o vídeo toca do início. A sincronia usa `startVideoSync` (relógio de mídia) e play/pause, como no Player. Durante a gravação aparecem o medidor do microfone e o selo "Gravando notas".

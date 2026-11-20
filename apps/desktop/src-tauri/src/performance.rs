@@ -15,8 +15,8 @@ use audio_engine::{
     AnalysisFrame, Capture, CaptureConfig, LatencyResult, detect_onsets, latency_from, window_len,
 };
 use scoring_engine::{
-    Difficulty, ExploratoryMetrics, LiveFeedback, MelodyReference, ScoreResult, Scorer, VoiceFrame,
-    exploratory_metrics,
+    Difficulty, ExploratoryMetrics, LiveFeedback, MelodyReference, Note, ScoreResult, Scorer,
+    VoiceFrame, exploratory_metrics, segment_notes,
 };
 use serde::Serialize;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -60,6 +60,11 @@ pub struct PerformanceConfig {
     /// plays. Exclusive with `leak_check`; requires `latency_offset_ms == 0`
     /// (otherwise it would measure the residual). No analysis, no `LiveTick`.
     pub latency_probe: Option<Vec<f64>>,
+    /// Sung reference capture (T-005-07, ADR-0004 front A): no reference, never
+    /// competitive; the frames become `PerformanceSummary::captured_notes`.
+    /// Exclusive with `leak_check` and `latency_probe`. A seek to T discards the
+    /// frames already captured from T on (re-recording from there).
+    pub reference_capture: bool,
 }
 
 /// Outcome of a latency probe run.
@@ -154,6 +159,9 @@ pub struct PerformanceSummary {
     pub leak: Option<LeakVerdict>,
     /// Set for latency probe runs only.
     pub latency: Option<LatencyVerdict>,
+    /// Set for reference capture runs only (`scoring_engine::segment_notes`):
+    /// sorted, non-overlapping notes in song time; may be empty.
+    pub captured_notes: Option<Vec<Note>>,
 }
 
 /// Running performance: microphone capture + session state. Drop = abort.
@@ -227,10 +235,22 @@ impl LivePerformance {
 }
 
 fn validate(cfg: &PerformanceConfig) -> Result<(), AppError> {
+    let bad = |m: &str| Err(AppError::new("invalid_input", m));
+    if cfg.reference_capture {
+        if cfg.leak_check || cfg.latency_probe.is_some() {
+            return bad(
+                "A gravação da referência não pode rodar junto com a checagem de vazamento ou a sonda de latência.",
+            );
+        }
+        if cfg.reference.is_some() {
+            return bad(
+                "A gravação da referência cria uma referência nova: não use uma existente.",
+            );
+        }
+    }
     let Some(clicks) = &cfg.latency_probe else {
         return Ok(());
     };
-    let bad = |m: &str| Err(AppError::new("invalid_input", m));
     if cfg.leak_check {
         return bad("A sonda de latência e a checagem de vazamento não podem rodar juntas.");
     }
@@ -287,6 +307,7 @@ struct Session {
     outside_voiced: u32,
     feedback: Option<LiveFeedback>,
     leak_check: bool,
+    reference_capture: bool,
     /// Video time where playback first started (leak check coverage).
     play_from: Option<f64>,
     seeked: bool,
@@ -341,6 +362,7 @@ impl Session {
             outside_voiced: 0,
             feedback: None,
             leak_check: cfg.leak_check,
+            reference_capture: cfg.reference_capture,
             play_from: None,
             seeked: false,
             probe: cfg.latency_probe.clone().map(|mut c| {
@@ -398,6 +420,10 @@ impl Session {
         self.last_video_ms = video_ms;
         self.last_sync_sample = now;
         self.last_sync_dropped = self.dropped;
+        if seeked && self.reference_capture {
+            // Re-record from the new position: what was captured from there on goes.
+            self.voice.retain(|f| f.t_ms < video_ms);
+        }
         if seeked {
             // Seek = training (overview §6). Notes jumped over are ignored, not zeroed.
             // ponytail: a backward seek re-sings notes on top of their first pass;
@@ -613,7 +639,8 @@ impl Session {
             competitive: self.competitive && result.is_some() && !gappy,
             reason,
             played_ms: self.played_ms.round() as u64,
-            exploratory: (result.is_none() && self.probe.is_none())
+            captured_notes: self.reference_capture.then(|| segment_notes(&self.voice)),
+            exploratory: (result.is_none() && self.probe.is_none() && !self.reference_capture)
                 .then(|| exploratory_metrics(&self.voice)),
             result,
             capture: CaptureStats {
@@ -706,6 +733,7 @@ mod tests {
             capture: CaptureConfig::default(),
             leak_check: false,
             latency_probe: None,
+            reference_capture: false,
         });
         s.set_sample_rate(SR);
         s
@@ -785,6 +813,106 @@ mod tests {
         assert_eq!((r.notes_total, r.notes_hit), (2, 2));
         assert!(r.score >= 99.0, "{r:?}");
         assert_eq!(sum.played_ms, 1200);
+    }
+
+    fn capture_config() -> PerformanceConfig {
+        PerformanceConfig {
+            reference: None,
+            competitive: false,
+            difficulty: Difficulty::Normal,
+            latency_offset_ms: 0.0,
+            device_id: None,
+            capture: CaptureConfig::default(),
+            leak_check: false,
+            latency_probe: None,
+            reference_capture: true,
+        }
+    }
+
+    fn capture_session() -> Session {
+        let mut s = Session::new(&capture_config());
+        s.set_sample_rate(SR);
+        s
+    }
+
+    #[test]
+    fn reference_capture_turns_the_sung_frames_into_notes() {
+        let mut s = capture_session();
+        s.sync(0.0, true, false, 0);
+        feed(&mut s, 0, 24_000, Some(midi_hz(60.0))); // ~0–0.5 s
+        feed(&mut s, 24_000, 26_400, None); // 50 ms breath
+        feed(&mut s, 26_400, 48_000, Some(midi_hz(64.0))); // ~0.55–1 s
+        let sum = s.summary(48_000);
+        let notes = sum.captured_notes.clone().unwrap();
+        assert_eq!(
+            notes.iter().map(|n| n.midi).collect::<Vec<_>>(),
+            vec![60.0, 64.0]
+        );
+        assert!(
+            notes[0].start_ms <= 30 && notes[1].start_ms.abs_diff(550) <= 30,
+            "{notes:?}"
+        );
+        assert!(!sum.competitive && sum.reason.is_none());
+        assert!(sum.result.is_none() && sum.exploratory.is_none() && sum.leak.is_none());
+        let json = serde_json::to_string(&sum).unwrap();
+        assert!(json.contains("\"capturedNotes\":[{\"startMs\":"), "{json}");
+    }
+
+    #[test]
+    fn reference_capture_seek_back_re_records_from_there() {
+        let mut s = capture_session();
+        s.sync(0.0, true, false, 0);
+        feed(&mut s, 0, 48_000, Some(midi_hz(60.0))); // 0–1 s on C4
+        s.sync(0.5, true, true, 48_000); // back to 0.5 s
+        feed(&mut s, 48_000, 72_000, Some(midi_hz(67.0))); // 0.5–1 s again, now G4
+        let notes = s.summary(72_000).captured_notes.unwrap();
+        assert_eq!(
+            notes.iter().map(|n| n.midi).collect::<Vec<_>>(),
+            vec![60.0, 67.0],
+            "{notes:?}"
+        );
+        assert!(notes[0].start_ms + notes[0].dur_ms <= 500, "{notes:?}");
+        // Other runs never capture.
+        assert!(
+            session(None, false, 0.0)
+                .summary(0)
+                .captured_notes
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn reference_capture_is_exclusive() {
+        let base = capture_config();
+        assert!(validate(&base).is_ok());
+        for bad in [
+            PerformanceConfig {
+                leak_check: true,
+                ..base.clone()
+            },
+            PerformanceConfig {
+                latency_probe: Some(probe_clicks()),
+                ..base.clone()
+            },
+            PerformanceConfig {
+                reference: Some((
+                    MelodyReference {
+                        format_version: 1,
+                        notes: vec![Note {
+                            start_ms: 0,
+                            dur_ms: 500,
+                            midi: 60.0,
+                            lyric: None,
+                        }],
+                    },
+                    0,
+                )),
+                ..base.clone()
+            },
+        ] {
+            let e = validate(&bad).unwrap_err();
+            assert_eq!(e.code, "invalid_input");
+        }
     }
 
     #[test]
@@ -916,6 +1044,7 @@ mod tests {
             capture: CaptureConfig::default(),
             leak_check: false,
             latency_probe: None,
+            reference_capture: false,
         };
         let p = LivePerformance::start(cfg, move |_| {
             *counter.lock().unwrap_or_else(|e| e.into_inner()) += 1
@@ -1279,6 +1408,7 @@ mod tests {
             capture: CaptureConfig::default(),
             leak_check: false,
             latency_probe: Some(probe_clicks()),
+            reference_capture: false,
         };
         assert!(validate(&base).is_ok());
         let both = PerformanceConfig {
@@ -1336,6 +1466,7 @@ mod tests {
             capture: CaptureConfig::default(),
             leak_check: false,
             latency_probe: Some(vec![300.0, 800.0, 1300.0, 1800.0]),
+            reference_capture: false,
         };
         let ticks = Arc::new(Mutex::new(0u32));
         let counter = ticks.clone();
@@ -1421,6 +1552,7 @@ mod tests {
             capture: CaptureConfig::default(),
             leak_check: false,
             latency_probe: probe.then(Vec::new),
+            reference_capture: false,
         }
     }
 

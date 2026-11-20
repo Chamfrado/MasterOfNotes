@@ -15,6 +15,7 @@
 use audio_engine::{CaptureConfig, analyze_buffer, window_len};
 use scoring_engine::{
     ALGORITHM_VERSION, Difficulty, MelodyReference, Note, ScoreResult, Scorer, VoiceFrame,
+    segment_notes,
 };
 use std::f64::consts::TAU;
 
@@ -1006,6 +1007,151 @@ fn v5_expressive_gestures_are_style_not_error() {
         let r = score(&long, &audio);
         report(&format!("v5 gesto: {label} (v3 {v3})"), &r);
         assert!(r.score >= v3 - 2.0, "{label}: {r:?}");
+    }
+}
+
+// ---------- T-005-07: sung reference capture (segment_notes) ----------
+
+/// Spike metric (docs/research/auto-reference-spike.md): one-to-one matching,
+/// onset within ±100 ms and pitch within ±50 c. Returns (correct, generated, truth).
+fn note_match(truth: &Song, got: &[Note]) -> (usize, usize, usize) {
+    let mut used = vec![false; got.len()];
+    let mut correct = 0;
+    for &(s, _, m) in truth {
+        let best = got
+            .iter()
+            .enumerate()
+            .filter(|(j, g)| {
+                !used[*j]
+                    && (g.start_ms as f64 - s).abs() <= 100.0
+                    && (g.midi as f64 - m).abs() <= 0.5
+            })
+            .min_by(|a, b| {
+                (a.1.start_ms as f64 - s)
+                    .abs()
+                    .total_cmp(&(b.1.start_ms as f64 - s).abs())
+            })
+            .map(|(j, _)| j);
+        if let Some(j) = best {
+            used[j] = true;
+            correct += 1;
+        }
+    }
+    (correct, got.len(), truth.len())
+}
+
+/// A singer who follows the TRUE melody perfectly, scored against `generated`.
+fn perfect_singer_against(truth: &Song, generated: Vec<Note>) -> ScoreResult {
+    let r = MelodyReference {
+        format_version: 1,
+        notes: generated,
+    };
+    let mut s = Scorer::new(&r, 0, Difficulty::Normal);
+    let mut t = 0.0;
+    while t < song_end(truth) {
+        let m = at(truth, t);
+        s.push(VoiceFrame {
+            t_ms: t,
+            f0_hz: m.map(|m| midi_hz(m) as f32),
+            confidence: 0.95,
+            voiced: m.is_some(),
+        });
+        t += 10.0;
+    }
+    s.finish()
+}
+
+/// The person recording the reference: realistic voice (formants, jitter,
+/// shimmer, 15 c drift), delayed vibrato ±`vib` c at 5.5 Hz, a −60 c scoop on
+/// every third note, a 40 ms consonant before a repeated pitch, and a timing
+/// error of up to ±40 ms on each note edge. Returns the analysed frames.
+fn record(song: &Song, vib: f64) -> Vec<VoiceFrame> {
+    let err = |k: usize| 40.0 * [0.9, -0.5, 0.2, -1.0, 0.6, -0.3, 0.8, -0.7][k % 8];
+    let repeated = |k: usize| {
+        k > 0
+            && k < song.len()
+            && song[k - 1].2 == song[k].2
+            && song[k].0 - (song[k - 1].0 + song[k - 1].1) < 30.0
+    };
+    let starts: Vec<f64> = (0..song.len()).map(|k| song[k].0 + err(k)).collect();
+    let sung: Vec<(f64, f64, f64)> = song
+        .iter()
+        .enumerate()
+        .map(|(k, &(_, d, m))| {
+            let mut end = (song[k].0 + d + err(k + 3)).max(starts[k] + 60.0);
+            if repeated(k + 1) {
+                end = end.min(starts[k + 1] - 40.0); // consonant before the repeated pitch
+            }
+            (starts[k], end, m)
+        })
+        .collect();
+    let audio = render(
+        song_end(song),
+        |t| {
+            sung.iter()
+                .enumerate()
+                .find(|(_, n)| t >= n.0 && t < n.1)
+                .map(|(k, &(s, _, m))| {
+                    let x = t - s;
+                    let scoop = if k % 3 == 0 {
+                        -60.0 * (1.0 - (x / 60.0).min(1.0))
+                    } else {
+                        0.0
+                    };
+                    let v = vib
+                        * ((x - 200.0) / 150.0).clamp(0.0, 1.0)
+                        * (TAU * 5.5 * t / 1000.0).sin();
+                    m + (scoop + v) / 100.0
+                })
+        },
+        AMP,
+        HUMAN,
+    );
+    let centre = window_len(SR) as f64 / 2.0;
+    analyze_buffer(&audio, SR, &CaptureConfig::default())
+        .iter()
+        .map(|f| VoiceFrame {
+            t_ms: (f.sample_index as f64 + centre) * 1000.0 / SR as f64,
+            f0_hz: f.f0_hz,
+            confidence: f.confidence,
+            voiced: f.voiced,
+        })
+        .collect()
+}
+
+#[test]
+fn t005_07_sung_reference_capture_recovers_the_melody() {
+    for (name, song) in [
+        ("música de teste", test_song()),
+        ("regressão", regression_song()),
+    ] {
+        for vib in [0.0, 50.0, 100.0] {
+            let notes = segment_notes(&record(&song, vib));
+            let (correct, got, truth) = note_match(&song, &notes);
+            let (recall, precision) = (
+                correct as f64 / truth as f64,
+                correct as f64 / got.max(1) as f64,
+            );
+            let r = perfect_singer_against(&song, notes);
+            eprintln!(
+                "| gravação cantada, {name}, vibrato ±{vib} c | {correct}/{truth} (recall {:.0}%) | precisão {:.0}% | {} geradas | cantor perfeito {} |",
+                100.0 * recall,
+                100.0 * precision,
+                got,
+                r.score
+            );
+            // Wide vibrato (±100 c) costs some extra notes; still a usable reference.
+            let (min_p, min_score) = if vib <= 50.0 {
+                (0.9, 95.0)
+            } else {
+                (0.8, 94.0)
+            };
+            assert!(
+                recall >= 0.85 && precision >= min_p,
+                "{name} ±{vib}: {correct}/{got}/{truth}"
+            );
+            assert!(r.score >= min_score, "{name} ±{vib}: {r:?}");
+        }
     }
 }
 

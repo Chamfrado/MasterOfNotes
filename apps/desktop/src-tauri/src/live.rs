@@ -45,6 +45,10 @@ pub struct StartPerformance {
     /// Latency probe (T-004-07): click times in video ms. Exclusive with `leak_check`.
     #[serde(default)]
     pub latency_probe: Option<Vec<f64>>,
+    /// Sung reference capture (T-005-07): the detected notes become the active reference.
+    /// Exclusive with `leak_check` and `latency_probe`.
+    #[serde(default)]
+    pub reference_capture: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -65,6 +69,8 @@ pub struct PerformanceOutcome {
     pub leak: Option<LeakVerdict>,
     /// Only on latency probe runs.
     pub latency: Option<LatencyVerdict>,
+    /// Only on reference capture runs: the new active reference (`None` = too few notes).
+    pub captured_reference: Option<reference::Reference>,
     pub personal_best: Option<f32>,
     pub song_record: Option<f32>,
     /// pt-BR: why the run did not count for the ranking (`None` when competitive).
@@ -75,6 +81,10 @@ const REASON_HALF: &str = "Menos da metade da música foi tocada: a apresentaç�
 const REASON_NO_DURATION: &str =
     "A duração da música ainda não é conhecida: a apresentação valeu como treino.";
 const REASON_TRAINING: &str = "A apresentação valeu como treino.";
+/// A sung reference needs at least this many notes to be saved (T-005-07).
+const MIN_CAPTURED_NOTES: usize = 3;
+const REASON_FEW_NOTES: &str =
+    "Poucas notas detectadas: cante a melodia mais perto do microfone e tente de novo.";
 
 /// What the run needs to be stored when it finishes (captured at start).
 #[derive(Debug, Clone, PartialEq)]
@@ -89,6 +99,8 @@ pub struct RunContext {
     pub leak_check: Option<(Option<String>, f64)>,
     /// Latency probe run (T-004-07).
     pub latency_probe: bool,
+    /// Sung reference capture run (T-005-07).
+    pub reference_capture: bool,
     /// Why the run was not competitive from the start (the `reason` of `PerformanceStarted`).
     pub start_reason: Option<String>,
 }
@@ -222,8 +234,23 @@ pub fn prepare(
             ));
         }
     }
+    let capture_run = args.reference_capture;
+    if capture_run
+        && (args.leak_check
+            || args.latency_probe.is_some()
+            || args.round_id.is_some()
+            || args.participant_id.is_some())
+    {
+        return Err(AppError::invalid_input(
+            "A gravação da referência roda sozinha: sem teste de vazamento, sonda, rodada ou participante.",
+        ));
+    }
     let probe = args.latency_probe.is_some();
     let (competitive, reason) = match active.as_ref().map(|r| r.status.as_str()) {
+        _ if capture_run => (
+            false,
+            Some("Gravação da referência: cante a melodia da música."),
+        ),
         _ if probe => (
             false,
             Some("Sonda de latência: bata palmas junto com os cliques."),
@@ -256,7 +283,8 @@ pub fn prepare(
         ),
     };
     let reference = match &active {
-        Some(_) if probe => None, // the probe only listens for clicks
+        // The probe only listens for clicks; a capture writes a new reference.
+        Some(_) if probe || capture_run => None,
         Some(r) => {
             let notes_json: String = conn.query_row(
                 "SELECT notes_json FROM melody_references WHERE id = ?1",
@@ -285,17 +313,22 @@ pub fn prepare(
         capture,
         leak_check: args.leak_check,
         latency_probe: args.latency_probe.clone(),
+        reference_capture: capture_run,
     };
     let ctx = RunContext {
         song_id: args.song_id.clone(),
         round_id: args.round_id,
         participant_id: args.participant_id,
-        reference: active.as_ref().map(|r| (r.id, r.revision)),
+        reference: active
+            .as_ref()
+            .filter(|_| !capture_run)
+            .map(|r| (r.id, r.revision)),
         difficulty: s.difficulty,
         leak_check: args
             .leak_check
             .then(|| (s.input_device_id.clone(), s.video_volume)),
         latency_probe: probe,
+        reference_capture: capture_run,
         start_reason: reason.map(str::to_owned),
     };
     Ok((
@@ -321,10 +354,28 @@ pub fn persist(
         exploratory: None,
         leak: None,
         latency: None,
+        captured_reference: None,
         personal_best: None,
         song_record: None,
         reason: None,
     };
+    // Sung reference (T-005-07): only the notes are kept, as the new active reference.
+    if ctx.reference_capture {
+        let notes = summary.captured_notes.unwrap_or_default();
+        log::info!("reference capture: {} notes detected", notes.len());
+        if notes.len() < MIN_CAPTURED_NOTES {
+            return Ok(PerformanceOutcome {
+                exploratory: summary.exploratory,
+                reason: Some(REASON_FEW_NOTES.to_owned()),
+                ..not_stored
+            });
+        }
+        return Ok(PerformanceOutcome {
+            exploratory: summary.exploratory,
+            captured_reference: Some(reference::store_captured(conn, &ctx.song_id, notes)?),
+            ..not_stored
+        });
+    }
     // Latency probe (T-004-07): a passed measurement becomes the latency setting.
     if ctx.latency_probe {
         let Some(verdict) = summary.latency else {
@@ -461,6 +512,7 @@ pub fn persist(
         exploratory: None,
         leak: None,
         latency: None,
+        captured_reference: None,
         personal_best: ctx.participant_id.and_then(|p| best(&|q| q == Some(p))),
         song_record: best(&|_| true),
         reason,
@@ -745,6 +797,100 @@ mod tests {
     }
 
     #[test]
+    fn reference_capture_stores_notes_as_new_active_reference() {
+        // Works over an existing reference and without one.
+        let (_d, mut conn) = env(Some("validated"), Some(10_000));
+        let old = reference::active(&conn, "s1").unwrap().unwrap();
+        let run = StartPerformance {
+            reference_capture: true,
+            ..args()
+        };
+        let (cfg, ctx, started) = prepare(&conn, &run).unwrap();
+        assert!(cfg.reference_capture && cfg.reference.is_none() && !cfg.competitive);
+        assert!(!started.competitive && started.reason.is_some());
+        assert_eq!(ctx.reference, None, "nothing scored against the old one");
+
+        let sung = |n: u32| {
+            let mut s = summary(false, 9_000, None);
+            s.captured_notes = Some(
+                (0..n)
+                    .map(|i| scoring_engine::Note {
+                        start_ms: 1_000 + i * 600,
+                        dur_ms: 500,
+                        midi: 60.0 + i as f32,
+                        lyric: None,
+                    })
+                    .collect(),
+            );
+            s
+        };
+        // Too few notes: nothing stored, the old reference stays active.
+        let out = persist(&mut conn, &ctx, sung(2)).unwrap();
+        assert_eq!(out.captured_reference, None);
+        assert_eq!(out.reason.as_deref(), Some(REASON_FEW_NOTES));
+        assert_eq!(reference::active(&conn, "s1").unwrap().unwrap().id, old.id);
+        let out = persist(&mut conn, &ctx, summary(false, 9_000, None)).unwrap();
+        assert_eq!(out.reason.as_deref(), Some(REASON_FEW_NOTES), "no notes");
+
+        let out = persist(&mut conn, &ctx, sung(3)).unwrap();
+        let new = out.captured_reference.clone().unwrap();
+        assert_eq!(
+            (
+                new.source.as_str(),
+                new.status.as_str(),
+                new.revision,
+                new.offset_ms
+            ),
+            ("manual", "experimental", 1, 0)
+        );
+        assert_eq!(new.notes.len(), 3);
+        assert_eq!((new.notes[2].start_ms, new.notes[2].midi), (2_200, 62.0));
+        assert_eq!(reference::active(&conn, "s1").unwrap(), Some(new));
+        assert_eq!(
+            (out.performance_id, out.competitive, out.reason.as_deref()),
+            (None, false, None)
+        );
+        let (refs, perfs): (i64, i64) = conn
+            .query_row(
+                "SELECT (SELECT count(*) FROM melody_references), (SELECT count(*) FROM performances)",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!((refs, perfs), (2, 0), "old reference kept for history");
+        let json = serde_json::to_value(&out).unwrap();
+        assert_eq!(json["capturedReference"]["source"], "manual");
+
+        // Song without a reference.
+        let (_d, mut conn) = env(None, None);
+        let (_, ctx, _) = prepare(&conn, &run).unwrap();
+        persist(&mut conn, &ctx, sung(4)).unwrap();
+        assert_eq!(
+            reference::active(&conn, "s1").unwrap().unwrap().notes.len(),
+            4
+        );
+
+        // Runs alone.
+        let ana = sessions::create_participant(&conn, "Ana").unwrap().id;
+        for bad in [
+            StartPerformance {
+                leak_check: true,
+                ..run.clone()
+            },
+            StartPerformance {
+                latency_probe: Some(vec![1.0]),
+                ..run.clone()
+            },
+            StartPerformance {
+                participant_id: Some(ana),
+                ..run.clone()
+            },
+        ] {
+            assert_eq!(prepare_err(&conn, &bad), "invalid_input");
+        }
+    }
+
+    #[test]
     fn leak_check_is_read_only_for_update_settings() {
         let (_d, mut conn) = env(None, None);
         let patch = check(None, 1.0, true).as_object().cloned().unwrap();
@@ -768,6 +914,7 @@ mod tests {
             participant_id: None,
             leak_check: false,
             latency_probe: None,
+            reference_capture: false,
         }
     }
 
@@ -792,6 +939,7 @@ mod tests {
             }),
             leak: None,
             latency: None,
+            captured_notes: None,
             capture: CaptureStats {
                 device_id: None,
                 sample_rate: 48_000,
@@ -950,6 +1098,7 @@ mod tests {
             participant_id: Some(b),
             leak_check: false,
             latency_probe: None,
+            reference_capture: false,
         };
         assert_eq!(prepare_err(&conn, &wrong), "invalid_input");
 
@@ -959,6 +1108,7 @@ mod tests {
             participant_id: round.participant_id,
             leak_check: false,
             latency_probe: None,
+            reference_capture: false,
         };
         let (_, ctx_a, _) = prepare(&conn, &start(ra)).unwrap();
         // Training run: round stays pending.
