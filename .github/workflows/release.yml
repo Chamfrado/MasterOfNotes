@@ -5,9 +5,12 @@
 # (owner); the public key goes in tauri.conf.json `plugins.updater.pubkey` (Agent 1). Pushing a v* tag or
 # running this workflow is still the owner's decision. Without the secrets, "Check signing secrets" fails
 # with an explicit message.
-# Updater artifacts (.sig + latest.json) are enabled only here, through .github/tauri-updater.conf.json,
-# so local `tauri build` never needs the private key. A config FILE instead of inline JSON: on Windows the
-# runner (`pnpm`, a .cmd shim) goes through cmd.exe, where inline JSON quoting is fragile.
+# Release-only settings live in .github/tauri-release.conf.json, so local `tauri build`, `cargo test` and the
+# CI never need them: updater artifacts (.sig + latest.json, needs the private key) and the bundled
+# onnxruntime.dll + THIRD-PARTY-NOTICES.txt (SPEC-012 "Decisões de runtime"; resource paths are relative to
+# apps/desktop/src-tauri). The DLL is fetched by "Fetch ONNX Runtime" below and never committed.
+# A config FILE instead of inline JSON: on Windows the runner (`pnpm`, a .cmd shim) goes through cmd.exe,
+# where inline JSON quoting is fragile.
 
 name: Release
 
@@ -62,6 +65,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      # SPEC-012: official Microsoft onnxruntime.dll (NuGet, MIT), checked against a pinned SHA-256.
+      # Any failure (download or hash) fails the release: never ship an unverified DLL.
+      - name: Fetch ONNX Runtime
+        run: node apps/desktop/src-tauri/scripts/fetch-onnxruntime.mjs
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,7 +77,7 @@ jobs:
           projectPath: apps/desktop
           tauriScript: pnpm tauri
           # Relative to projectPath (apps/desktop), as the Tauri CLI and tauri-action both resolve it.
-          args: --bundles nsis --config ../../.github/tauri-updater.conf.json
+          args: --bundles nsis --config ../../.github/tauri-release.conf.json
           tagName: v__VERSION__
           releaseName: Master Of Notes v__VERSION__
           releaseBody: Rascunho gerado pelo CI. Revise as notas antes de publicar.
