@@ -450,6 +450,7 @@ const UVR_MODEL = {
   name: "UVR-MDX-NET Voc_FT",
   fileName: "UVR-MDX-NET-Voc_FT.onnx",
   sizeBytes: 66_762_490,
+  pageUrl: "https://github.com/Anjok07/ultimatevocalremovergui",
   sourceUrl: "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/UVR-MDX-NET-Voc_FT.onnx",
   license:
     "Modelo do projeto Ultimate Vocal Remover (UVR). Os autores não declararam uma licença para os pesos do modelo; o código do UVR é MIT e os autores pedem crédito. Não sabemos se o uso comercial é permitido. O Master Of Notes não distribui este arquivo: você o baixa da fonte original e o uso é de sua responsabilidade.",

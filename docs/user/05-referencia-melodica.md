@@ -103,12 +103,12 @@ Se o vídeo tem a **voz do cantor**, o app pode criar a referência sozinho: ele
 O app **não vem com o modelo** e **não baixa nada sozinho**. O modelo é um arquivo `.onnx` feito por outros autores. Quem baixa é você, da fonte original:
 
 1. Em **[Ajustes](10-ajustes-e-modo-tv.md#referência-automática) → Referência automática**, veja a lista de modelos aceitos. Hoje há um: **UVR-MDX-NET Voc_FT** (cerca de 64 MB). A lista mostra o nome, o tamanho, a **Licença**, o nome do arquivo (`UVR-MDX-NET-Voc_FT.onnx`) e o SHA-256 (uma espécie de impressão digital do arquivo). **Leia o texto da licença** antes de continuar.
-2. Clique em **Abrir página do modelo**. O endereço da fonte original abre no navegador. Para esse modelo, o endereço é o próprio arquivo, no repositório de modelos do projeto Ultimate Vocal Remover no GitHub, e o navegador começa a baixá-lo.
-3. Espere o download terminar. Não renomeie nem abra o arquivo.
+2. **Leia a página do projeto antes de baixar**: clique em **Abrir página do projeto**. A página do projeto Ultimate Vocal Remover abre no navegador, com os créditos dos autores e os termos.
+3. Se concordar, clique em **Baixar o arquivo do modelo**. O download acontece no seu navegador, direto do repositório de modelos do projeto. Espere terminar e não renomeie nem abra o arquivo.
 4. No app, marque **Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade.** Só então o botão **Escolher arquivo baixado…** fica disponível.
 5. Clique em **Escolher arquivo baixado…** e escolha o arquivo. O app mostra *"Conferindo o arquivo…"* e verifica se ele é **exatamente** um dos modelos da lista. Se for, guarda uma cópia na pasta de dados do app, e a seção passa a mostrar *"<nome do modelo> · instalado em <data>"*. Um arquivo diferente (outro modelo, outra versão ou um download que veio corrompido) é **recusado**, com a explicação.
 
-![Seção Referência automática em Ajustes: o modelo UVR-MDX-NET Voc_FT (64 MB) com o texto da licença, o arquivo e o SHA-256, o botão Abrir página do modelo, o aviso de que o modelo é de terceiros, a caixa "Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade." e o botão Escolher arquivo baixado….](media/ajustes-modelo.png)
+![Seção Referência automática em Ajustes: o modelo UVR-MDX-NET Voc_FT (64 MB) com o texto da licença, o arquivo e o SHA-256, "Leia a página do projeto antes de baixar.", os botões Abrir página do projeto e Baixar o arquivo do modelo, o aviso "O modelo é de terceiros: o download acontece no seu navegador…", a caixa "Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade." e o botão Escolher arquivo baixado….](media/ajustes-modelo.png)
 
 Para desinstalar o modelo, clique em **Remover** na mesma seção.
 

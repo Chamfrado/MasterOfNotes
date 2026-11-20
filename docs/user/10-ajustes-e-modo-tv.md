@@ -31,7 +31,7 @@ Clique em **Ajustes** no menu. Cada mudança é salva na hora; não há botão d
 
 ## Referência automática
 
-Aqui você instala o **modelo de separação** usado por **Gerar automaticamente**. A lista mostra os modelos aceitos, com nome, tamanho, licença, arquivo e SHA-256, e o botão **Abrir página do modelo**. O app não baixa o modelo: você baixa pelo navegador, marca **Li e aceito os termos da fonte…** e clica em **Escolher arquivo baixado…**. Com o modelo instalado, aparecem a data da instalação e o botão **Remover**. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação), com o aviso sobre a licença.
+Aqui você instala o **modelo de separação** usado por **Gerar automaticamente**. A lista mostra os modelos aceitos, com nome, tamanho, licença, arquivo e SHA-256, e os botões **Abrir página do projeto** (leia antes de baixar) e **Baixar o arquivo do modelo**. O app não baixa o modelo: o download acontece no seu navegador. Depois você marca **Li e aceito os termos da fonte…** e clica em **Escolher arquivo baixado…**. Com o modelo instalado, aparecem a data da instalação e o botão **Remover**. Veja [Instalar o modelo de separação](05-referencia-melodica.md#instalar-o-modelo-de-separação), com o aviso sobre a licença.
 
 ## Microfone e volume
 
