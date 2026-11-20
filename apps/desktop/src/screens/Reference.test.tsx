@@ -100,6 +100,28 @@ describe("Reference", () => {
     expect(await screen.findByText("Referência experimental")).toBeInTheDocument();
   });
 
+  it("imports an UltraStar .txt: badge, duet notice and the auto-align suggestion until used (SPEC-013)", async () => {
+    vi.mocked(ipc.getReference).mockResolvedValue(null);
+    vi.mocked(open).mockResolvedValue("C:/r/aquarela.txt");
+    vi.mocked(ipc.importReference).mockResolvedValue(
+      ref({ id: 30, source: "ultrastar", notice: "Arquivo de dueto: importamos a parte do primeiro cantor." }),
+    );
+    vi.mocked(ipc.autoAlignReference).mockResolvedValue({ offsetMs: 0, confidence: 0.9 });
+    renderRef();
+    await userEvent.click(await screen.findByRole("button", { name: "Importar referência" }));
+    expect(open).toHaveBeenCalledWith(
+      expect.objectContaining({ filters: [{ name: "MIDI, JSON ou UltraStar (.txt)", extensions: ["mid", "midi", "json", "txt"] }] }),
+    );
+    expect(ipc.importReference).toHaveBeenCalledWith("s1", "C:/r/aquarela.txt", null);
+    expect(await screen.findByText("UltraStar")).toBeInTheDocument();
+    expect(screen.getByText("Arquivo de dueto: importamos a parte do primeiro cantor.")).toBeInTheDocument();
+    const hint = screen.getByText(/Arquivos UltraStar costumam seguir o tempo da gravação original/);
+    expect(hint.closest('[role="status"]')).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Alinhar automaticamente" }));
+    expect(ipc.autoAlignReference).toHaveBeenCalledWith(30, "tok");
+    expect(screen.queryByText(/Arquivos UltraStar costumam/)).not.toBeInTheDocument();
+  });
+
   it("asks which MIDI track is the voice when several have notes", async () => {
     vi.mocked(ipc.getReference).mockResolvedValue(null);
     vi.mocked(open).mockResolvedValue("C:/r/song.MID");
