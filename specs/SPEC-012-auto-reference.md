@@ -137,6 +137,6 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
     - M2: voz baixa logo acima do limiar salva uma referência com 28 % das notas, sem aviso;
     - M3: o texto "é só instrumental" aparece quando há voz baixa (o limiar está certo, o texto não);
     - M4: a memória cresce cerca de 30 MiB/min (10 min = 1535 MiB).
-  - **Baixos:** B1 (NaN no upload), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
+  - **Baixos:** B1 (NaN; já recusado no upload do app, só pelo crate direto), B2 (viés de ±31–36 ms no alinhamento, sem efeito na pontuação), B3 (inglês numa mensagem inalcançável).
   - O modelo e a DLL foram apagados ao final.
 - QA independente (Agente 4, 2026-11-20): sem achados ALTOS. M2/M3 corrigidos na 0.1.3; M1 (andamento ≠ vídeo) e M4 (memória em 10 min: ~1,5 GB) ficam para a 0.1.4/documentação; B1 já coberto pelo upload (NaN/Inf → audio_invalid). Relatório: docs/testing/evidence/song-analysis-qa.md.
