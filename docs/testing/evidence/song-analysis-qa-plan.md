@@ -36,7 +36,7 @@ Códigos decididos no contrato (contracts.md §2.5, coordenador, 2026-11-20), j�
 O `useSyntheticVideo(page, ms, audio)` ganhou a trilha Opus de 440 Hz (oscilador → `MediaStreamDestination`), porque a UI decodifica o áudio do vídeo.
 
 **`e2e/auto-reference.e2e.ts`: 6 testes de UI, todos verdes**
-1. Ajustes: o aceite é obrigatório; o arquivo desconhecido é recusado; o modelo instala, continua instalado depois de reabrir o app e é removido; "Abrir página do modelo" chama o `open_url` com a URL da fonte.
+1. Ajustes: o aceite é obrigatório; o arquivo desconhecido é recusado; o modelo instala, continua instalado depois de reabrir o app e é removido; "Abrir página do projeto" e "Baixar o arquivo do modelo" chamam o `open_url` com `pageUrl` e `sourceUrl`, nessa ordem.
 2. Gerar sem modelo leva a Ajustes, com o foco no título da seção.
 3. Gerar com modelo:
    - as etapas aparecem em `role="status"` e o progresso não mexe no foco;
