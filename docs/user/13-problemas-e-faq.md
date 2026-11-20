@@ -159,7 +159,7 @@ Os motivos mais comuns de *"arquivo UltraStar, linha N: …"*:
 |---|---|
 | *#BPM "…" não é um número positivo* / *#GAP "…" não é um número* | O andamento ou o atraso inicial do cabeçalho está escrito errado. |
 | *nota antes do #BPM* | As notas começam antes da linha `#BPM:`. Ela precisa vir no cabeçalho, antes das notas. |
-| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *falta … da nota* | A linha da nota está incompleta ou com um valor que não é número. |
+| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *a nota não tem início* (ou *duração*, ou *altura*) | A linha da nota está incompleta ou tem um valor que não é um número inteiro (ou é um número grande demais). |
 | *duração … (deve ser maior que zero)* | Uma nota tem duração zero ou negativa. |
 | *altura … (MIDI …) fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada. |
 | *a nota cai fora da música (antes de 0 ms)* | O `#GAP` negativo empurrou uma nota para antes do começo da música. |
