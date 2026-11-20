@@ -25,7 +25,7 @@ Critérios:
 | T-005-01 | Tipos, parser JSON, import MIDI (`midly`, tempo map) + testes | Agente 2 | done |
 | T-005-02 | Fixtures `tests/fixtures/references/` (sintéticas, autoria própria) | Agente 2 | done |
 | T-005-03 | Commands de referência + persistência | Agente 1 | done |
-| T-005-07 | Cantar a referência: `segment_notes` + modo `reference_capture` no performance.rs (Agente 2); command e persistência (Agente 1); UI "Gravar cantando" na tela Referência (Agente 3) | Agentes 2, 1 e 3 | todo |
+| T-005-07 | Cantar a referência: `segment_notes` + modo `reference_capture` no performance.rs (Agente 2); command e persistência (Agente 1); UI "Gravar cantando" na tela Referência (Agente 3) | Agentes 2, 1 e 3 | done |
 | T-005-08 | Modelo opcional baixado pelo usuário (ADR-0004 B) | Agentes 2, 1 e 3 | todo (0.1.3) |
 | T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | done |
 
@@ -66,3 +66,5 @@ Critérios:
   - "Parar" (ou o fim do vídeo) pausa, envia o último sync e chama `finishPerformance`. Se `capturedReference` vier, a tela volta ao editor com as notas no piano roll, selo "Cantada" + "Referência experimental", e os botões de sempre: offset, Validar, Gravar de novo. Se vier `null`, mostra o `reason` do Rust e oferece "Gravar de novo". "Cancelar" e sair da tela chamam `abortPerformance`.
   - Testes: `Reference.test.tsx`, +3 (gravação sem referência → experimental; `null` com reason ao fim do vídeo; cancelar aborta e mantém a referência validada).
   - ⏳ Não visto no WebView2 real com microfone; a fake-backend do e2e não simula `referenceCapture`.
+- T-005-07, parte do Agente 2 `review` (2026-11-19): `scoring_engine::segment_notes` (Viterbi sobre semitons, custo de troca 8, trechos < 80 ms absorvidos, correção de oitava, semitom A440 escolhido por evidência contra fracionário e grade com afinação) e o modo `reference_capture` no `performance.rs` (`PerformanceSummary.captured_notes`; seek regrava a partir do ponto). Voz realista com ±40 ms de erro de tempo: recall 92–100%, precisão 82–100%, cantor perfeito contra a referência gravada 95,0–98,8. Números em [scoring-accuracy.md](../docs/testing/scoring-accuracy.md#gravação-de-referência-cantada-segment_notes-t-005-07). ⏳ Voz real.
+- T-005-07 done (Agente 0, 2026-11-19): referência cantada de ponta a ponta (segment_notes + reference_capture do Agente 2, persistência do Agente 1, UI do Agente 3). Validação em main abaixo. ⏳ gravação real com microfone e voz.
