@@ -24,7 +24,8 @@ Critérios:
 | T-013-02 | Migração 002 (`source` com `'ultrastar'`) + teste de migração com dados da 0.1.3; `import_reference` aceita `.txt` | Agente 1 | todo |
 | T-013-03 | UI: filtro `.txt` no diálogo, selo "UltraStar", aviso de dueto, sugestão de alinhar | Agente 3 | todo |
 | T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | todo |
-| T-013-05 | Guia (05, FAQ): o que é UltraStar, como importar, por que alinhar, aviso de direitos | Agente 5 | todo |
+| T-013-05 | Guia (05, FAQ): o que é UltraStar, como importar, por que alinhar, aviso de direitos | Agente 5 | in_progress |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
+- T-013-05 `in_progress` (Agente 5, 2026-11-20): texto a partir desta spec e do contracts.md, sem mídia. 05: tabela com 4 caminhos (UltraStar: notas escritas, mas tempo da gravação original → alinhar), lista de arquivos aceitos, seção "Arquivos UltraStar (.txt)" (o que é, douradas como normais, freestyle/rap fora, acentos de arquivos antigos, selo UltraStar, dueto só P1 com o aviso do R3, alinhar depois com Alinhar automaticamente, erro com número da linha), aviso de direitos (o app não inclui nem baixa). 13-FAQ: 3 perguntas (o que é/onde conseguir, notas adiantadas, dueto) + linha de erro genérica. README e glossário. Verificador de links ✅. ⏳ Rótulos (TODO em comentários) e mídia quando a UI da T-013-03 existir; mensagens exatas de erro do import_ultrastar.

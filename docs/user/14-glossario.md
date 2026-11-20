@@ -55,6 +55,8 @@
 
 **Treino** — Apresentação que recebe nota, mas não entra no ranking. Veja [Valendo ranking ou treino?](06-cantar.md#valendo-ranking-ou-treino).
 
+**UltraStar** — Formato de karaokê em texto (`.txt`), criado pela comunidade do jogo UltraStar, com as notas e a letra da música. Pode ser importado como referência; depois, alinhe com o vídeo. Veja [Arquivos UltraStar](05-referencia-melodica.md#arquivos-ultrastar-txt).
+
 **Validada** — Referência melódica cujo alinhamento foi conferido. Libera o ranking.
 
 **Vazamento** — Quando o som da música sai pelas caixas e entra no microfone. Resolve-se com fones de ouvido ou volume mais baixo.

@@ -48,8 +48,9 @@ Se é a primeira vez, siga nesta ordem:
 
 ### 5. [Referência melódica](05-referencia-melodica.md)
 - O que é e por que, sem ela, não há pontuação
-- De onde tirar: arquivo MIDI (`.mid`/`.midi`) ou JSON no formato `mon-melody v1`, cantando a melodia ou a partir do vídeo
+- De onde tirar: arquivo MIDI (`.mid`/`.midi`) ou JSON no formato `mon-melody v1`, UltraStar (`.txt`), cantando a melodia ou a partir do vídeo
 - **Importar referência** e escolher a trilha da voz (**Qual trilha é a voz?**)
+- Arquivos **UltraStar** (`.txt`): o que são, dueto e por que alinhar depois
 - **Gravar cantando**: criar a referência cantando a melodia, quando não há arquivo
 - **Gerar automaticamente** a partir do vídeo (com o modelo de separação que você baixa) e **Alinhar automaticamente**
 - Alinhar com o vídeo: **Offset das notas**, botões de ajuste fino, **Salvar offset**, **Desfazer**

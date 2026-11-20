@@ -70,6 +70,18 @@ A música não tem referência melódica. Veja [Referência melódica](05-refere
 
 Sim: crie a referência com [Gravar cantando](05-referencia-melodica.md#gravar-cantando). Quem grava deve conhecer bem a melodia e cantar afinado, de fones, porque as notas gravadas viram o gabarito de todo mundo.
 
+### O que é um arquivo UltraStar? Onde consigo um?
+
+É um arquivo de texto (`.txt`) com as notas e a letra de uma música, num formato criado pela comunidade de karaokê do UltraStar. O app **não inclui nem baixa** arquivos UltraStar: use só arquivos que você tem o direito de usar. Veja [Arquivos UltraStar](05-referencia-melodica.md#arquivos-ultrastar-txt).
+
+### Importei um UltraStar e as notas estão adiantadas ou atrasadas
+
+É o esperado: o arquivo segue o tempo da gravação original, e não o do seu vídeo. Use **Alinhar automaticamente** e confira sobre o vídeo antes de aplicar. Veja [Alinhar automaticamente](05-referencia-melodica.md#alinhar-automaticamente).
+
+### O UltraStar é de dueto. Dá para cantar as duas partes?
+
+Não. O app importa só a parte do primeiro cantor (P1). No [Duelo](08-modos-de-jogo.md), as duas pessoas cantam essa mesma parte, cada uma na sua vez.
+
 ### Dá para o app tirar a melodia do próprio vídeo?
 
 Sim, se o vídeo tem a voz do cantor e você instalou o modelo de separação: use [Gerar automaticamente](05-referencia-melodica.md#gerar-automaticamente-a-partir-do-vídeo). A referência gerada pode ter erros; revise antes de validar.
@@ -138,6 +150,9 @@ Não. Sair (**Esc** ou **Sair**) descarta a apresentação. Numa partida, a roda
 | *formato não reconhecido (esperado "mon-melody")* | O JSON não está no formato do Master Of Notes. |
 | *a referência não tem notas* | O arquivo (ou a trilha escolhida) está vazio. |
 | *nota nº N: altura MIDI … fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada; confira o arquivo. |
+| Erro com o número da linha, num arquivo UltraStar | A linha indicada do `.txt` está fora do formato. Abra o arquivo num editor de texto e confira essa linha. |
+
+<!-- TODO(T-013-05): trocar a linha genérica do UltraStar pelas mensagens exatas do import_ultrastar (Agente 2) quando existirem. -->
 
 ## Geral
 
