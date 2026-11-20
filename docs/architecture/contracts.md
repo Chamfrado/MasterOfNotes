@@ -165,9 +165,9 @@ pub const NO_VOICE_DB: f32; // limiar decidido com evidência
 /// analyze_buffer + segment_notes sobre a voz separada.
 pub fn transcribe(vocals: &[f32], sample_rate: u32) -> Vec<Note>;
 pub struct AlignResult { pub offset_ms: i32, pub confidence: f32 /* 0..1 */ }
-/// DTW em croma entre as notas (sintetizadas) e a mistura; offset a somar ao offset atual da referência.
+/// Busca exaustiva de defasagem (±15 s) em croma entre as notas (sintetizadas) e a mistura; offset a somar ao atual. O limiar de "confiança baixa" é da UI (0,5).
 pub fn align_offset_ms(notes: &[Note], mix: &[f32], sample_rate: u32) -> AlignResult;
-pub enum AnalysisError { Model(String), Cancelled, /* ... */ }  // Display pt-BR
+pub enum AnalysisError { Model(String), Input(String) /* ex.: taxa ≠ 44,1 kHz */, Cancelled }  // Display pt-BR; Model/Input → AppError analysis_failed
 ```
 
 Settings: `separationModel: { id, name, acceptedMs } | null` (somente leitura via `update_settings`; muda pelos commands de modelo). Modelo em `app_data_dir/models/<id>.onnx`.
