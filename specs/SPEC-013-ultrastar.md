@@ -20,7 +20,7 @@ Critérios:
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-013-01 | `scoring-engine`: `import_ultrastar(bytes) -> Result<(MelodyReference, UltraStarInfo), RefError>` + testes (BPM/GAP, relativo, F/R/G, dueto, encoding, linha inválida) | Agente 2 | todo |
+| T-013-01 | `scoring-engine`: `import_ultrastar(bytes) -> Result<(MelodyReference, UltraStarInfo), RefError>` + testes (BPM/GAP, relativo, F/R/G, dueto, encoding, linha inválida) | Agente 2 | review |
 | T-013-02 | Migração 002 (`source` com `'ultrastar'`) + teste de migração com dados da 0.1.3; `import_reference` aceita `.txt` | Agente 1 | todo |
 | T-013-03 | UI: filtro `.txt` no diálogo, selo "UltraStar", aviso de dueto, sugestão de alinhar | Agente 3 | review |
 | T-013-04 | fake-backend + E2E + QA (arquivos UltraStar reais de autoria própria, em `tests/fixtures/references/`) | Agente 4 | todo |
@@ -33,3 +33,21 @@ Criada em 2026-11-20 (coordenador), janela autônoma.
   - Se `importReference` devolve `notice` (ex.: dueto, R3), ele aparece em toast.
   - R6: depois de importar um UltraStar, um aviso (`role="status"`) sugere "Alinhar automaticamente". Ele some quando o alinhamento é pedido ou quando outra referência substitui a importada.
   - Testes: `Reference.test.tsx` +1 (filtro, selo, dueto, sugestão até alinhar). ⏳ Não visto com o `import_ultrastar` real (T-013-01/02).
+- 2026-11-20 · Agente 2 · T-013-01 em `review`. Novo `crates/scoring-engine/src/ultrastar.rs`; `import_ultrastar` e `UltraStarInfo` (com `Serialize` em camelCase) são exportados.
+  - **Formato:**
+    - `#BPM` é obrigatório e aceita vírgula decimal;
+    - `#GAP` vale 0 se faltar;
+    - `#RELATIVE:yes`, com quebra de linha de 1 ou 2 números (soma o 2º, ou o único);
+    - `:`/`*` viram notas; `F`/`R`/`G` ficam fora; `-`/`E` são estrutura, e o que vem depois de `E` é ignorado;
+    - `P1`/`P3` entram, `P2` fica fora, e `duet` vale `true` se houver `P2`;
+    - a sílaba é aparada, e `~` de continuação vira `lyric` vazia;
+    - UTF-8 com ou sem BOM; CP1252 se os bytes não forem UTF-8 válido ou se `#ENCODING` declarar CP1252/Latin-1.
+  - **Erros (contrato, a aprovar):** duas variantes novas de `RefError`, com Display em pt-BR:
+    - `UltraStarHeader(String)` → "arquivo UltraStar inválido: falta o #BPM";
+    - `UltraStarLine { line, reason }` → "arquivo UltraStar, linha N: …".
+  - **Validação e skyline:** as mesmas das outras fontes (`validate`).
+  - **Fixtures próprias:** `ultrastar-simple.txt`, `ultrastar-cp1252-relative.txt` e `ultrastar-duet.txt`. O CRLF é testado inline, porque o repo normaliza as fixtures para LF.
+  - **Testes:**
+    - `cargo test -p scoring-engine` ✅ (lib 32, reference 16 com 7 novos, regression 33);
+    - clippy `-D warnings` ✅;
+    - `ALGORITHM_VERSION` não mudou.
