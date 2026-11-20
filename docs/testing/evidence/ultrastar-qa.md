@@ -17,11 +17,11 @@ Agente 4 · 2026-11-20
 - [migration-002-qa.py](migration-002-qa.py): Python só com stdlib, independente do código Rust.
 
 ## Veredito
-**Nenhum achado ALTO nem MÉDIO.** O parser e a migração 002 estão aptos para a 0.1.4. Um achado baixo (B1) e duas observações.
+**Nenhum achado ALTO nem MÉDIO.** O parser e a migração 002 estão aptos para a 0.1.4. Um achado baixo (B1, já corrigido) e duas observações.
 
 | ID | Gravidade | Achado | Sugestão |
 |---|---|---|---|
-| B1 | Baixo | Número acima de 2³¹ (ex.: início `4294967296`) dá "não é um número inteiro", mas ele é inteiro, só grande demais. | "… fora do limite" (texto). |
+| B1 | Baixo, ✅ **corrigido** (agent-2/work @ d1332e8, conferido pela sonda) | Número acima de 2³¹ (ex.: início `4294967296`) dava "não é um número inteiro", mas ele é inteiro, só grande demais. Agora: "início \"4294967296\" é um número fora do limite permitido". | — |
 | O1 | Observação | `~` (continuação de sílaba) vira sílaba vazia. É uma escolha válida, porque a sílaba anterior continua soando; o README das fixtures aceita os dois. | — |
 | O2 | Observação | Depois de migrar para v2, o 0.1.3 não abre mais o banco (`db_too_new`, como manda a Lei). A volta manual é pelo `masterofnotes.db.bak-v1`. Vale uma linha no guia, se houver downgrade. | Guia (Agente 5), opcional. |
 
