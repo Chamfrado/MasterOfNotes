@@ -1,27 +1,37 @@
 // SPEC-005 T-005-04: import (.mid/.midi/.json), pick the MIDI track, align the offset over the video, validate.
+// T-005-07 (R8, ADR-0004 A): or sing the melody over the video; Rust keeps only the detected notes.
 import { open } from "@tauri-apps/plugin-dialog";
 import { useEffect, useRef, useState } from "react";
+import { MicMeter } from "../components/game";
 import { Badge, Button, Card, Dialog, ErrorState, LoadingState, Slider, errorMessage, useToast } from "../components/ui";
 import {
+  abortPerformance,
+  finishPerformance,
   getReference,
   importReference,
   listMidiTracks,
   listSongs,
   setReferenceOffset,
   setReferenceStatus,
+  startPerformance,
+  syncPerformance,
   videoSrc,
   type MelodyReference,
+  type MicFrame,
   type MidiTrackInfo,
   type RefNote,
   type Song,
 } from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
+import { startVideoSync, warn } from "../player/sync";
 import { referenceLabel } from "./Library";
 
 const OFFSET_LIMIT_MS = 10_000; // R4
 const ROLL_BEFORE_MS = 2_000;
 const ROLL_AFTER_MS = 4_000;
+const COUNTDOWN_S = 3;
+const sourceLabel: Record<MelodyReference["source"], string> = { midi: "MIDI", json: "JSON", manual: "Cantada", extracted: "Extraída" };
 
 export interface RollBox {
   x: number; // 0..1, left edge
@@ -87,6 +97,7 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
   const [offset, setOffset] = useState(initial?.offsetMs ?? 0);
   const [busy, setBusy] = useState(false);
   const [tracks, setTracks] = useState<{ path: string; list: MidiTrackInfo[] } | null>(null);
+  const [capturing, setCapturing] = useState(false);
   const dirty = ref != null && offset !== ref.offsetMs;
 
   const run = async (fn: () => Promise<MelodyReference>, done: string) => {
@@ -137,20 +148,37 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
           <p className="text-muted">Referência melódica</p>
           <h1 className="font-display text-5xl font-bold">{song.title}</h1>
         </div>
-        <div className="flex gap-3">
-          <Button onClick={() => navigate({ name: "player", songId: song.id })}>Cantar</Button>
-          <Button variant={ref ? "secondary" : "primary"} onClick={pickFile} disabled={busy}>
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={() => navigate({ name: "player", songId: song.id })} disabled={capturing}>
+            Cantar
+          </Button>
+          <Button onClick={() => setCapturing(true)} disabled={busy || capturing}>
+            {ref?.source === "manual" ? "Gravar de novo" : "Gravar cantando"}
+          </Button>
+          <Button variant={ref ? "secondary" : "primary"} onClick={pickFile} disabled={busy || capturing}>
             {ref ? "Importar outra" : "Importar referência"}
           </Button>
         </div>
       </header>
 
-      {!ref ? (
+      {capturing ? (
+        <SingCapture
+          song={song}
+          replacing={ref != null}
+          onCancel={() => setCapturing(false)}
+          onDone={(r) => {
+            setRef(r);
+            setOffset(r.offsetMs);
+            setCapturing(false);
+            toast("Notas gravadas. Confira o alinhamento e valide.", "success");
+          }}
+        />
+      ) : !ref ? (
         <Card className="flex max-w-2xl flex-col gap-3">
           <h2 className="font-display text-2xl font-semibold">Sem referência</h2>
           <p className="text-muted">
             Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz) ou um JSON
-            no formato mon-melody v1.
+            no formato mon-melody v1, ou grave cantando a melodia junto com o vídeo.
           </p>
         </Card>
       ) : (
@@ -159,7 +187,7 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
           <Card className="flex flex-col gap-5">
             <div className="flex flex-wrap gap-2">
               <Badge tone={referenceLabel[ref.status].tone}>{referenceLabel[ref.status].text}</Badge>
-              <Badge>{ref.source.toUpperCase()}</Badge>
+              <Badge>{sourceLabel[ref.source]}</Badge>
               <Badge>Revisão {ref.revision}</Badge>
               <Badge>{ref.notes.length} notas</Badge>
             </div>
@@ -246,6 +274,163 @@ function Editor({ song, initial }: { song: Song; initial: MelodyReference | null
         </div>
       </Dialog>
     </>
+  );
+}
+
+type CaptureStep =
+  | { step: "intro" }
+  | { step: "countdown"; n: number }
+  | { step: "recording" }
+  | { step: "saving" }
+  | { step: "failed"; reason: string };
+
+/** R8: countdown, the video plays from the start while someone sings; Rust saves only the notes as the new active reference. */
+function SingCapture({
+  song,
+  replacing,
+  onDone,
+  onCancel,
+}: {
+  song: Song;
+  replacing: boolean;
+  onDone: (r: MelodyReference) => void;
+  onCancel: () => void;
+}) {
+  const toast = useToast();
+  const video = useRef<HTMLVideoElement>(null);
+  const open = useRef(false); // a Rust capture is open and must be finished or aborted
+  const [state, setState] = useState<CaptureStep>({ step: "intro" });
+  const [frame, setFrame] = useState<MicFrame | null>(null);
+
+  useEffect(
+    () => () => {
+      if (open.current) abortPerformance().catch(warn("abort_performance"));
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (state.step !== "countdown") return;
+    const t = setTimeout(() => setState(state.n > 1 ? { step: "countdown", n: state.n - 1 } : { step: "recording" }), 1000);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const abort = () => {
+    video.current?.pause();
+    if (!open.current) return;
+    open.current = false;
+    abortPerformance().catch(warn("abort_performance"));
+  };
+
+  const fail = (reason: string) => {
+    abort();
+    setState({ step: "failed", reason });
+  };
+
+  const recording = state.step === "recording";
+  useEffect(() => {
+    const v = video.current;
+    if (!recording || !v) return;
+    v.play().catch((e: unknown) => fail(errorMessage(e)));
+    return startVideoSync(v); // media clock, as in the Player
+  }, [recording]);
+
+  const sync = (playing: boolean) => {
+    if (open.current) syncPerformance(video.current?.currentTime ?? 0, playing, false).catch(warn("sync_performance"));
+  };
+
+  const begin = async () => {
+    const v = video.current;
+    if (!v) return;
+    v.currentTime = 0; // before the capture opens: no seek reaches Rust
+    try {
+      await startPerformance({ songId: song.id, roundId: null, participantId: null, referenceCapture: true }, (t) => setFrame(t.mic));
+      open.current = true;
+      setState({ step: "countdown", n: COUNTDOWN_S });
+    } catch (e) {
+      toast(errorMessage(e), "error");
+    }
+  };
+
+  const stop = async () => {
+    const v = video.current;
+    if (!open.current || !v) return;
+    open.current = false;
+    setState({ step: "saving" });
+    v.pause();
+    await syncPerformance(v.currentTime, false, false).catch(warn("sync_performance"));
+    try {
+      const outcome = await finishPerformance();
+      if (outcome.capturedReference) onDone(outcome.capturedReference);
+      else setState({ step: "failed", reason: outcome.reason ?? "Poucas notas detectadas. Nada foi salvo." });
+    } catch (e) {
+      setState({ step: "failed", reason: errorMessage(e) });
+    }
+  };
+
+  return (
+    <section aria-labelledby="capture-title" className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+      <div className="relative flex items-center justify-center overflow-hidden rounded-lg border border-line bg-black">
+        <video
+          ref={video}
+          src={videoSrc(song)}
+          preload="auto"
+          className="aspect-video w-full"
+          aria-label={`Vídeo de ${song.title}`}
+          onPlay={() => sync(true)}
+          onPause={() => sync(false)}
+          onEnded={stop}
+          onError={() => fail("Não foi possível tocar o vídeo desta música.")}
+        />
+        {state.step === "countdown" && (
+          <p aria-live="assertive" className="absolute font-display text-[10rem] font-bold text-fg drop-shadow-lg">
+            <span key={state.n} className="inline-block animate-enter">
+              {state.n}
+            </span>
+          </p>
+        )}
+        {recording && (
+          <span className="absolute top-4 left-4">
+            <Badge tone="danger">Gravando notas</Badge>
+          </span>
+        )}
+      </div>
+      <Card className="flex flex-col gap-5">
+        <h2 id="capture-title" className="font-display text-2xl font-semibold">
+          Gravar cantando
+        </h2>
+        <p>Cante a melodia junto com o vídeo; o app grava só as notas, nunca a sua voz. Use fones de ouvido.</p>
+        {replacing && <p className="text-sm text-muted">A referência atual fica no histórico; a nova nasce experimental.</p>}
+        {recording && <MicMeter frame={frame} />}
+        <div aria-live="polite">
+          {state.step === "saving" && <p className="font-semibold">Salvando as notas…</p>}
+          {state.step === "failed" && <p className="text-danger">{state.reason}</p>}
+        </div>
+        <div className="flex flex-wrap gap-3">
+          {(state.step === "intro" || state.step === "failed") && (
+            <Button variant="primary" autoFocus onClick={begin}>
+              {state.step === "failed" ? "Gravar de novo" : "Começar"}
+            </Button>
+          )}
+          {recording && (
+            <Button variant="primary" autoFocus onClick={stop}>
+              Parar
+            </Button>
+          )}
+          {state.step !== "saving" && (
+            <Button
+              variant="ghost"
+              onClick={() => {
+                abort();
+                onCancel();
+              }}
+            >
+              Cancelar
+            </Button>
+          )}
+        </div>
+      </Card>
+    </section>
   );
 }
 

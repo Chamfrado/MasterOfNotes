@@ -1,6 +1,7 @@
 // SPEC-009 R4/R7: check → notes → download with progress → confirm → install (the NSIS installer restarts the app).
 // Only reachable outside the player, so an update never interrupts a performance.
 import { getVersion } from "@tauri-apps/api/app";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState } from "react";
 import { Button, Card, Dialog, Progress, errorMessage } from "../components/ui";
@@ -20,6 +21,13 @@ type Phase =
  * "plugin updater not found" (tauri plugin.rs) or "updater.… not allowed. Plugin not found" (ipc/authority.rs).
  */
 export const updaterUnavailable = (e: unknown) => /plugin updater not found|updater.*plugin not found/i.test(errorMessage(e));
+
+/**
+ * No release manifest on the endpoint (404: only pre-releases published, so releases/latest has no latest.json).
+ * The plugin reports Error::ReleaseNotFound for any non-2xx answer (tauri-plugin-updater 2.x updater.rs).
+ */
+export const noPublishedRelease = (e: unknown) => /valid release JSON/i.test(errorMessage(e));
+export const RELEASES_URL = "https://github.com/Chamfrado/MasterOfNotes/releases";
 
 const mb = (bytes: number) => `${(bytes / 1_048_576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
 
@@ -132,7 +140,21 @@ export function Updates() {
         {phase.name === "error" && updaterUnavailable(phase.error) && (
           <p>Atualizações automáticas ainda não estão configuradas nesta versão. O app funciona normalmente.</p>
         )}
-        {phase.name === "error" && !updaterUnavailable(phase.error) && (
+        {phase.name === "error" && noPublishedRelease(phase.error) && (
+          <>
+            <p>Nenhuma versão nova pelo canal de atualizações automáticas.</p>
+            <p className="text-sm text-muted">Versões de teste, quando houver, ficam na página de versões do projeto.</p>
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => openUrl(RELEASES_URL).catch((e: unknown) => console.warn("openUrl:", e))}>
+                Abrir página de versões
+              </Button>
+              <Button variant="ghost" onClick={run}>
+                Verificar de novo
+              </Button>
+            </div>
+          </>
+        )}
+        {phase.name === "error" && !updaterUnavailable(phase.error) && !noPublishedRelease(phase.error) && (
           <>
             <p role="alert" className="text-danger">
               Não foi possível verificar ou baixar a atualização. O app continua funcionando normalmente.
