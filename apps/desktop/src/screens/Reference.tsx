@@ -39,7 +39,13 @@ const OFFSET_LIMIT_MS = 10_000; // R4
 const ROLL_BEFORE_MS = 2_000;
 const ROLL_AFTER_MS = 4_000;
 const COUNTDOWN_S = 3;
-const sourceLabel: Record<MelodyReference["source"], string> = { midi: "MIDI", json: "JSON", manual: "Cantada", extracted: "Extraída" };
+const sourceLabel: Record<MelodyReference["source"], string> = {
+  midi: "MIDI",
+  json: "JSON",
+  manual: "Cantada",
+  extracted: "Extraída",
+  ultrastar: "UltraStar",
+};
 
 export interface RollBox {
   x: number; // 0..1, left edge
@@ -115,6 +121,7 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
   const [panel, setPanel] = useState<"sing" | "generate" | null>(null);
   const [align, setAlign] = useState<AlignState | null>(null);
   const [weakVoiceRef, setWeakVoiceRef] = useState<number | null>(null); // id of a generated reference from a weak voice
+  const [alignHintRef, setAlignHintRef] = useState<number | null>(null); // id of an imported UltraStar not auto-aligned yet
   const capturing = panel != null;
   const dirty = ref != null && offset !== ref.offsetMs;
 
@@ -150,6 +157,7 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
   /** R5: propose an offset; the preview uses it unsaved, the user applies or discards. */
   const autoAlign = async (r: MelodyReference) => {
     const before = offset;
+    setAlignHintRef(null); // suggestion taken
     setAlign({ step: "aligning" });
     try {
       const proposal = await withSongAudio(
@@ -174,7 +182,12 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
   };
 
   const doImport = (path: string, track: number | null) =>
-    run(() => importReference(song.id, path, track), "Referência importada. Confira o alinhamento e valide.");
+    run(async () => {
+      const r = await importReference(song.id, path, track);
+      if (r.notice) toast(r.notice); // e.g. UltraStar duet: only P1 was imported (SPEC-013 R3)
+      setAlignHintRef(r.source === "ultrastar" ? r.id : null);
+      return r;
+    }, "Referência importada. Confira o alinhamento e valide.");
 
   const pickFile = async () => {
     let path: string | null;
@@ -183,7 +196,7 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
         multiple: false,
         directory: false,
         title: "Escolha a referência melódica",
-        filters: [{ name: "Referência melódica (MIDI ou JSON)", extensions: ["mid", "midi", "json"] }],
+        filters: [{ name: "MIDI, JSON ou UltraStar (.txt)", extensions: ["mid", "midi", "json", "txt"] }],
       });
     } catch (e) {
       toast(errorMessage(e), "error");
@@ -230,6 +243,13 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
             A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar.
           </p>
         )}
+        {/* SPEC-013 R6: UltraStar timing follows the original audio (#MP3), not the karaoke video. */}
+        {!capturing && ref != null && ref.id === alignHintRef && (
+          <p className="text-warning">
+            Arquivos UltraStar costumam seguir o tempo da gravação original, não o deste vídeo. Use Alinhar automaticamente
+            antes de validar.
+          </p>
+        )}
       </div>
 
       {panel === "sing" ? (
@@ -256,8 +276,8 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
         <Card className="flex max-w-2xl flex-col gap-3">
           <h2 className="font-display text-2xl font-semibold">Sem referência</h2>
           <p className="text-muted">
-            Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz) ou um JSON
-            no formato mon-melody v1, grave cantando a melodia junto com o vídeo ou gere automaticamente a partir da voz do
+            Sem a linha melódica não há pontuação competitiva. Importe um arquivo MIDI (escolha a trilha da voz), um JSON
+            no formato mon-melody v1 ou um UltraStar (.txt), grave cantando a melodia junto com o vídeo ou gere automaticamente a partir da voz do
             vídeo.
           </p>
         </Card>
