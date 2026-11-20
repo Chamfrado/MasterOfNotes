@@ -74,12 +74,12 @@ pub fn parse_reference_json(json: &str) -> Result<MelodyReference, RefError>;
 pub fn import_midi(bytes: &[u8], track: Option<usize>) -> Result<MelodyReference, RefError>;
 pub fn midi_tracks(bytes: &[u8]) -> Result<Vec<MidiTrackInfo>, RefError>;  // para o usuário escolher a trilha vocal
 pub fn to_reference_json(r: &MelodyReference) -> String;
-/// UltraStar .txt (SPEC-013): BPM/GAP/RELATIVE, : e * viram notas, F/R/G ficam fora, só o P1 em duetos, sílaba → lyric.
+/// UltraStar .txt (SPEC-013): BPM/GAP/RELATIVE, : e * viram notas, F/R/G ficam fora, dueto = P1 + P3 (trechos em dupla), sílaba → lyric; UTF-8 (com/sem BOM) ou CP1252.
 pub struct UltraStarInfo { pub title: Option<String>, pub artist: Option<String>, pub duet: bool }
 pub fn import_ultrastar(bytes: &[u8]) -> Result<(MelodyReference, UltraStarInfo), RefError>;  // inverso do parse; formato de melody_references.notes_json
 pub struct MidiTrackInfo { pub index: usize, pub name: Option<String>, pub note_count: u32 }
 /// Display pt-BR pronto para o usuário. import_midi(None) com várias trilhas → TrackRequired.
-pub enum RefError { Json, UnknownFormat, UnsupportedVersion, Empty, ZeroDuration{..}, PitchOutOfRange{..}, Midi, SmpteUnsupported, SequentialUnsupported, NoSuchTrack, TrackRequired }
+pub enum RefError { Json, UnknownFormat, UnsupportedVersion, Empty, ZeroDuration{..}, PitchOutOfRange{..}, Midi, SmpteUnsupported, SequentialUnsupported, NoSuchTrack, TrackRequired, UltraStarHeader(String), UltraStarLine { line, reason } }
 
 pub enum Difficulty { Easy, Normal, Hard }   // serde: "easy" | "normal" | "hard"
 pub struct VoiceFrame { pub t_ms: f64 /* tempo de música */, pub f0_hz: Option<f32>, pub confidence: f32, pub voiced: bool }
