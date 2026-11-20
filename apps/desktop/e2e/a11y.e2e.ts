@@ -207,6 +207,27 @@ const screens: ScreenDef[] = [
     backTo: dialogClosed,
   },
   {
+    name: "Gravar cantando",
+    reach: async (p) => {
+      await openReference(p);
+      await p.getByRole("button", { name: "Gravar cantando" }).click();
+      await expect(p.getByText("A referência atual fica no histórico; a nova nasce experimental.")).toBeVisible();
+    },
+    backTo: libraryVisible,
+  },
+  {
+    name: "Gravando notas",
+    videoMs: 2000,
+    reach: async (p) => {
+      await openReference(p);
+      await p.getByRole("button", { name: "Gravar cantando" }).click();
+      await p.getByRole("button", { name: "Começar" }).click();
+      await expect(p.getByText("Gravando notas")).toBeVisible({ timeout: 10_000 });
+      await p.locator("video").evaluate((v: HTMLVideoElement) => v.pause()); // stays recording; the video never ends mid-audit
+    },
+    backTo: libraryVisible,
+  },
+  {
     name: "Diálogo Pular trecho",
     videoMs: 6000,
     reach: async (p) => {

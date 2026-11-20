@@ -3,15 +3,20 @@
 // mirrors their observable shape so UI flows can be driven end to end. State survives page reloads
 // (localStorage), which stands in for closing and reopening the app.
 import type { Page } from "@playwright/test";
-import type { GameSession, Participant, PerformanceOutcome, Round, Standing } from "../src/lib/ipc";
+import type { GameSession, MelodyReference, Participant, PerformanceOutcome, RefNote, Round, Standing, StartPerformance } from "../src/lib/ipc";
 
 interface Db {
   participants: Participant[];
   sessions: GameSession[];
   /** Score given to each finished performance, in order. */
   scores: number[];
-  active: { roundId: number | null } | null;
+  active: { roundId: number | null; captureSongId?: string } | null;
   nextId: number;
+  /** Every reference ever stored (history, R5); `activeRefs` maps song → its active one. */
+  references: MelodyReference[];
+  activeRefs: Record<string, number>;
+  /** Notes "detected" by each sung reference capture, in order (none left = nothing detected). */
+  captures: RefNote[][];
 }
 
 export interface FakeOptions {
@@ -19,15 +24,28 @@ export interface FakeOptions {
   participants?: Participant[];
   /** The two duel performances have different CompatKeys (e.g. the reference got a new revision in between). */
   incompatibleDuel?: boolean;
+  /** Active references when the app opens. */
+  references?: MelodyReference[];
+  /** Notes each `referenceCapture` run "detects", in order (live.rs keeps ≥ 3 as the new active reference). */
+  captures?: RefNote[][];
 }
 
 export async function installFakeBackend(page: Page, scores: number[], opts: FakeOptions = {}) {
   await page.addInitScript(({ scores, opts }) => {
     const KEY = "e2e-fake-db";
     const load = (): Db =>
-      JSON.parse(localStorage.getItem(KEY) ?? "null") ?? { participants: opts.participants ?? [], sessions: [], scores, active: null, nextId: 100 };
-    const fail = (message: string) => {
-      throw { code: "TEST", message };
+      JSON.parse(localStorage.getItem(KEY) ?? "null") ?? {
+        participants: opts.participants ?? [],
+        sessions: [],
+        scores,
+        active: null,
+        nextId: 100,
+        references: opts.references ?? [],
+        activeRefs: Object.fromEntries((opts.references ?? []).map((r) => [r.songId, r.id])),
+        captures: opts.captures ?? [],
+      };
+    const fail = (message: string, code = "TEST") => {
+      throw { code, message };
     };
     /** Runs `fn` on the persisted db and saves it. */
     const tx = <T,>(fn: (db: Db) => T): T => {
@@ -124,15 +142,47 @@ export async function installFakeBackend(page: Page, scores: number[], opts: Fak
           s.completedMs = Date.UTC(2026, 10, 19, 21, 0);
           return withDuel(s);
         }),
+      // References (reference.rs): only the active one is visible; new ones deactivate the previous (R5).
+      get_reference: ({ songId }) => {
+        const db = load();
+        return db.references.find((r) => r.id === db.activeRefs[String(songId)]) ?? null;
+      },
+      set_reference_status: ({ referenceId, status }) =>
+        tx((db) => {
+          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.");
+          r.status = status as MelodyReference["status"];
+          return r;
+        }),
       start_performance: ({ args }) =>
         tx((db) => {
-          db.active = { roundId: (args as { roundId: number | null }).roundId };
+          const a = args as StartPerformance;
+          // Same rules as live.rs start_performance (T-005-07): a capture runs alone and is never competitive.
+          if (a.referenceCapture) {
+            if (a.leakCheck || a.latencyProbe || a.roundId != null || a.participantId != null)
+              fail("A gravação da referência roda sozinha: sem teste de vazamento, sonda, rodada ou participante.", "invalid_input");
+            db.active = { roundId: null, captureSongId: a.songId };
+            return { competitive: false, reason: "Gravação da referência: cante a melodia da música." };
+          }
+          db.active = { roundId: a.roundId };
           return { competitive: true, reason: null };
         }),
       sync_performance: () => null,
       abort_performance: () => tx((db) => void (db.active = null)),
       finish_performance: () =>
         tx((db): PerformanceOutcome => {
+          const songId = db.active?.captureSongId;
+          if (songId) {
+            // live.rs finish: < 3 notes stores nothing; otherwise reference::store_captured.
+            db.active = null;
+            const notes = db.captures.shift() ?? [];
+            const none = { performanceId: null, competitive: false, result: null, exploratory: null, personalBest: null, songRecord: null };
+            if (notes.length < 3)
+              return { ...none, capturedReference: null, reason: "Poucas notas detectadas: cante a melodia mais perto do microfone e tente de novo." };
+            const r: MelodyReference = { id: db.nextId++, songId, source: "manual", status: "experimental", revision: 1, offsetMs: 0, notes };
+            db.references.push(r);
+            db.activeRefs[songId] = r.id;
+            return { ...none, capturedReference: r };
+          }
           const score = db.scores.shift() ?? 50;
           const roundId = db.active?.roundId;
           db.active = null;
