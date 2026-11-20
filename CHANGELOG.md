@@ -4,6 +4,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-20
+
+### Adicionado
+- **Importar referência UltraStar (.txt):** o formato da comunidade de karaokê, com notas e letra sílaba por sílaba. Notas douradas contam como normais; freestyle e rap ficam de fora. Em duetos, o app importa a parte do primeiro cantor e avisa. Arquivos antigos com acentos são lidos corretamente. Depois de importar, o app sugere **Alinhar automaticamente**, porque esses arquivos costumam seguir o tempo da gravação original, não o do vídeo.
+- Erros em arquivos UltraStar indicam a linha com problema.
+
+### Alterado
+- **Esta versão atualiza o banco de dados do app.** Antes, ele guarda uma cópia de segurança (`masterofnotes.db.bak-v1`). Depois de atualizar, versões anteriores não abrem mais o banco.
+- A mensagem de banco criado por versão mais nova passa a usar o nome correto do produto, "Master Of Notes".
+
 ## [0.1.3] - 2026-11-20
 
 ### Adicionado
