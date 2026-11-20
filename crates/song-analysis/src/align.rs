@@ -29,11 +29,6 @@ const RIVAL_MS: f64 = 1_000.0;
 /// Half-width of the moving average removed from the lag scores.
 const DETREND_MS: f64 = 500.0;
 
-/// Below this the proposal is not reliable (no audible melody, or the
-/// arrangement repeats): voice present gave 0.82–0.90, karaoke without a
-/// melody and unrelated audio stayed below it (docs/testing/auto-reference.md).
-pub const LOW_CONFIDENCE: f32 = 0.5;
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AlignResult {
     /// Add to the reference's current offset.
@@ -191,6 +186,10 @@ fn mix_chroma(mix: &[f32], sr: f64, n_fft: usize, hop: usize) -> Vec<[f32; 12]> 
 mod tests {
     use super::*;
     use std::f64::consts::TAU;
+
+    /// The UI's display threshold (contracts.md §2.5): with a voice the
+    /// confidence was 0.82–0.95; without a melody, or on unrelated audio, below it.
+    const LOW_CONFIDENCE: f32 = 0.5;
 
     const SR: u32 = 22_050;
 

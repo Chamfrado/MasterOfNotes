@@ -41,7 +41,7 @@ Critérios:
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
-- 2026-11-20 · Agente 2 · T-012-01/02 em `review`. O crate `crates/song-analysis` segue a API do contracts.md §2.5. Há dois extras, propostos ao coordenador: as variantes `AnalysisError::Input` e `pub const LOW_CONFIDENCE: f32 = 0.5`. Evidência completa em [docs/testing/auto-reference.md](../docs/testing/auto-reference.md).
+- 2026-11-20 · Agente 2 · T-012-01/02 em `review`. O crate `crates/song-analysis` segue a API do contracts.md §2.5. Extra aprovado pelo coordenador: a variante `AnalysisError::Input`. O limiar de confiança 0,5 é da UI (contracts.md §2.5); no crate ele fica só nos testes. Evidência completa em [docs/testing/auto-reference.md](../docs/testing/auto-reference.md).
   - **R7 com o modelo real** (`#[ignore]`):
     - voz-guia sintética: **precisão 98,3%**, recall 77,2%, cantor perfeito 98,2;
     - pico de **1353 MiB**;
