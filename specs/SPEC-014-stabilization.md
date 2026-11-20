@@ -13,10 +13,15 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | todo |
-| T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | todo |
+| T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | review |
 | T-014-03 | Auditoria Ponytail (R3) | Agente 0 | todo |
 | T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | todo |
 | T-014-05 | Revisão da documentação técnica (R5, AC-016) | Agente 0 | todo |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
+- T-014-02 em `review` (Agente 1, 2026-11-20). Relatório: [dependency-audit.md](../docs/testing/evidence/dependency-audit.md).
+  - Vulnerabilidades: `pnpm audit --prod` e `--dev` sem vulnerabilidades conhecidas; `cargo audit` 0.23.0 (1.550 avisos RustSec × 602 crates) com 0 vulnerabilidades. Os 6 avisos unmaintained/unsound estão fora do build Windows (GTK/D-Bus/chrono não ativado).
+  - Licenças diretas: todas permissivas, sem GPL/AGPL/LGPL nem licença desconhecida. No binário há só 1 MPL-2.0 (`option-ext`), e o bundle tem as fontes OFL-1.1.
+  - ❌ O `THIRD-PARTY-NOTICES.txt` cobre só a ONNX Runtime. Faltam os avisos MIT/BSD/ISC/Unicode dos crates e do JS empacotados, a nota de fonte da MPL e o texto da OFL. Ação proposta: gerar com `cargo-about` + `pnpm licenses` no release, aguardando decisão do coordenador.
+  - Nenhuma dependência foi atualizada.
