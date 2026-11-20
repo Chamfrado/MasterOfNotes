@@ -8,20 +8,19 @@ Agente 4 · 2026-11-20 · base `main` @ ed115e5. Este documento é um plano: os 
 | Command | Comportamento do fake |
 |---|---|
 | `list_known_separation_models` | `[knownModel]` (inventado, Lei 19) ou `opts.knownModels` |
-| `install_separation_model` | Sem `acceptTerms` → `invalid_input`. Arquivo cujo **nome** não é de um modelo conhecido → `invalid_input` (o fake não calcula hash). Caso contrário grava `settings.separationModel`. |
+| `install_separation_model` | Sem `acceptTerms` → `terms_not_accepted`. Arquivo cujo **nome** não é de um modelo conhecido → `model_unknown` (o fake não calcula hash). Caso contrário grava `settings.separationModel`. |
 | `remove_separation_model` | `separationModel = null` |
 | `get_settings` / `update_settings` | O que estiver no spec estático (o `setReply` continua valendo), mais o `separationModel` do fake |
 | `upload_song_audio` | Corpo `Uint8Array` (f32 LE, tamanho múltiplo de 4, não vazio) e cabeçalho `song-id`; devolve um token novo e invalida o anterior (cache de 1 item, só em memória) |
-| `generate_reference` | Exige modelo e o token atual da mesma música; um trabalho por vez (`busy`). Progresso `separating` → `transcribing` → `saving` (0 / 0,5 / 1 em cada) pelo Channel. `opts.generated` decide o resultado: notas, que viram a ativa (`extracted`, `experimental`, revisão 1), ou `"noVoice"`, que encerra depois da separação com a mensagem de R3 sem salvar nada. |
+| `generate_reference` | Exige modelo e o token atual da mesma música; um trabalho por vez (`busy`); sem modelo → `model_not_installed`; token velho → `audio_token_invalid`. Progresso `separating` → `transcribing` → `saving` (0 / 0,5 / 1 em cada) pelo Channel. `opts.generated` decide o resultado: notas, que viram a ativa (`extracted`, `experimental`, revisão 1), ou `"noVoice"`, que encerra depois da separação com a mensagem de R3 sem salvar nada. |
 | `cancel_generate_reference` | O trabalho em andamento rejeita com `{code: "cancelled"}` |
 | `auto_align_reference` | Exige o token da música da referência; **só propõe** (`opts.alignments`, ou offset atual + 1200 ms com confiança 0,9) |
 | `set_reference_offset` | Como o `reference.rs`: ±10 s; se mudou, revisão + 1 e volta a `experimental` |
 
-❓ Para conferir com o Agente 1 quando a T-012-03 chegar:
-- se o cancelamento é um erro `cancelled` ou um resultado `{reference: null, reason}`;
-- os códigos e textos dos erros (o fake usa `invalid_input` e `busy`).
-
-Ajusto o fake ao Rust real.
+Códigos decididos no contrato (contracts.md §2.5, coordenador, 2026-11-20), já usados no fake:
+- cancelar rejeita com `cancelled`;
+- "sem voz" é um resultado `{reference: null, reason}`;
+- os demais erros são `terms_not_accepted`, `model_unknown`, `model_not_installed`, `audio_invalid`, `audio_token_invalid`, `busy`, `no_reference` e `not_found`.
 
 `e2e/auto-reference.e2e.ts` exercita esse contrato pelo cliente **real** (`src/lib/ipc.ts` carregado pelo Vite na página), em 3 testes:
 1. **Modelo:** lista os conhecidos; recusa a instalação sem aceite e o arquivo desconhecido; instala; o modelo aparece nas settings; remove.

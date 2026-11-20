@@ -29,10 +29,10 @@ test("modelo: lista conhecidos, recusa sem aceite e arquivo desconhecido, instal
   await setup(page);
   expect(await withIpc(page, (ipc) => ipc.listKnownSeparationModels(), null)).toEqual([knownModel]);
   expect(await withIpc(page, (ipc, f) => ipc.installSeparationModel(f, false), `C:/Downloads/${knownModel.fileName}`)).toMatchObject({
-    rejected: { code: "invalid_input", message: expect.stringContaining("Li e aceito os termos da fonte") },
+    rejected: { code: "terms_not_accepted", message: expect.stringContaining("Li e aceito os termos da fonte") },
   });
   expect(await withIpc(page, (ipc) => ipc.installSeparationModel("C:/Downloads/outro.onnx", true), null)).toMatchObject({
-    rejected: { code: "invalid_input", message: expect.stringContaining("não é um modelo conhecido") },
+    rejected: { code: "model_unknown", message: expect.stringContaining("não é um modelo conhecido") },
   });
   expect(await withIpc(page, (ipc, f) => ipc.installSeparationModel(f, true), `C:\\Downloads\\${knownModel.fileName}`)).toMatchObject({
     id: knownModel.id,
@@ -92,7 +92,7 @@ test("gerar: upload raw com song-id, progresso por etapa, referência extraída 
     },
     "c3",
   );
-  expect(cancelled).toMatchObject({ err: { code: "cancelled" }, stale: { code: "invalid_input" } });
+  expect(cancelled).toMatchObject({ err: { code: "cancelled" }, stale: { code: "audio_token_invalid" } });
 });
 
 test("gerar exige modelo; alinhar propõe sem salvar e o offset aceito sobe a revisão", async ({ page }) => {
@@ -111,7 +111,7 @@ test("gerar exige modelo; alinhar propõe sem salvar e o offset aceito sobe a re
     "c3",
   );
   expect(r).toMatchObject({
-    noModel: { code: "invalid_input", message: expect.stringContaining("Ajustes → Referência automática") },
+    noModel: { code: "model_not_installed", message: expect.stringContaining("Ajustes → Referência automática") },
     proposal: { offsetMs: 1200, confidence: 0.9 },
     untouched: { offsetMs: 0, status: "validated", revision: 1 },
     saved: { offsetMs: 1200, status: "experimental", revision: 2 },

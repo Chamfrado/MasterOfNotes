@@ -129,7 +129,7 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
     let uploads = 0;
     let job: { cancelled: boolean } | null = null;
     const needAudio = (token: unknown, songId: string) => {
-      if (!audio || audio.token !== token || audio.songId !== songId) fail("O áudio desta música não está carregado. Tente de novo.", "invalid_input");
+      if (!audio || audio.token !== token || audio.songId !== songId) fail("O áudio desta música não está carregado. Tente de novo.", "audio_token_invalid");
     };
     const runCallback = (id: number, data: unknown) =>
       (window as unknown as { __TAURI_INTERNALS__: { runCallback: (id: number, data: unknown) => void } }).__TAURI_INTERNALS__.runCallback(id, data);
@@ -217,13 +217,13 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
       },
       set_reference_status: ({ referenceId, status }) =>
         tx((db) => {
-          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.");
+          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.", "not_found");
           r.status = status as MelodyReference["status"];
           return r;
         }),
       set_reference_offset: ({ referenceId, offsetMs }) =>
         tx((db) => {
-          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.");
+          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.", "not_found");
           const o = Number(offsetMs);
           if (!(Math.abs(o) <= 10_000)) fail("O ajuste deve estar entre -10 e +10 segundos.", "invalid_input");
           if (o !== r.offsetMs) Object.assign(r, { offsetMs: o, revision: r.revision + 1, status: "experimental" }); // R4
@@ -236,26 +236,26 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
       list_known_separation_models: () => opts.knownModels,
       install_separation_model: ({ filePath, acceptTerms }) =>
         tx((db) => {
-          if (acceptTerms !== true) fail('Marque "Li e aceito os termos da fonte" para instalar o modelo.', "invalid_input");
+          if (acceptTerms !== true) fail('Marque "Li e aceito os termos da fonte" para instalar o modelo.', "terms_not_accepted");
           const name = String(filePath).split(/[\\/]/).pop() ?? "";
           const m =
             opts.knownModels.find((k) => k.fileName === name) ??
-            fail(`"${name}" não é um modelo conhecido: só os modelos da lista são aceitos.`, "invalid_input");
+            fail(`"${name}" não é um modelo conhecido: só os modelos da lista são aceitos.`, "model_unknown");
           db.separationModel = { id: m.id, name: m.name, acceptedMs: Date.UTC(2026, 10, 20, 12, 0) };
           return db.separationModel;
         }),
       remove_separation_model: () => tx((db) => void (db.separationModel = null)),
       // Raw IPC: the body is the f32 LE mono 44.1 kHz audio; the song comes in the "song-id" header.
       upload_song_audio: (body, options) => {
-        const songId = options?.headers?.["song-id"] ?? fail("Falta o cabeçalho song-id.", "invalid_input");
+        const songId = options?.headers?.["song-id"] ?? fail("Falta o cabeçalho song-id.", "audio_invalid");
         const bytes: unknown = body;
         if (!(bytes instanceof Uint8Array) || bytes.byteLength === 0 || bytes.byteLength % 4 !== 0)
-          fail("Áudio inválido: esperado f32 mono 44,1 kHz.", "invalid_input");
+          fail("Áudio inválido: esperado f32 mono 44,1 kHz.", "audio_invalid");
         audio = { token: `audio-${++uploads}`, songId };
         return audio.token;
       },
       generate_reference: async ({ songId, audioToken, onProgress }): Promise<AutoReferenceOutcome> => {
-        if (!load().separationModel) fail("Instale um modelo de separação em Ajustes → Referência automática.", "invalid_input");
+        if (!load().separationModel) fail("Instale um modelo de separação em Ajustes → Referência automática.", "model_not_installed");
         needAudio(audioToken, String(songId));
         if (job) fail("Já existe uma referência sendo gerada. Aguarde ou cancele.", "busy");
         const me = (job = { cancelled: false });
@@ -294,7 +294,7 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
       // Proposes only; the UI saves with set_reference_offset if the user accepts (R5).
       auto_align_reference: ({ referenceId, audioToken }) =>
         tx((db) => {
-          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.");
+          const r = db.references.find((x) => x.id === referenceId) ?? fail("Referência não encontrada.", "not_found");
           needAudio(audioToken, r.songId);
           return db.alignments.shift() ?? { offsetMs: r.offsetMs + 1200, confidence: 0.9 };
         }),

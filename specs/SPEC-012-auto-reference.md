@@ -45,4 +45,4 @@ Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário par
   - Teste: `e2e/auto-reference.e2e.ts` exercita o contrato pelo cliente real `src/lib/ipc.ts` (3 testes).
   - Plano de E2E/a11y da UI e da QA independente em [song-analysis-qa-plan.md](../docs/testing/evidence/song-analysis-qa-plan.md); o harness de sondas está pronto em rascunho.
   - ⏳ E2E/a11y esperam a T-012-04; as sondas esperam a T-012-01/02, e as com modelo esperam o comando de download e o SHA do Agente 2.
-  - ❓ Semântica do cancelamento e códigos de erro a conferir com o Agente 1 (T-012-03).
+  - Códigos de erro do fake alinhados ao contrato (§2.5): cancelled, terms_not_accepted, model_unknown, model_not_installed, audio_invalid, audio_token_invalid, busy, not_found.
