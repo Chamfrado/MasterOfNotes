@@ -149,9 +149,9 @@ Salvar um novo offset volta a referência para **experimental**, porque o alinha
 
 ### Alinhar automaticamente
 
-<!-- TODO(T-012-06), quando a UI da T-012-04 existir: conferir o rótulo "Alinhar automaticamente", como a confiança aparece e se o botão exige o modelo de separação (pela SPEC-012 R5, não exige). -->
+<!-- TODO(T-012-06), quando a UI da T-012-04 existir: conferir o rótulo "Alinhar automaticamente" e como a confiança aparece. Não exige o modelo de separação (confirmado pelo coordenador: o alinhamento usa a música do vídeo). -->
 
-Em vez de procurar o offset à mão, clique em **Alinhar automaticamente**. O app compara as notas da referência com a música do vídeo e **propõe** um offset, junto com o grau de confiança da proposta. Funciona com referências **MIDI**, **JSON** e **Cantada**.
+Em vez de procurar o offset à mão, clique em **Alinhar automaticamente**. O app compara as notas da referência com a música do vídeo e **propõe** um offset, junto com o grau de confiança da proposta. Funciona com referências **MIDI**, **JSON** e **Cantada**, e não precisa do modelo de separação.
 
 O app só propõe: **nada é salvo sozinho**. Confira a prévia sobre o vídeo. Se estiver certa, clique em **Salvar offset**. Se não estiver, ajuste à mão. Com confiança baixa, confira com mais cuidado.
 
