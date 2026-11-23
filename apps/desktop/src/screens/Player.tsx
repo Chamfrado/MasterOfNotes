@@ -8,6 +8,7 @@ import {
   finishPerformance,
   getSettings,
   listSongs,
+  onAudioError,
   startPerformance,
   syncPerformance,
   updateSettings,
@@ -120,6 +121,18 @@ function Stage({ song, settings, round }: { song: Song; settings: AppSettings; r
       // Leaving the stage always restores the windowed app.
       getCurrentWindow().setFullscreen(false).catch(warn("setFullscreen"));
     };
+  }, []);
+
+  // Law 13: the mic failed mid-run. Rust already stopped the stream and dropped the run.
+  useEffect(() => {
+    const off = onAudioError((e) => {
+      if (!active.current) return;
+      active.current = false;
+      dispatch({ type: "FAIL", message: `A partida foi interrompida. ${errorMessage(e)}` });
+      video.current?.pause();
+    });
+    off.catch(warn("listen audio://error"));
+    return () => void off.then((unlisten) => unlisten(), () => {});
   }, []);
 
   // R5: countdown 3-2-1, then the video starts.

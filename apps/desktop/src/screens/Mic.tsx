@@ -6,6 +6,7 @@ import {
   calibrateNoise,
   getSettings,
   listInputDevices,
+  onAudioError,
   startMicMonitor,
   stopMicMonitor,
   updateSettings,
@@ -58,6 +59,13 @@ function MicSetup({ devices, initial }: { devices: Awaited<ReturnType<typeof lis
       stopMicMonitor().catch((e: unknown) => console.warn("stop_mic_monitor:", errorMessage(e)));
     };
   }, [deviceId, monitorRun]);
+
+  // Law 13: device lost while metering (the stream is already stopped).
+  useEffect(() => {
+    const off = onAudioError(setMonitorError);
+    off.catch((e: unknown) => console.warn("listen audio://error:", errorMessage(e)));
+    return () => void off.then((unlisten) => unlisten(), () => {});
+  }, []);
 
   // After a leak test or latency probe: Rust saved new settings; the run stopped the monitor.
   const afterRun = () => {

@@ -18,6 +18,7 @@ vi.mock("../lib/ipc", () => ({
   syncPerformance: vi.fn(),
   finishPerformance: vi.fn(),
   abortPerformance: vi.fn(),
+  onAudioError: vi.fn(() => Promise.resolve(() => {})),
   videoSrc: () => "asset://v.mp4",
 }));
 
@@ -50,6 +51,15 @@ describe("Mic", () => {
     expect(ipc.updateSettings).toHaveBeenCalledWith({ inputDeviceId: "usb" });
     expect(ipc.stopMicMonitor).toHaveBeenCalled();
     await vi.waitFor(() => expect(ipc.startMicMonitor).toHaveBeenLastCalledWith("usb", expect.any(Function)));
+  });
+
+  it("replaces the meter with the error when the device is lost", async () => {
+    renderMic();
+    await screen.findByRole("meter");
+    const onError = vi.mocked(ipc.onAudioError).mock.calls[0][0];
+    act(() => onError({ code: "audio_device", message: "Problema com o microfone: desconectado." }));
+    expect(screen.getByText("Problema com o microfone: desconectado.")).toHaveAttribute("role", "alert");
+    expect(screen.queryByRole("meter")).not.toBeInTheDocument();
   });
 
   it("drives the meter from monitor frames", async () => {

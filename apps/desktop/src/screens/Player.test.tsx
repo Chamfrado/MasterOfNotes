@@ -15,6 +15,7 @@ vi.mock("../lib/ipc", () => ({
   abortPerformance: vi.fn(() => Promise.resolve()),
   updateSong: vi.fn(() => Promise.resolve()),
   updateSettings: vi.fn(() => Promise.resolve()),
+  onAudioError: vi.fn(() => Promise.resolve(() => {})),
   videoSrc: () => "asset://song.mp4",
 }));
 vi.mock("@tauri-apps/api/window", () => ({
@@ -96,6 +97,18 @@ describe("Player", () => {
     expect(ipc.syncPerformance).toHaveBeenCalledWith(0, true, false);
     expect(await screen.findByRole("button", { name: "Pausar" })).toBeInTheDocument();
     expect(video.volume).toBe(0.8);
+  });
+
+  it("stops the run and explains when the mic fails mid-song", async () => {
+    const video = await renderToPlaying();
+    const onError = vi.mocked(ipc.onAudioError).mock.calls[0][0];
+    act(() => onError({ code: "audio_device", message: "Problema com o microfone: desconectado." }));
+    expect(screen.getByText("A partida foi interrompida. Problema com o microfone: desconectado.")).toHaveAttribute("role", "alert");
+    expect(video.paused).toBe(true);
+    // Rust already dropped the run: nothing to finish or abort.
+    video.unmountPlayer();
+    expect(ipc.abortPerformance).not.toHaveBeenCalled();
+    expect(ipc.finishPerformance).not.toHaveBeenCalled();
   });
 
   it("Space pauses and resumes", async () => {
