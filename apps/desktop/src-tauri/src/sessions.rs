@@ -121,6 +121,19 @@ fn mode_str(m: GameMode) -> &'static str {
     }
 }
 
+pub fn require_participant(conn: &Connection, id: i64) -> AppResult<()> {
+    let exists: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM participants WHERE id = ?1)",
+        [id],
+        |r| r.get(0),
+    )?;
+    if exists {
+        Ok(())
+    } else {
+        Err(AppError::new("not_found", "Participante não encontrado."))
+    }
+}
+
 pub fn difficulty_str(d: Difficulty) -> &'static str {
     match d {
         Difficulty::Easy => "easy",
@@ -225,23 +238,10 @@ pub fn create_session(conn: &mut Connection, args: CreateSession) -> AppResult<G
     let unique: HashSet<_> = args.participant_ids.iter().collect();
     rule(unique.len() == n_p, "Participante repetido na sessão.")?;
     for &pid in &args.participant_ids {
-        let exists: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM participants WHERE id = ?1)",
-            [pid],
-            |r| r.get(0),
-        )?;
-        if !exists {
-            return Err(AppError::new("not_found", "Participante não encontrado."));
-        }
+        require_participant(conn, pid)?;
     }
     for song_id in &args.song_ids {
-        let song = library::get_song(conn, song_id)?;
-        if !song.available {
-            return Err(AppError::invalid_input(format!(
-                "O arquivo de \"{}\" não está disponível.",
-                song.title
-            )));
-        }
+        let song = library::get_available_song(conn, song_id)?;
         // Competitive modes need a validated reference (SPEC-008).
         if args.mode != GameMode::Solo
             && active_ref_status(conn, song_id)?.as_deref() != Some("validated")

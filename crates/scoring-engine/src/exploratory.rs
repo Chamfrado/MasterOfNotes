@@ -2,6 +2,7 @@
 //! non-competitive metrics. Never feed these into rankings.
 
 use crate::VoiceFrame;
+use crate::scorer::median;
 use serde::Serialize;
 
 /// Voiced runs shorter than this are ignored for stability.
@@ -35,7 +36,7 @@ pub fn exploratory_metrics(frames: &[VoiceFrame]) -> ExploratoryMetrics {
             && last.0 - first.0 >= MIN_RUN_MS
         {
             let mut cents: Vec<f64> = run.iter().map(|r| r.1).collect();
-            let m = median(&mut cents);
+            let m = median(&mut cents).unwrap_or(0.0); // run is non-empty
             deviations.extend(cents.iter().map(|c| (c - m).abs()));
         }
         run.clear();
@@ -51,24 +52,11 @@ pub fn exploratory_metrics(frames: &[VoiceFrame]) -> ExploratoryMetrics {
     }
     close(&mut run);
 
-    let pitch_stability = if deviations.is_empty() {
-        0.0
-    } else {
-        (1.0 - (median(&mut deviations) / 100.0).min(1.0)) as f32
-    };
+    let pitch_stability =
+        median(&mut deviations).map_or(0.0, |mad| (1.0 - (mad / 100.0).min(1.0)) as f32);
     ExploratoryMetrics {
         voiced_ratio,
         pitch_stability,
-    }
-}
-
-fn median(v: &mut [f64]) -> f64 {
-    v.sort_by(f64::total_cmp);
-    let m = v.len() / 2;
-    if v.len() % 2 == 1 {
-        v[m]
-    } else {
-        (v[m - 1] + v[m]) / 2.0
     }
 }
 

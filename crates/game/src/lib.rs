@@ -180,49 +180,6 @@ pub fn duel_outcome(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum ChallengeStatus {
-    InProgress,
-    Succeeded,
-    Failed,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ChallengeProgress {
-    pub completed: u32,
-    pub remaining: u32,
-    /// Average of the completed rounds (0 when none).
-    pub average: f32,
-    pub status: ChallengeStatus,
-}
-
-/// Challenge progress: decided only after `rounds` scores; success = average >= target.
-/// Scores beyond `rounds` are ignored.
-pub fn challenge_progress(scores: &[f32], target: f32, rounds: u32) -> ChallengeProgress {
-    let done = &scores[..scores.len().min(rounds as usize)];
-    let completed = done.len() as u32;
-    let average = if done.is_empty() {
-        0.0
-    } else {
-        done.iter().sum::<f32>() / completed as f32
-    };
-    let status = if completed < rounds {
-        ChallengeStatus::InProgress
-    } else if average >= target {
-        ChallengeStatus::Succeeded
-    } else {
-        ChallengeStatus::Failed
-    };
-    ChallengeProgress {
-        completed,
-        remaining: rounds - completed,
-        average,
-        status,
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LeaderboardRow {
@@ -420,23 +377,6 @@ mod tests {
             duel_outcome(&rec(1, 80.0), &b),
             Err(GameError::IncompatibleRecords)
         );
-    }
-
-    #[test]
-    fn challenge_progress_and_outcome() {
-        let p = challenge_progress(&[80.0], 75.0, 3);
-        assert_eq!(
-            (p.completed, p.remaining, p.status),
-            (1, 2, ChallengeStatus::InProgress)
-        );
-        let ok = challenge_progress(&[80.0, 70.0, 75.0], 75.0, 3);
-        assert_eq!((ok.average, ok.status), (75.0, ChallengeStatus::Succeeded));
-        let ko = challenge_progress(&[80.0, 60.0, 70.0, 100.0], 75.0, 3);
-        assert_eq!(
-            (ko.completed, ko.remaining, ko.status),
-            (3, 0, ChallengeStatus::Failed)
-        );
-        assert_eq!(challenge_progress(&[], 50.0, 2).average, 0.0);
     }
 
     // SPEC-007 TEST

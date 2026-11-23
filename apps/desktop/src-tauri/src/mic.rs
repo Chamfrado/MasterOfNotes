@@ -25,9 +25,7 @@ pub struct MicMonitor {
 
 impl MicMonitor {
     fn slot(&self) -> MutexGuard<'_, Option<(u64, Capture)>> {
-        self.capture
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        lock(&self.capture)
     }
 
     /// Stops the meter (also used before a performance takes the microphone).
@@ -51,12 +49,7 @@ pub fn audio_err(e: audio_engine::AudioError) -> AppError {
 }
 
 fn capture_config(app: &AppHandle) -> AppResult<CaptureConfig> {
-    let s = settings::load(&lock(app.state::<AppState>().db()?))?;
-    let mut cfg = CaptureConfig::default();
-    if let Some(n) = s.noise_floor_dbfs {
-        cfg.noise_floor_dbfs = n as f32;
-    }
-    Ok(cfg)
+    Ok(settings::load(&lock(app.state::<AppState>().db()?))?.capture_config())
 }
 
 #[tauri::command]
@@ -145,7 +138,7 @@ pub async fn calibrate_noise(
         if let Some(e) = device_error {
             return Err(audio_err(e));
         }
-        let frames = std::mem::take(&mut *frames.lock().unwrap_or_else(std::sync::PoisonError::into_inner));
+        let frames = std::mem::take(&mut *lock(&frames));
         if frames.is_empty() {
             return Err(AppError::new(
                 "audio_device",

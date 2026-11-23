@@ -178,12 +178,7 @@ pub(crate) struct Stft {
 impl Stft {
     pub(crate) fn new() -> Self {
         let mut planner = FftPlanner::new();
-        let window: Vec<f32> = (0..N_FFT)
-            .map(|i| {
-                let x = std::f64::consts::TAU * i as f64 / N_FFT as f64;
-                (0.5 - 0.5 * x.cos()) as f32
-            })
-            .collect();
+        let window = crate::hann(N_FFT);
         let mut wss = vec![0.0f32; CHUNK + N_FFT];
         for t in 0..DIM_T {
             for (i, w) in window.iter().enumerate() {

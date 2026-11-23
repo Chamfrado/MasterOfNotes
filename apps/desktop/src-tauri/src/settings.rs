@@ -6,13 +6,8 @@ use serde_json::{Map, Value};
 
 use crate::error::{AppError, AppResult};
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Difficulty {
-    Easy,
-    Normal,
-    Hard,
-}
+/// Same enum the scorer uses; serializes as "easy" | "normal" | "hard".
+pub use scoring_engine::Difficulty;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,6 +95,15 @@ impl Default for AppSettings {
 }
 
 impl AppSettings {
+    /// Capture defaults with the calibrated noise floor, when there is one.
+    pub fn capture_config(&self) -> audio_engine::CaptureConfig {
+        let mut cfg = audio_engine::CaptureConfig::default();
+        if let Some(n) = self.noise_floor_dbfs {
+            cfg.noise_floor_dbfs = n as f32;
+        }
+        cfg
+    }
+
     /// Competitive gate (SPEC-006 A2): a passed leak check for the current device,
     /// done at a video volume no lower than the current one (minus a small tolerance).
     pub fn leak_check_ok(&self) -> bool {

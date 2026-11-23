@@ -11,6 +11,7 @@
 //! `anchor_video + (frame_centre_sample − anchor_sample) / sr − latency_offset`.
 
 use crate::error::AppError;
+use crate::library::lock;
 use audio_engine::{
     AnalysisFrame, Capture, CaptureConfig, LatencyResult, detect_onsets, latency_from, window_len,
 };
@@ -19,7 +20,7 @@ use scoring_engine::{
     VoiceFrame, exploratory_metrics, segment_notes,
 };
 use serde::Serialize;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 
 /// Re-anchor when the estimated song time drifts more than this from the video.
 const RESYNC_MS: f64 = 40.0;
@@ -168,12 +169,6 @@ pub struct PerformanceSummary {
 pub struct LivePerformance {
     capture: Capture,
     session: Arc<Mutex<Session>>,
-}
-
-fn lock(s: &Mutex<Session>) -> MutexGuard<'_, Session> {
-    // A panic while holding the lock cannot leave the session half-updated in a
-    // way worse than losing the run; keep going with the inner value.
-    s.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl LivePerformance {
@@ -445,7 +440,6 @@ impl Session {
             Some(a) if (self.video_ms_at(a, now) - video_ms).abs() <= RESYNC_MS => {}
             Some(_) => {
                 // Drift: re-anchor without reprocessing; played time stays continuous.
-                self.close_segment();
                 self.anchor = Some(Anchor {
                     video_ms,
                     sample: now,

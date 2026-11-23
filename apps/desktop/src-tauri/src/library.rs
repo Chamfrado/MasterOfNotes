@@ -164,8 +164,10 @@ pub fn scan(
     Ok((summary, change))
 }
 
-pub fn lock(db: &Mutex<Connection>) -> std::sync::MutexGuard<'_, Connection> {
-    db.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+/// Locks, recovering from poisoning: a panic elsewhere never leaves this state worse than
+/// losing that one operation, so keep going with the inner value.
+pub fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 fn walk(dir: &Path, recursive: bool, out: &mut Vec<PathBuf>, skipped: &mut u32) {
@@ -443,6 +445,18 @@ pub fn get_song(conn: &Connection, id: &str) -> AppResult<Song> {
     conn.query_row(&format!("{SONG_SELECT} WHERE s.id = ?1"), [id], song_row)
         .optional()?
         .ok_or_else(|| AppError::new("not_found", "Música não encontrada."))
+}
+
+/// `get_song`, refusing a song whose file is missing from the library folder.
+pub fn get_available_song(conn: &Connection, id: &str) -> AppResult<Song> {
+    let song = get_song(conn, id)?;
+    if !song.available {
+        return Err(AppError::invalid_input(format!(
+            "O arquivo de \"{}\" não está disponível.",
+            song.title
+        )));
+    }
+    Ok(song)
 }
 
 pub fn update_song(conn: &Connection, id: &str, patch: SongPatch) -> AppResult<Song> {

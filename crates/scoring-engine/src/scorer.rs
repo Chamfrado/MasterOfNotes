@@ -442,7 +442,8 @@ impl Scorer {
             .enumerate()
             .map(|(k, own)| {
                 let (s0, s1) = segment(k);
-                own.map(|own| contour(&m[s0..s1], k - s0, own))
+                // Vibrato-free pitch: a 19-frame window kept inside the segment.
+                own.map(|own| window_mean(&m[s0..s1], k - s0, own, CONTOUR_HALF))
             })
             .collect();
         // E1 (v5): the centre of the contour (vibrato residue averaged out).
@@ -581,14 +582,6 @@ impl Scorer {
             _ => FeedbackLabel::NeedsWork,
         }
     }
-}
-
-/// Vibrato-free pitch at position `k` of a segment of in-note medians: mean of
-/// the voiced values in a 19-frame window kept inside the segment, each folded
-/// to the octave of `own` and only if within `CONTOUR_RANGE_ST` of it. Also
-/// returns the spread: mean |value − mean| of those values (semitones).
-fn contour(seg: &[Option<f64>], k: usize, own: f64) -> (f64, f64) {
-    window_mean(seg, k, own, CONTOUR_HALF)
 }
 
 /// Mean and mean absolute deviation of the voiced values in a `2·half + 1`

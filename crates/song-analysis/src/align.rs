@@ -188,9 +188,7 @@ fn pitch_class(midi: f64) -> usize {
 /// Per-frame chroma of `mix`: mean-removed, unit L2 norm (zeros when flat).
 fn mix_chroma(mix: &[f32], sr: f64, n_fft: usize, hop: usize) -> Vec<[f32; 12]> {
     let fft = FftPlanner::<f32>::new().plan_fft_forward(n_fft);
-    let window: Vec<f32> = (0..n_fft)
-        .map(|i| (0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n_fft as f64).cos()) as f32)
-        .collect();
+    let window = crate::hann(n_fft);
     let bins: Vec<(usize, usize)> = (1..n_fft / 2)
         .filter_map(|k| {
             let hz = k as f64 * sr / n_fft as f64;

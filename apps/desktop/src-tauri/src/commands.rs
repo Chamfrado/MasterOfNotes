@@ -177,10 +177,7 @@ fn run_scan<R: Runtime>(
     recursive: bool,
 ) -> AppResult<ScanSummary> {
     let state = app.state::<AppState>();
-    let _guard = state
-        .scan_lock
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let _guard = lock(&state.scan_lock);
     let (summary, change) = library::scan(state.db()?, root, recursive)?;
     allow_library_files(app)?;
     if !change.is_empty()
@@ -220,10 +217,7 @@ fn start_watcher(app: &AppHandle, root: &Path, recursive: bool) {
     };
     let watcher = debouncer.and_then(|mut d| d.watch(root, mode).map(|_| d));
     let state = app.state::<AppState>();
-    let mut slot = state
-        .watcher
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut slot = lock(&state.watcher);
     match watcher {
         Ok(w) => *slot = Some(w),
         Err(e) => {

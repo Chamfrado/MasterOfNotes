@@ -106,10 +106,7 @@ impl AnalysisState {
         // Unguessable enough for a local IPC handle; not a secret.
         let s = std::collections::hash_map::RandomState::new();
         let token = format!("{:016x}{:016x}", s.hash_one(now_ms()), s.hash_one(&song_id));
-        *self
-            .audio
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(SongAudio {
+        *lock(&self.audio) = Some(SongAudio {
             token: token.clone(),
             song_id,
             samples: Arc::new(samples),
@@ -118,9 +115,7 @@ impl AnalysisState {
     }
 
     fn get(&self, token: &str, song_id: &str) -> AppResult<Arc<Vec<f32>>> {
-        self.audio
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        lock(&self.audio)
             .as_ref()
             .filter(|a| a.token == token && a.song_id == song_id)
             .map(|a| a.samples.clone())

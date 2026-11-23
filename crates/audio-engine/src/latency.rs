@@ -27,7 +27,7 @@ pub struct LatencyResult {
     pub expected: u32,
 }
 
-fn level_dbfs(x: &[f32]) -> f32 {
+pub(crate) fn level_dbfs(x: &[f32]) -> f32 {
     let e: f64 = x.iter().map(|&s| (s as f64) * (s as f64)).sum();
     let rms = (e / x.len().max(1) as f64).sqrt();
     if rms > 0.0 {

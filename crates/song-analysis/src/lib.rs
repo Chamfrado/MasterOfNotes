@@ -146,6 +146,13 @@ fn stem_gate_dbfs(x: &[f32], sample_rate: u32) -> f64 {
     db[k] - STEM_FLOOR_DB
 }
 
+/// Periodic Hann window of length `n` (computed in f64).
+fn hann(n: usize) -> Vec<f32> {
+    (0..n)
+        .map(|i| (0.5 - 0.5 * (std::f64::consts::TAU * i as f64 / n as f64).cos()) as f32)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -120,13 +120,7 @@ impl Analyzer {
 
     fn analyze(&mut self, pos: usize) -> AnalysisFrame {
         let w = &self.buf[pos..pos + self.window];
-        let energy: f64 = w.iter().map(|&s| (s as f64) * (s as f64)).sum();
-        let rms = (energy / w.len() as f64).sqrt();
-        let rms_dbfs = if rms > 0.0 {
-            ((20.0 * rms.log10()) as f32).max(SILENCE_DBFS)
-        } else {
-            SILENCE_DBFS
-        };
+        let rms_dbfs = latency::level_dbfs(w).max(SILENCE_DBFS);
         let clipped = w[..self.hop].iter().any(|s| s.abs() >= CLIP_LEVEL);
         let (f0_hz, confidence) = self.yin.detect(w);
         let above_gate = rms_dbfs >= self.cfg.noise_floor_dbfs + self.cfg.gate_margin_db;

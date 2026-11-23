@@ -6,7 +6,6 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use audio_engine::CaptureConfig;
 use game::CompatKey;
 use rusqlite::{Connection, OptionalExtension};
 use scoring_engine::{ExploratoryMetrics, ScoreResult};
@@ -119,18 +118,7 @@ pub struct LiveState {
 }
 
 fn running(state: &LiveState) -> std::sync::MutexGuard<'_, Option<Running>> {
-    state
-        .running
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-}
-
-pub fn scoring_difficulty(d: Difficulty) -> scoring_engine::Difficulty {
-    match d {
-        Difficulty::Easy => scoring_engine::Difficulty::Easy,
-        Difficulty::Normal => scoring_engine::Difficulty::Normal,
-        Difficulty::Hard => scoring_engine::Difficulty::Hard,
-    }
+    lock(&state.running)
 }
 
 /// Polls a device error every 250 ms. `check` returns `None` when the capture it watches is
@@ -163,22 +151,9 @@ pub fn prepare(
     conn: &Connection,
     args: &StartPerformance,
 ) -> AppResult<(PerformanceConfig, RunContext, PerformanceStarted)> {
-    let song = library::get_song(conn, &args.song_id)?;
-    if !song.available {
-        return Err(AppError::invalid_input(format!(
-            "O arquivo de \"{}\" não está disponível.",
-            song.title
-        )));
-    }
+    library::get_available_song(conn, &args.song_id)?;
     if let Some(pid) = args.participant_id {
-        let exists: bool = conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM participants WHERE id = ?1)",
-            [pid],
-            |r| r.get(0),
-        )?;
-        if !exists {
-            return Err(AppError::new("not_found", "Participante não encontrado."));
-        }
+        sessions::require_participant(conn, pid)?;
     }
     if let Some(round_id) = args.round_id {
         let (song_id, participant_id, status, session_status): (
@@ -295,14 +270,10 @@ pub fn prepare(
         }
         None => None,
     };
-    let mut capture = CaptureConfig::default();
-    if let Some(n) = s.noise_floor_dbfs {
-        capture.noise_floor_dbfs = n as f32;
-    }
     let cfg = PerformanceConfig {
         reference,
         competitive,
-        difficulty: scoring_difficulty(s.difficulty),
+        difficulty: s.difficulty,
         // The probe measures the raw latency, so it runs without the current correction.
         latency_offset_ms: if probe {
             0.0
@@ -310,7 +281,7 @@ pub fn prepare(
             s.latency_offset_ms as f64
         },
         device_id: s.input_device_id.clone(),
-        capture,
+        capture: s.capture_config(),
         leak_check: args.leak_check,
         latency_probe: args.latency_probe.clone(),
         reference_capture: capture_run,
@@ -509,13 +480,10 @@ pub fn persist(
         performance_id: Some(performance_id),
         competitive,
         result: Some(result),
-        exploratory: None,
-        leak: None,
-        latency: None,
-        captured_reference: None,
         personal_best: ctx.participant_id.and_then(|p| best(&|q| q == Some(p))),
         song_record: best(&|_| true),
         reason,
+        ..not_stored
     })
 }
 
