@@ -19,9 +19,9 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
 | T-003-01 | Reducer da máquina de estados + testes | Agente 3 | done |
-| T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | review |
-| T-003-03 | Integração com `syncPerformance` | Agente 3 | review |
-| T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | doing |
+| T-003-02 | Componente Player + atalhos + tela cheia | Agente 3 | done |
+| T-003-03 | Integração com `syncPerformance` | Agente 3 | done |
+| T-003-04 | Checklist manual de formatos (mp4/webm/mov/mkv/avi) no WebView2 | Agente 4 | blocked (ffmpeg ou vídeos de teste próprios; ver roadmap, Bloqueios) |
 | T-003-05 | Gerador de música de teste (webm com/sem guia + referência exata) para validar o app real | Agente 4 | done |
 
 ## TEST
@@ -29,7 +29,7 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 
 ## STATUS
 - T-003-04 em andamento (Agente 4, 2026-11-19): checklist e roteiro de fixtures sintéticas prontos em `docs/testing/evidence/codecs.md`; execução ⏳ aguarda o Player (T-003-02).
-- T-003-05 em review (Agente 4, 2026-11-19): `apps/desktop/e2e/tools/gen-test-song.ts` gera `mon-test-song.webm`, `mon-test-song-karaoke.webm` e `mon-test-song.mon-melody.json` (31 s, sem ffmpeg, Lei 19). Verificado por `crates/game/tests/test_song.rs` (parse real) e `e2e/test-song.e2e.ts` (toca, duração, seek com quadro correto, altura de cada nota, karaokê sem guia, onsets ≤ 30 ms). Uso e medidas em [vertical-flow.md](../docs/testing/evidence/vertical-flow.md).
+- T-003-05 em review (Agente 4, 2026-11-19): `apps/desktop/e2e/tools/gen-test-song.ts` gera `mon-test-song.webm`, `mon-test-song-karaoke.webm` e `mon-test-song.mon-melody.json` (31 s, sem ffmpeg, Lei 19). Verificado por `crates/game/tests/test_song.rs` (parse real; desde a T-014-03 em `crates/scoring-engine/tests/test_song.rs`) e `e2e/test-song.e2e.ts` (toca, duração, seek com quadro correto, altura de cada nota, karaokê sem guia, onsets ≤ 30 ms). Uso e medidas em [vertical-flow.md](../docs/testing/evidence/vertical-flow.md).
 - T-003-01 em review (Agente 3, 2026-11-19): `src/player/playerMachine.ts`; `playerMachine.test.ts` cobre a tabela completa estado × evento (8 × 9: válidas checam o estado resultante, inválidas checam identidade do objeto) + contagem 3-2-1 + fluxo completo.
 - T-003-02/03 em review (Agente 3, 2026-11-19): `src/screens/Player.tsx`.
   - Controles: Espaço (pausar/continuar), F (tela cheia da janela Tauri, desfeita ao sair), H (overlay full → compact → hidden, persistido em `feedbackOverlay`), ↑/↓ (volume em passos de 5%, persistido em `videoVolume`), ←/→ (±5 s), barra de posição, Esc (sair; a desmontagem chama `abortPerformance`). Os controles somem após 3 s cantando e voltam com mouse ou tecla.
@@ -41,3 +41,4 @@ Decisão: [ADR-0003](../docs/adr/ADR-0003-video-playback.md). Sincronização: [
 - Demais pendentes.
 - Tarefas review → done (Agente 0, 2026-11-19): integrado em main @ af7bd2c; typecheck, vitest 105/105, vite build, clippy --workspace e cargo test --workspace verdes.
 - T-003-05 done (Agente 0, 2026-11-19): integrado em main @ 52a8b95; typecheck, vitest 158/158, Playwright 43/43 + test-song 1/1, cargo test -p game 16 verdes.
+- T-014-05 (Agente 0, 2026-11-23): tabela alinhada ao STATUS. T-003-02/03 done (integradas em 2026-11-19). T-003-04 blocked: o checklist de codecs depende de ffmpeg ou de vídeos de teste próprios (roadmap, Bloqueios). `test_song.rs` mudou para `crates/scoring-engine/tests/` (T-014-03).

@@ -14,6 +14,7 @@
 ```sh
 pnpm install                                # deps JS (raiz)
 pnpm dev                                    # app em modo dev (tauri dev)
+pnpm check                                  # portão completo: tipos (app + e2e), vitest, fmt, clippy, cargo test
 pnpm --filter desktop typecheck             # tsc --noEmit
 pnpm --filter desktop test                  # vitest
 cargo test --workspace                      # testes Rust
@@ -38,7 +39,7 @@ pnpm build                                  # instalador (tauri build)
 
 ## Convenções
 - Rust: `thiserror` para erros de crate; `AppError {code, message}` na borda do IPC; sem `unwrap()` fora de testes; `#[serde(rename_all = "camelCase")]` em tipos do IPC.
-- TS: strict; sem `any`; todo acesso ao backend via `src/lib/ipc.ts`.
+- TS: strict; sem `any`; todo command próprio via `src/lib/ipc.ts`; plugins oficiais do Tauri (dialog, opener, updater, window) podem ser importados direto nas telas.
 - Textos de UI em pt-BR; código, identificadores e comentários em inglês.
 - Fixtures: sintéticas ou de autoria própria; nunca música/vídeo de terceiros (Lei 19).
 - **Git Bash (Windows):** argumentos que começam com `/` (ex.: `/S`, `/MANIFEST`) viram caminhos (`S:/`). Para executáveis Windows, use PowerShell ou `MSYS_NO_PATHCONV=1`.

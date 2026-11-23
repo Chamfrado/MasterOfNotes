@@ -13,7 +13,7 @@
 |---|---|---|---|
 | T-007-01 | `game::leaderboard` + `CompatKey` + testes | Agente 4 | done |
 | T-007-02 | Command `get_leaderboard` + repositório | Agente 1 | done |
-| T-007-03 | Telas de Resultado e Ranking | Agente 3 | todo |
+| T-007-03 | Telas de Resultado e Ranking | Agente 3 | done (entregue em T-010-03) |
 | T-007-04 | Command `list_performances` (histórico com versões anteriores, R6) | Agente 1 | done |
 
 ## TEST
@@ -30,3 +30,4 @@
   - `isCurrentKey` = referência ativa + revisão + `ALGORITHM_VERSION` iguais aos atuais, para a dificuldade da própria linha.
   - Teste ✅ `sessions::tests::performance_history_filters_and_flags_old_keys`.
 - T-007-04 done (Agente 0, 2026-11-19): list_performances integrado.
+- T-007-03 done (Agente 0, 2026-11-23, T-014-05): as telas de Resultado e Ranking foram entregues em T-010-03 (SPEC-010).

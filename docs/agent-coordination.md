@@ -13,6 +13,8 @@
 | 4 — Modos/QA | `masterofnotes-d4` | `.worktrees/agent-4` | `agent-4/work` |
 | 5 — Documentação do usuário | `masterofnotes-cc` | `.worktrees/agent-5` | `agent-5/work` |
 
+Nenhuma worktree ativa em 2026-11-23 (todas integradas e removidas, regra 7). A coluna Worktree diz onde o coordenador a recria ao atribuir uma tarefa; os nomes de sessão são de 2026-11-19 e podem ter mudado.
+
 Se uma sessão for perdida: abra uma nova sessão Claude Code na raiz do repositório, leia `AGENTS.md`, este arquivo e o roadmap, e avise o coordenador do novo nome de sessão.
 
 ## Fluxo

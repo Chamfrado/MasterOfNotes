@@ -6,11 +6,11 @@
 
 | Caminho | Dono | Observação |
 |---|---|---|
-| `AGENTS.md`, `CLAUDE.md`, `docs/**`, `specs/**`, `Cargo.toml` (raiz), `package.json` (raiz), `pnpm-workspace.yaml` | Agente 0 | Outros agentes atualizam apenas a seção STATUS da própria spec. |
+| `AGENTS.md`, `CLAUDE.md`, `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`, `LICENSE`, `docs/**`, `specs/**`, `Cargo.toml` (raiz), `package.json` (raiz), `pnpm-workspace.yaml` | Agente 0 | Outros agentes atualizam apenas a seção STATUS da própria spec. |
 | `apps/desktop/src/lib/ipc.ts` | Agente 0 | Contrato TS do IPC. Tipos espelham structs Rust (`serde(rename_all="camelCase")`). |
-| `apps/desktop/src-tauri/**` (exceto `performance.rs`) | Agente 1 | Inclui `tauri.conf.json`, `capabilities/`, `Cargo.toml` do app, `db/`, `library/`, `commands/`. |
+| `apps/desktop/src-tauri/**` (exceto `performance.rs`), `.github/tauri-release.conf.json` | Agente 1 | Inclui `tauri.conf.json`, `capabilities/`, `migrations/`, `scripts/` (DLL do ONNX Runtime, avisos de licença), `Cargo.toml` do app e os módulos `src/*.rs`. |
 | `apps/desktop/src-tauri/src/performance.rs` | Agente 2 | Sessão ao vivo (âncora, sync, scorer). Registrada no `lib.rs` pelo Agente 1. |
-| `crates/audio-engine/**`, `crates/scoring-engine/**`, `tests/fixtures/audio/**`, `tests/fixtures/references/**` | Agente 2 | |
+| `crates/audio-engine/**`, `crates/scoring-engine/**`, `crates/song-analysis/**`, `tests/fixtures/references/**` | Agente 2 | |
 | `apps/desktop/src/**` (exceto `lib/ipc.ts` e `**/*.e2e.*`), `apps/desktop/index.html`, `apps/desktop/vite.config.ts`, estilos, `apps/desktop/package.json` | Agente 3 | Agente 4 pede dependências de teste ao Agente 3. |
 | `docs/user/**` (guia do usuário + mídia), `apps/desktop/e2e/docs/**` (scripts de captura de screenshots, GIFs e vídeos) | Agente 5 | Pode importar `e2e/fixtures.ts`/`tauri-mock.ts`/`fake-backend.ts` (só leitura; mudanças via Agente 4). Dependências JS via Agente 3. |
 | `crates/game/**`, `apps/desktop/e2e/**`, `apps/desktop/playwright.config.ts`, `.github/workflows/**`, `docs/testing/evidence/**` | Agente 4 | |
@@ -65,7 +65,7 @@ Tipos públicos com `Serialize` em camelCase.
 ### 2.2 `scoring-engine` (Agente 2)
 
 ```rust
-pub const ALGORITHM_VERSION: u32 = 1;          // bump a cada mudança que altere notas
+pub const ALGORITHM_VERSION: u32 = 5;          // bump a cada mudança que altere notas (v5 desde a 0.1.1)
 pub const REFERENCE_FORMAT_VERSION: u32 = 1;
 
 pub struct Note { pub start_ms: u32, pub dur_ms: u32, pub midi: f32, pub lyric: Option<String> }
@@ -73,10 +73,10 @@ pub struct MelodyReference { pub format_version: u32, pub notes: Vec<Note> } // 
 pub fn parse_reference_json(json: &str) -> Result<MelodyReference, RefError>;
 pub fn import_midi(bytes: &[u8], track: Option<usize>) -> Result<MelodyReference, RefError>;
 pub fn midi_tracks(bytes: &[u8]) -> Result<Vec<MidiTrackInfo>, RefError>;  // para o usuário escolher a trilha vocal
-pub fn to_reference_json(r: &MelodyReference) -> String;
+pub fn to_reference_json(r: &MelodyReference) -> String;  // inverso do parse; formato de melody_references.notes_json
 /// UltraStar .txt (SPEC-013): BPM/GAP/RELATIVE, : e * viram notas, F/R/G ficam fora, dueto = P1 + P3 (trechos em dupla), sílaba → lyric; UTF-8 (com/sem BOM) ou CP1252.
 pub struct UltraStarInfo { pub title: Option<String>, pub artist: Option<String>, pub duet: bool }
-pub fn import_ultrastar(bytes: &[u8]) -> Result<(MelodyReference, UltraStarInfo), RefError>;  // inverso do parse; formato de melody_references.notes_json
+pub fn import_ultrastar(bytes: &[u8]) -> Result<(MelodyReference, UltraStarInfo), RefError>;
 pub struct MidiTrackInfo { pub index: usize, pub name: Option<String>, pub note_count: u32 }
 /// Display pt-BR pronto para o usuário. import_midi(None) com várias trilhas → TrackRequired.
 pub enum RefError { Json, UnknownFormat, UnsupportedVersion, Empty, ZeroDuration{..}, PitchOutOfRange{..}, Midi, SmpteUnsupported, SequentialUnsupported, NoSuchTrack, TrackRequired, UltraStarHeader(String), UltraStarLine { line, reason } }
@@ -108,8 +108,6 @@ pub struct PerformanceRecord { pub participant_id: Option<i64> /* None = Anônim
 pub struct CompatKey { pub reference_id: i64, pub reference_revision: i64, pub algorithm_version: u32, pub difficulty: String }
 pub struct Standing { pub participant_id: i64, pub total: f32, pub average: f32, pub rounds: u32, pub eligible: bool, pub rank: u32 }
 pub struct DuelOutcome { pub winner: Option<i64> /* None = empate */, pub margin: f32 }
-pub enum ChallengeStatus { InProgress, Succeeded, Failed }
-pub struct ChallengeProgress { pub completed: u32, pub remaining: u32, pub average: f32, pub status: ChallengeStatus }
 pub struct LeaderboardRow { pub position: u32, pub participant_id: Option<i64>, pub score: f32, pub created_ms: i64 }
 pub enum GameError { IncompatibleRecords }
 
@@ -118,7 +116,6 @@ pub fn party_standings(records: &[PerformanceRecord], min_rounds: u32) -> Vec<St
 /// max(nP, nS) rodadas; rodada i = (part[i % nP], song[i % nS]). Shuffled: Fisher-Yates + splitmix64 por seed nas duas listas.
 pub fn plan_rounds(participants: &[i64], songs: &[String], order: RoundOrder, seed: u64) -> Vec<(i64, String)>;
 pub fn duel_outcome(a: &PerformanceRecord, b: &PerformanceRecord) -> Result<DuelOutcome, GameError>; // erro se CompatKey difere
-pub fn challenge_progress(scores: &[f32], target: f32, rounds: u32) -> ChallengeProgress;
 /// Filtra pela CompatKey; o chamador já filtrou competitive=1. Empate: mais antigo primeiro. Top 50.
 pub fn leaderboard(records: &[PerformanceRecord], compat: &CompatKey) -> Vec<LeaderboardRow>;
 ```
@@ -132,14 +129,14 @@ pub struct LiveTick { pub mic: MicFrame, pub feedback: Option<LiveFeedback> } //
 pub struct LivePerformance;
 impl LivePerformance {
     /// Abre o mic; frames são descartados até o 1º sync(playing=true).
-    pub fn start(cfg: PerformanceConfig, on_tick: impl Fn(LiveTick) + Send + 'static) -> Result<Self, AppError>;
+    pub fn start(cfg: PerformanceConfig, on_tick: impl FnMut(LiveTick) + Send + 'static) -> Result<Self, AppError>;
     /// Âncora = (video_time, contador de amostras do CALLBACK). Resync se deriva > 40 ms; pausa descarta; seek → competitive=false + Scorer::skip.
     pub fn sync(&self, video_time_s: f64, playing: bool, seeked: bool);
     pub fn take_error(&self) -> Option<AppError>;   // mic desconectado
     pub fn finish(self) -> PerformanceSummary;      // drop = abort
 }
 pub struct PerformanceSummary { pub competitive: bool, pub reason: Option<String> /* pt-BR, por que virou treino (v3) */, pub played_ms: u64, pub result: Option<ScoreResult>, pub exploratory: Option<ExploratoryMetrics>, pub capture: CaptureStats }
-// CaptureStats → performances.capture_json: device, noiseFloorDbfs, latencyOffsetMs, clippedRatio, missingRatio (0..1; > 0,05 ⇒ treino, v3 N2), leakSuspected (só indicativo)
+// CaptureStats → performances.capture_json: deviceId, sampleRate, noiseFloorDbfs, gateMarginDb, latencyOffsetMs, clippedRatio, missingRatio (0..1; > 0,05 ⇒ treino, v3 N2), leakSuspected (só indicativo)
 ```
 
 Os commands (Agente 1) carregam a referência ativa e as configurações, criam `PerformanceConfig`, guardam `Mutex<Option<LivePerformance>>` no `AppState`, repassam `LiveTick` ao `Channel` e, no `finish`, decidem a persistência: `competitive` final = `summary.competitive && played_ms ≥ 50% de duration_ms` (SPEC-007 R2). Também calculam os recordes.
@@ -178,7 +175,7 @@ Settings: `separationModel: { id, name, acceptedMs } | null` (somente leitura vi
 Referência gerada: `source = 'extracted'`, `status = 'experimental'`, ativa (a anterior vai para o histórico), como no import.
 **Erros (AppError.code) da SPEC-012:** `terms_not_accepted`, `model_unknown` (SHA-256 fora da lista), `model_not_installed`, `audio_invalid` (bytes vazios, não múltiplos de 4 ou > 20 min), `audio_token_invalid` (token velho ou de outra música), `busy` (já há uma geração), **`cancelled`** (o usuário cancelou: a promessa de `generate_reference` **rejeita** com esse código, sem salvar nada), `not_found` (inclui alinhar com uma referência inexistente), `analysis_failed` (AnalysisError::Model/Input: modelo ou runtime ONNX indisponível ou com falha; mensagem pt-BR do crate). "Sem voz" **não** é erro: é `AutoReferenceOutcome { reference: null, reason }`.
 
-## 3. Esquema SQLite (migração 001)
+## 3. Esquema SQLite (migrações 001 e 002)
 
 Dono da implementação: Agente 1 (`src-tauri/migrations/001_init.sql`). Mudanças de esquema = nova migração, nunca editar migração já integrada.
 
@@ -202,7 +199,7 @@ CREATE TABLE songs (
 CREATE TABLE melody_references (
   id INTEGER PRIMARY KEY,
   song_id TEXT NOT NULL REFERENCES songs(id),
-  source TEXT NOT NULL CHECK (source IN ('midi','json','manual','extracted')),
+  source TEXT NOT NULL CHECK (source IN ('midi','json','manual','extracted','ultrastar')),  -- 'ultrastar' desde a migração 002 (backup .bak-v1 antes)
   format_version INTEGER NOT NULL,
   revision INTEGER NOT NULL DEFAULT 1,  -- +1 a cada mudança de notas ou offset
   status TEXT NOT NULL CHECK (status IN ('processing','experimental','validated','invalid')),

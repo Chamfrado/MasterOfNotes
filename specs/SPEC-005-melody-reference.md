@@ -27,7 +27,7 @@ Critérios:
 | T-005-03 | Commands de referência + persistência | Agente 1 | done |
 | T-005-07 | Cantar a referência: `segment_notes` + modo `reference_capture` no performance.rs (Agente 2); command e persistência (Agente 1); UI "Gravar cantando" na tela Referência (Agente 3) | Agentes 2, 1 e 3 | done |
 | T-005-09 | E2E de "Gravar cantando": fake-backend com `referenceCapture` (regras do live.rs), `e2e/reference-capture.e2e.ts`, painel de gravação no axe/teclado | Agente 4 | done |
-| T-005-08 | Modelo opcional baixado pelo usuário (ADR-0004 B) | Agentes 2, 1 e 3 | todo (0.1.3) |
+| T-005-08 | Modelo opcional baixado pelo usuário (ADR-0004 B) | Agentes 2, 1 e 3 | done (entregue como SPEC-012 na 0.1.3) |
 | T-005-04 | Tela de referência (import, trilha, offset, validar) | Agente 3 | done |
 
 ## TEST
@@ -82,3 +82,4 @@ Critérios:
   - `a11y.e2e.ts`: telas "Gravar cantando" (apresentação, com aviso de substituição) e "Gravando notas" na rodada de axe, teclado, viewports e movimento reduzido.
   - ❓ O fake não detecta notas; a segmentação real é testada no Rust (Agente 2).
 - T-005-09 done (Agente 0, 2026-11-19): E2E e a11y da gravação cantada integrados; selo movido para fora do vídeo; Vitest 204/204, Playwright 113/113.
+- T-014-05 (Agente 0, 2026-11-23): T-005-08 done, entregue como SPEC-012 na 0.1.3.

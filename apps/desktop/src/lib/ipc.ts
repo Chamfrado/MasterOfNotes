@@ -71,7 +71,7 @@ export interface LibraryChange {
   updated: string[];
   removed: string[];
 }
-/** Persists the folder, allows it in the asset-protocol scope, scans it and starts the watcher. */
+/** Persists the folder, scans it, allows each indexed video (never the folder) in the asset-protocol scope and starts the watcher. */
 export const setLibraryFolder = (path: string, recursive: boolean) =>
   invoke<ScanSummary>("set_library_folder", { path, recursive });
 export const rescanLibrary = () => invoke<ScanSummary>("rescan_library");

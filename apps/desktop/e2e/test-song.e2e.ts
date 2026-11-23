@@ -1,6 +1,6 @@
 // T-003-05: the generated test song plays in Chromium, has a real duration, seeks, and its audio matches
 // the exported reference (every note's pitch present in the guide version, absent in the karaoke version,
-// onsets aligned). The reference JSON itself is parsed by the real parser in crates/game/tests/test_song.rs.
+// onsets aligned). The reference JSON itself is parsed by the real parser in crates/scoring-engine/tests/test_song.rs.
 import { expect, test } from "@playwright/test";
 import { FILES, MELODY_JSON, SONG_MS, generateTestSong } from "./tools/test-song.ts";
 

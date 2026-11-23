@@ -4,6 +4,12 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+### Corrigido
+- Se o microfone for desconectado ou falhar no meio de uma música, o app agora para a partida e explica o que aconteceu. Antes, o vídeo continuava tocando sem pontuar nada. Na tela **Microfone**, o medidor dá lugar à mensagem de erro.
+
+### Interno
+- Limpeza de código repetido e sem uso (auditoria de simplicidade); a pontuação não mudou.
+
 ## [0.1.5] - 2026-11-23
 
 ### Segurança
@@ -14,7 +20,7 @@ Correções vindas da revisão de segurança independente (nenhuma era exploráv
 - O app só abre links do site do projeto no GitHub.
 - Não é mais possível escolher uma unidade inteira (ex.: `C:\`) como pasta de músicas.
 
-## [0.1.4] - 2026-11-20
+## [0.1.4] - 2026-11-23
 
 ### Adicionado
 - **Importar referência UltraStar (.txt):** o formato da comunidade de karaokê, com notas e letra sílaba por sílaba. Notas douradas contam como normais; freestyle e rap ficam de fora. Em duetos, o app importa a parte do primeiro cantor e avisa. Arquivos antigos com acentos são lidos corretamente. Depois de importar, o app sugere **Alinhar automaticamente**, porque esses arquivos costumam seguir o tempo da gravação original, não o do vídeo.

@@ -8,7 +8,7 @@ Imutáveis, salvo ADR aprovada pelo coordenador (Agente 0). Todo agente, humano 
 | 02 | **Test Before Done** | Comportamento crítico só está pronto com teste executado e passando. |
 | 03 | **No Fake Functionality** | Proibido simular microfone, pontuação, atualização, importação ou persistência e apresentar como real. Mocks só em testes/dev, nunca no caminho de produção. |
 | 04 | **Single Source of Truth** | Cada dado tem um dono: SQLite (via Rust) para dados persistentes; `ipc.ts` para o contrato frontend↔backend; `specs/` para requisitos. |
-| 05 | **Separation of Concerns** | Domínio musical (`crates/scoring-engine`), dispositivos (`crates/audio-engine`), regras de jogo (`crates/game`), persistência/infra (`src-tauri`), UI (`apps/desktop/src`). |
+| 05 | **Separation of Concerns** | Domínio musical (`crates/scoring-engine`), dispositivos (`crates/audio-engine`), regras de jogo (`crates/game`), referência automática (`crates/song-analysis`), persistência/infra (`src-tauri`), UI (`apps/desktop/src`). |
 | 06 | **No Unnecessary Complexity** | Sem abstração especulativa, sem dependência dispensável. Ponytail é a régua. |
 | 07 | **Explicit Contracts** | Interfaces compartilhadas (`docs/architecture/contracts.md`, `ipc.ts`) mudam só via coordenador. |
 | 08 | **Performance Matters** | Nada pesado na thread de UI nem no callback de áudio. Varredura, hashing e DSP fora da thread principal. |
@@ -27,6 +27,6 @@ Imutáveis, salvo ADR aprovada pelo coordenador (Agente 0). Todo agente, humano 
 
 ## Validação automatizada
 
-- CI (`.github/workflows/ci.yml`) roda typecheck, testes TS, `cargo test --workspace`, `cargo clippy -D warnings` e `cargo fmt --check`.
+- CI (`.github/workflows/ci.yml`) roda typecheck do app, testes TS, `cargo test --workspace`, `cargo clippy -D warnings`, `cargo fmt --check`, o build do Vite e o E2E (Playwright).
 - `cargo test -p scoring-engine` inclui a suíte de regressão do algoritmo (Lei 11/12).
-- Busca proibida no CI: `Math.random` fora de `*.test.*` dentro de `apps/desktop/src/**/scor*` (Lei 03).
+- Busca proibida no CI: `Math.random` fora de `*.test.*` dentro de `apps/desktop/src/**/scor*` (Lei 03). Hoje a pontuação fica toda em Rust, então a busca é só uma trava para código TS futuro.

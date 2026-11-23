@@ -43,7 +43,7 @@ A **fonte da verdade** é `apps/desktop/e2e/tools/test-song.mon-melody.json`. O 
 
 ### Verificação automatizada
 
-- **`crates/game/tests/test_song.rs`** (`cargo test -p game`): a referência passa pelo `scoring_engine::parse_reference_json` real sem perder nem fundir notas, e tem introdução, par repetido ligado, nota curta, pausa e fim antes de 31 s.
+- **`crates/scoring-engine/tests/test_song.rs`** (`cargo test -p scoring-engine --test test_song`): a referência passa pelo `scoring_engine::parse_reference_json` real sem perder nem fundir notas, e tem introdução, par repetido ligado, nota curta, pausa e fim antes de 31 s.
 - **`apps/desktop/e2e/test-song.e2e.ts`** (`E2E_PORT=14N5 pnpm --filter desktop exec playwright test e2e/test-song.e2e.ts --no-deps`): gera os três arquivos e confere, no Chromium:
   - os dois vídeos carregam, têm duração de 31 s (o Duration é injetado no cabeçalho WebM) e tocam;
   - após um seek para 21 s, o quadro exibido é o daquele tempo (pixel da barra de progresso);

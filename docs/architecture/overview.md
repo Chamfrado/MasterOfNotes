@@ -7,20 +7,23 @@ Decisões de stack: [ADR-0001](../adr/ADR-0001-stack.md). Contratos entre módul
 ```
 ┌──────────────────────── WebView2 (React/TS) ───────────────────────┐
 │  UI, navegação, <video> (relógio de mídia), feedback em tempo real │
-│  apps/desktop/src  ──  único ponto de IPC: src/lib/ipc.ts          │
+│  apps/desktop/src  ──  commands próprios só via src/lib/ipc.ts     │
 └───────────────▲────────────────────────────────┬───────────────────┘
                 │ eventos/Channel                │ invoke()
 ┌───────────────┴────────────── Rust (Tauri) ────▼───────────────────┐
 │ apps/desktop/src-tauri                                             │
-│  commands/*  db/* (SQLite, migrações)  library/* (scan, watch)     │
-│  performance.rs (sessão ao vivo: relógio, sync, scorer)            │
-│        │                    │                     │                │
-│  crates/audio-engine  crates/scoring-engine   crates/game          │
-│  (cpal, YIN, VAD)     (referência, score)     (regras de partida)  │
+│  commands.rs  db.rs (SQLite, migrações)  library.rs (scan, watch)  │
+│  live.rs  mic.rs  reference.rs  sessions.rs  analysis.rs           │
+│  settings.rs  performance.rs (ao vivo: relógio, sync, scorer)      │
+│       │               │               │             │              │
+│  audio-engine    scoring-engine   game         song-analysis       │
+│  (cpal, YIN,     (referência,     (regras de   (separação ONNX,    │
+│   VAD)            pontuação)       partida)     transcrição,       │
+│                                                 alinhamento)       │
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-Os três crates em `crates/` são **puros e testáveis sem Tauri**. `scoring-engine` e `game` não fazem I/O. `audio-engine` só faz I/O de dispositivo de áudio.
+Os quatro crates em `crates/` são **testáveis sem Tauri**. `scoring-engine` e `game` não fazem I/O. `audio-engine` só faz I/O de dispositivo de áudio. `song-analysis` lê o modelo ONNX do disco (sem rede) e usa os outros dois crates (orquestração da referência automática).
 
 ## Fluxo vertical prioritário
 
@@ -31,7 +34,7 @@ Selecionar pasta → indexar → buscar → reproduzir → escolher microfone �
 O `<video>` é o relógio da **música**; o contador de amostras do microfone é o relógio da **voz**. Nenhum dos dois sozinho basta.
 
 1. Ao iniciar a captura, cada `AnalysisFrame` traz `sample_index` (contador monotônico do dispositivo).
-2. A UI chama `sync_performance(videoTimeS, playing)` em `play`, `pause`, `seeking/seeked` e a cada ~250 ms via `requestVideoFrameCallback` (usa `mediaTime`, não o relógio da UI).
+2. A UI chama `sync_performance(videoTimeS, playing, seeked)` em `play`, `pause`, `seeking/seeked` e a cada ~250 ms via `requestVideoFrameCallback` (usa `mediaTime`, não o relógio da UI).
 3. `performance.rs` mantém uma âncora `(video_time, sample_index_at_receipt)`. Tempo de música de um frame:
    `t_song = anchor_video + (sample_index - anchor_sample)/sample_rate - latency_offset`
 4. Resync periódico corrige deriva: se |estimado − reportado| > 40 ms, re-ancora (sem reprocessar frames antigos).
@@ -41,15 +44,15 @@ O `<video>` é o relógio da **música**; o contador de amostras do microfone é
 
 ## Referência melódica
 
-Sem referência não há pontuação competitiva (SPEC-005). Ordem de preferência ([ADR-0002](../adr/ADR-0002-melody-reference.md)): importação MIDI/JSON → edição/sincronização manual → extração automática (experimental, fase posterior). Estados: `none` (sem linha) · `processing` · `experimental` · `validated` · `invalid`.
+Sem referência não há pontuação competitiva (SPEC-005). Ordem de preferência ([ADR-0002](../adr/ADR-0002-melody-reference.md)): importação MIDI/JSON/UltraStar → gravação cantada → edição/sincronização manual → extração automática a partir do vídeo (SPEC-012, experimental, modelo opcional baixado pelo usuário). Estados: `none` (sem linha) · `processing` · `experimental` · `validated` · `invalid`.
 
 ## Persistência
 
-SQLite em `app_data_dir()/masterofnotes.db`, acesso **só pelo Rust** (`rusqlite`, bundled). Migrações SQL embutidas, aplicadas por `PRAGMA user_version`. Backup automático do arquivo antes de qualquer migração (Lei 14). Esquema: [contracts.md §3](contracts.md#3-esquema-sqlite-migração-001).
+SQLite em `app_data_dir()/masterofnotes.db`, acesso **só pelo Rust** (`rusqlite`, bundled). Migrações SQL embutidas, aplicadas por `PRAGMA user_version`. Backup automático do arquivo antes de qualquer migração (Lei 14). Esquema: [contracts.md §3](contracts.md#3-esquema-sqlite-migrações-001-e-002).
 
 ## Vídeo
 
-`<video>` nativo do WebView2 via asset protocol (`convertFileSrc`). Escopo do asset protocol liberado em runtime **apenas** para a pasta da biblioteca. Codec incompatível → estado `Error` com mensagem clara e `songs.playable='no'`. Sem transcodificação no MVP ([ADR-0003](../adr/ADR-0003-video-playback.md)).
+`<video>` nativo do WebView2 via asset protocol (`convertFileSrc`). Escopo do asset protocol liberado em runtime **arquivo a arquivo**, só para os vídeos indexados e disponíveis (nunca a pasta inteira). Codec incompatível → estado `Error` com mensagem clara e `songs.playable='no'`. Sem transcodificação no MVP ([ADR-0003](../adr/ADR-0003-video-playback.md)).
 
 ## Atualização
 
@@ -63,11 +66,12 @@ apps/desktop/src-tauri/  camada nativa (Agente 1; performance.rs = Agente 2)
 crates/audio-engine/     captura + DSP (Agente 2)
 crates/scoring-engine/   referência + pontuação (Agente 2)
 crates/game/             regras de jogo (Agente 4)
+crates/song-analysis/    referência automática: separação, transcrição, alinhamento (Agente 2)
 specs/                   SPEC-NNN.md (spec+plan+tasks+test+status num arquivo)
 docs/adr/                decisões
 docs/architecture/       este documento + contratos
 docs/testing/            estratégia e evidências
-tests/fixtures/          fixtures versionadas (áudio sintético, referências)
+tests/fixtures/          fixtures versionadas (referências; o áudio sintético é gerado nos testes)
 ```
 
-Não criados (ainda): `crates/core`, `crates/song-analysis`, `packages/ui`. Serão criados quando houver segundo consumidor ou extração automática de melodia (Lei 06).
+Não criados (ainda): `crates/core`, `packages/ui`. Serão criados quando houver segundo consumidor (Lei 06).

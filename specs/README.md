@@ -23,7 +23,7 @@ Status de tarefa: `todo` · `doing` · `review` (entregue, aguardando coordenado
 
 ## Matriz de rastreabilidade (AC → spec → teste → evidência)
 
-Atualizada pelo coordenador em 2026-11-19. ✅ executado com evidência · 🟡 automatizado/sintético verde, falta a validação manual com hardware real · ⏳ pendente.
+Atualizada pelo coordenador em 2026-11-23. ✅ executado com evidência · 🟡 automatizado/sintético verde, falta a validação manual com hardware real · ⏳ pendente.
 
 | AC | Spec | Teste automatizado | Evidência / estado |
 |---|---|---|---|
@@ -34,14 +34,14 @@ Atualizada pelo coordenador em 2026-11-19. ✅ executado com evidência · 🟡 
 | AC-005 selecionar/testar mic | 004 | `audio-engine` (sintéticos + hardware ignorado) | ⏳ captura funciona, mas o mic padrão está mudo/bloqueado (−105 dBFS) → roteiro passo 6 |
 | AC-006 calibrar | 004 | `calibrate_noise`, `Mic.test.tsx` | ⏳ roteiro passos 7, 10, 11 |
 | AC-007 referência válida | 005 | `reference` (Rust), `Reference.test.tsx`, `test_song.rs` | 🟡 roteiro passos 8–9 |
-| AC-008 afinado/desafinado/silêncio/atraso | 006 | regressão v2 com golden (pipeline áudio → score) | ✅ sintético (`scoring-accuracy.md`, `scoring-review.md`); ⏳ voz real, roteiro 12–15 |
+| AC-008 afinado/desafinado/silêncio/atraso | 006 | regressão v5 com golden (pipeline áudio → score) | ✅ sintético (`scoring-accuracy.md`, `scoring-review.md`); ⏳ voz real, roteiro 12–15 |
 | AC-009 feedback coerente | 006, 010 | `Player.test.tsx`, regressão | ⏳ roteiro 12–14 |
 | AC-010 salvar performance | 007 | `live::tests` (persistência, competitive ≥ 50%) | 🟡 roteiro 16 |
 | AC-011 leaderboard persistente | 007 | `game` + `live` + E2E Ranking | 🟡 roteiro 16, 19 |
-| AC-012 partida Festa | 008 | `game` (15), telas + E2E Festa (em andamento) | ⏳ roteiro 17–18 |
+| AC-012 partida Festa | 008 | `game`, telas + E2E Festa (`party.e2e.ts`) | ⏳ roteiro 17–18 |
 | AC-013 persistir após reabrir | 001 | `db::reopen_preserves_data`; dados sobreviveram ao update | ✅ via update 0.1.0 → 0.1.1 (`update-test.md`); roteiro 19 |
-| AC-014 instalador | 009 | `pnpm build` + workflow Release | ✅ NSIS por usuário; v0.1.1 e v0.1.2 publicadas e assinadas |
+| AC-014 instalador | 009 | `pnpm build` + workflow Release | ✅ NSIS por usuário; v0.1.1–v0.1.5 publicadas e assinadas |
 | AC-015 update assinado | 009 | assinatura adulterada recusada + update real | ✅ chave de teste (`update-test.md`) **e produção**: 0.1.1 → 0.1.2 pela verificação automática, confirmado pelo proprietário (2026-11-20) |
-| AC-016 docs/specs/leis | — | `pnpm check`, CI | 🟡 revisão final do coordenador na Fase 7 |
+| AC-016 docs/specs/leis | 014 | `pnpm check`, CI | ✅ revisão do coordenador na Fase 7 (T-014-05, 2026-11-23): arquitetura, contratos, roadmap, specs e instruções conferidos contra o código |
 
 Evidências em `docs/testing/evidence/`.

@@ -18,7 +18,7 @@ Guia minucioso para quem nunca usou o app, em pt-BR, com **imagens, GIFs e víde
 | T-011-02 | Script de captura (screenshots + GIF + vídeo) reprodutível | Agente 5 | done |
 | T-011-03 | Páginas do guia (R2) com mídia | Agente 5 | done |
 | T-011-04 | Revisão de exatidão contra a UI + revisão do coordenador | Agente 5 / Agente 0 | done |
-| T-011-05 | Conferir a renderização real no GitHub (links, âncoras com acento, imagens/GIFs, vídeo, link do README da raiz) + instalação apontando para a pré-release | Agente 5 | review |
+| T-011-05 | Conferir a renderização real no GitHub (links, âncoras com acento, imagens/GIFs, vídeo, link do README da raiz) + instalação apontando para a release mais recente | Agente 5 | done |
 | T-011-06 | Guia: "Gravar cantando" (T-005-07), página de versões quando o canal automático não tem versão (T-009-02), aviso de variação > 10 ms na latência (T-004-07); texto agora, mídia depois do main | Agente 5 | done |
 
 ## STATUS
@@ -35,3 +35,4 @@ Criada em 2026-11-19 a pedido do proprietário.
 - T-011-06 done (Agente 0, 2026-11-19): texto e mídia de "Gravar cantando" e do canal de atualizações integrados; 52 arquivos, 10,6 MB.
 - T-011-06 (Agente 5, 2026-11-19), sobre main ea2ceb2: selo "Gravando notas" movido para o painel (Agente 3). Regenerada só `referencia-cantar.gif` (0,54 MB); conferido num quadro que o selo fica no painel, sob o título, e nada cobre o vídeo. `referencia-cantar.png` saiu idêntica byte a byte (o selo não aparece antes de Começar), então não mudou. `-g "gravar cantando"` ✅ 1/1. Mídia total: 10,7 MB.
 - T-011-06 (Agente 5, 2026-11-19), 0.1.2 como release normal (pedido do coordenador): 01-instalacao sem o aviso de pré-release (mantida a nota sobre a validação com voz real), link `releases/latest`, asset `Master.Of.Notes_0.1.2_x64-setup.exe`, legenda da captura do instalador (0.1.1, telas iguais). 11 e 13: o erro na verificação era só da 0.1.1; a partir da 0.1.2 funciona e a 0.1.1 recebe a 0.1.2 pela atualização automática. 07-pontuacao: o guia descrevia o algoritmo v3; acrescentadas as regras do v4/v5 (oscilar em volta da nota é desafinação; fall, bend e scoop únicos não são erro), conferidas em `scorer.rs` (ALGORITHM_VERSION = 5) e na SPEC-006. Verificador de links ✅. ❓ Tamanho "cerca de 4 MB" do instalador 0.1.2 suposto igual ao da 0.1.1.
+- T-011-05 done (Agente 0, 2026-11-23, T-014-05): a instalação aponta para `releases/latest` desde a 0.1.2; o exemplo do nome do instalador foi atualizado para a 0.1.5.

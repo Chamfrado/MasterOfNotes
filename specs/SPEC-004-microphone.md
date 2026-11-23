@@ -30,7 +30,8 @@ Critérios:
 | T-004-03 | Calibração de ruído | Agente 2 | done |
 | T-004-04 | Commands `list_input_devices`, `start/stop_mic_monitor`, `calibrate_noise` | Agente 1 | done |
 | T-004-05 | Tela de microfone e calibração | Agente 3 | done |
-| T-004-07 | Medição assistida de latência (sonda de cliques pelo pipeline do vídeo) | Agente 2 + Agente 1 + Agente 3 | doing (backend done; UI pendente) |
+| T-004-06 | Checagem de vazamento (detalhes na SPEC-006) | Agentes 2, 1 e 3 | done |
+| T-004-07 | Medição assistida de latência (sonda de cliques pelo pipeline do vídeo) | Agente 2 + Agente 1 + Agente 3 | done (medição real com caixas e palmas ⏳ roteiro manual) |
 
 ## TEST
 `audio-engine/tests/synthetic.rs`: senoides, oitavas, glissando, silêncio, ruído, clipping, invariância a volume, harmônicos. Dispositivo real = teste manual registrado em `docs/testing/evidence/`.
@@ -105,3 +106,4 @@ Critérios:
   - Com a medida aprovada e variação exibida acima de 10 ms, a sonda recomenda medir de novo (com palmas secas e silêncio).
   - A comparação usa o valor arredondado que aparece na tela, para que "±10 ms" nunca venha junto com o aviso "passou de 10 ms".
   - `LatencyProbe.test.tsx`: +2 testes (14,2 ms recomenda repetir; 10,4 ms não recomenda).
+- T-014-05 (Agente 0, 2026-11-23): T-004-07 done (a UI da sonda, a trilha de cliques e o jitter saíram na 0.1.2); falta só a medição real com caixas e palmas, no roteiro manual. Linha de T-004-06 adicionada (rastreada na SPEC-006). T-014-03: o `audio://error` passou a ser mostrado no Microfone e no Player (antes a UI não escutava o evento).

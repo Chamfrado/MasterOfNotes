@@ -14,9 +14,9 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 |---|---|---|---|
 | T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | done |
 | T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | done |
-| T-014-03 | Auditoria Ponytail (R3) | Agente 0 | todo |
+| T-014-03 | Auditoria Ponytail (R3) | Agente 0 | done |
 | T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | done |
-| T-014-05 | Revisão da documentação técnica (R5, AC-016) | Agente 0 | todo |
+| T-014-05 | Revisão da documentação técnica (R5, AC-016) | Agente 0 | done |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
@@ -45,3 +45,51 @@ Criada em 2026-11-20 (coordenador), janela autônoma.
   - Nenhuma dependência foi atualizada.
 - T-014-01/02 done (Agente 0, 2026-11-23): A1 (chave de assinatura) integrado e vale a partir da 0.1.4. Ação §4.1 da auditoria aplicada sem ferramenta nova: `scripts/gen-notices.mjs` (Node puro) gera no release o `THIRD-PARTY-NOTICES.txt` completo (327 pacotes do executável Windows + JS de produção + fontes OFL; MPL-2.0 com link do código-fonte; pacotes sem arquivo de licença com autores e o texto correspondente). B1–B6 → 0.1.5. §4.2/4.3 (cargo-deny/cargo-audit no CI) ficam no backlog.
 - B1–B6 (Agente 0, 2026-11-23), 0.1.5: B1 hash da cópia (teste ajustado: recusa não deixa arquivo); B3 mensagens UltraStar sem conteúdo do arquivo (teste novo de não-vazamento; guia atualizado); B4 leitura limitada com `take`; B5 `opener:allow-open-url` só `https://github.com/*` (sem `reveal_item_in_dir`; casamento por `glob::Pattern`, conferido no código do plugin 2.7.3); B6 recusa a raiz de unidade. **B2 aceito, com justificativa:** o escopo do asset protocol do Tauri não tem "desfazer forbid"; revogar vídeos removidos impediria que voltassem a tocar (pendrive reconectado, voltar à pasta anterior) até reiniciar, e o risco exige XSS, que não tem sink na UI (revisão R1). Reavaliar se surgir conteúdo HTML não confiável na UI.
+- T-014-03 done (Agente 0, 2026-11-23). Auditoria Ponytail em três revisões independentes, só de leitura (Rust, TS, docs); aplicado só o que não muda comportamento.
+  - **Bug achado (não era excesso):** `audio://error` era emitido pelo Rust, mas nenhuma tela escutava. Agora:
+    - o Player para a partida e explica o erro;
+    - o Microfone troca o medidor pela mensagem.
+    Isso cumpre a Lei 13. Testes novos em `Player.test.tsx` e `Mic.test.tsx`.
+  - **Rust** (−199/+74):
+    - código morto removido: `game::challenge_progress`, `ChallengeStatus` e `ChallengeProgress`;
+    - repetições trocadas por um ponto só:
+      - `lock` genérico tolerante a envenenamento (antes, 8 cópias);
+      - `scorer::median` e `level_dbfs`, que dão resultado idêntico bit a bit;
+      - `hann`, `capture_config`, `get_available_song` e `require_participant`;
+    - `Difficulty` passa a vir do `scoring-engine`, com o mesmo JSON;
+    - `test_song.rs` passou para o `scoring-engine`, porque só testa o parser dele, e o `game` perdeu a dev-dependência;
+    - `ALGORITHM_VERSION` sem mudança.
+  - **TS:**
+    - rótulos de dificuldade, "faltam N rodadas", MB, vencedor da Festa e status da sessão num lugar só;
+    - removidos parâmetros sem uso (`clickTrack`, `rollLayout`), o evento `RESET`, o token CSS `--ease-spring` e 25 `export`s sem importador.
+  - **Não aplicado (julgamento, baixo ganho, ou mexe em docs e capturas do usuário):**
+    - `EditSongDialog` duplicado na Biblioteca;
+    - `useBusy` e o hook de performance aberta;
+    - `vite.config` herdado do template;
+    - `Quantize` em `segment.rs`, que guarda a evidência da decisão do semitom;
+    - mudanças de API do `game` (`leaderboard` com id, `party_standings` com pares, `RoundOrder` direto);
+    - o parser ZIP do `fetch-onnxruntime.mjs`, já revisado na segurança.
+- T-014-05 done (Agente 0, 2026-11-23). 24 divergências entre docs e código corrigidas:
+  - `contracts.md`:
+    - `ALGORITHM_VERSION` 5;
+    - migração 002 com `'ultrastar'`;
+    - dono de `crates/song-analysis` e dos scripts de release;
+    - `on_tick` `FnMut` e campos de `CaptureStats`;
+    - comentário do `to_reference_json` no lugar certo;
+    - `challenge_progress` removido.
+  - `overview.md`:
+    - 4 crates;
+    - módulos reais do `src-tauri`;
+    - `sync_performance` com `seeked`;
+    - asset protocol arquivo a arquivo;
+    - formatos de referência.
+  - `roadmap.md`: fase 7, v5, v0.1.5, riscos e próximos passos.
+  - `release-process.md`: aprovação da 0.1.4/0.1.5 pelo proprietário e passos só do release.
+  - CHANGELOG: data da 0.1.4.
+  - `specs/README.md`: matriz atualizada; AC-016 ✅.
+  - Tabelas das SPEC-003/004/005/007/011 alinhadas ao STATUS.
+  - `AGENTS.md`: `pnpm check` e o uso de plugins oficiais.
+  - `CLAUDE.md`: comandos que rodam da raiz e Agente 5.
+  - `agent-coordination.md`: sem worktree ativa.
+  - Lei 05: `song-analysis`.
+  - Guia do usuário: nome do instalador da 0.1.5.
