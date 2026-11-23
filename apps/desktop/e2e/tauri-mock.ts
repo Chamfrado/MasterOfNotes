@@ -103,35 +103,50 @@ export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageError
  * (SPEC-012 decodes the video's audio in the WebView). */
 export const useSyntheticVideo = (page: Page, ms = 800, audio = false) =>
   page.evaluate(async ([ms, audio]) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 64;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("canvas 2d unavailable");
-    const stream = canvas.captureStream(30);
-    const ac = audio ? new AudioContext() : null;
-    if (ac) {
-      const osc = ac.createOscillator();
-      const dest = ac.createMediaStreamDestination();
-      osc.connect(dest);
-      osc.start();
-      stream.addTrack(dest.stream.getAudioTracks()[0]);
-    }
-    const rec = new MediaRecorder(stream, { mimeType: audio ? "video/webm;codecs=vp8,opus" : "video/webm;codecs=vp8" });
-    const chunks: Blob[] = [];
-    rec.ondataavailable = (e) => chunks.push(e.data);
-    const stopped = new Promise((resolve) => (rec.onstop = resolve));
-    let frame = 0;
-    const draw = setInterval(() => {
-      ctx.fillStyle = frame++ % 2 ? "#202020" : "#404040";
-      ctx.fillRect(0, 0, 64, 64);
-    }, 33);
-    rec.start();
-    await new Promise((resolve) => setTimeout(resolve, ms));
-    rec.stop();
-    clearInterval(draw);
-    await stopped;
-    await ac?.close();
-    window.__E2E_VIDEO_URL__ = URL.createObjectURL(new Blob(chunks, { type: "video/webm" }));
+    const record = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 64;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("canvas 2d unavailable");
+      const stream = canvas.captureStream(30);
+      const ac = audio ? new AudioContext() : null;
+      if (ac) {
+        const osc = ac.createOscillator();
+        const dest = ac.createMediaStreamDestination();
+        osc.connect(dest);
+        osc.start();
+        stream.addTrack(dest.stream.getAudioTracks()[0]);
+      }
+      const rec = new MediaRecorder(stream, { mimeType: audio ? "video/webm;codecs=vp8,opus" : "video/webm;codecs=vp8" });
+      const chunks: Blob[] = [];
+      rec.ondataavailable = (e) => chunks.push(e.data);
+      const stopped = new Promise((resolve) => (rec.onstop = resolve));
+      let frame = 0;
+      const draw = setInterval(() => {
+        ctx.fillStyle = frame++ % 2 ? "#202020" : "#404040";
+        ctx.fillRect(0, 0, 64, 64);
+      }, 33);
+      rec.start();
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      rec.stop();
+      clearInterval(draw);
+      await stopped;
+      await ac?.close();
+      return new Blob(chunks, { type: "video/webm" });
+    };
+    // Under load the recorder sometimes yields an audio track that does not decode or is cut short:
+    // re-record (the app's own undecodable-audio path is tested on purpose with audio = false).
+    const audioOk = async (blob: Blob) => {
+      try {
+        const decoded = await new OfflineAudioContext(1, 1, 44_100).decodeAudioData(await blob.arrayBuffer());
+        return decoded.duration * 1000 >= ms / 2;
+      } catch {
+        return false;
+      }
+    };
+    let blob = await record();
+    for (let i = 0; audio && i < 3 && !(await audioOk(blob)); i++) blob = await record();
+    window.__E2E_VIDEO_URL__ = URL.createObjectURL(blob);
   }, [ms, audio] as const);
 
 export const setReply =(page: Page, cmd: string, reply: MockReply) =>

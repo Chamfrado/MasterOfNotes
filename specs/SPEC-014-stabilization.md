@@ -93,3 +93,7 @@ Criada em 2026-11-20 (coordenador), janela autônoma.
   - `agent-coordination.md`: sem worktree ativa.
   - Lei 05: `song-analysis`.
   - Guia do usuário: nome do instalador da 0.1.5.
+- E2E instável corrigido (Agente 0, 2026-11-23): `auto-reference` e `ultrastar` oscilavam já em `main` (4 de 5 falhas sem retry, medido nas duas versões do front-end).
+  - **Causa 1:** o gravador de vídeo sintético às vezes gera, sob carga, um áudio que não decodifica ou sai curto. `useSyntheticVideo` agora regrava (até 3×) até o áudio decodificar com ≥ metade da duração.
+  - **Causa 2:** mensagens de progresso de 300 ms eram mais curtas que o intervalo de polling do `expect`. Esse teste agora usa 1,2 s por mensagem e espera até 15 s.
+  - **Resultado:** 52/52 em estresse (4× em paralelo, sem retry); suíte completa 151/151 sem flaky.

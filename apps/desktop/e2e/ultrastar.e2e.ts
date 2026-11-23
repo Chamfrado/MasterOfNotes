@@ -61,7 +61,7 @@ test("UI: importar UltraStar → selo UltraStar + sugestão de alinhar, que some
   expect(await ipcCalls(page, "list_midi_tracks")).toEqual([]); // .txt: no track choice
   await page.getByRole("button", { name: "Alinhar automaticamente" }).click();
   await expect(hint).toHaveCount(0);
-  await expect(page.getByText(/Proposta: \+1200 ms/)).toBeVisible(); // the fake's default proposal
+  await expect(page.getByText(/Proposta: \+1200 ms/)).toBeVisible({ timeout: 15_000 }); // the fake's default proposal, after decoding the audio
   expect(pageErrors).toEqual([]);
 });
 
