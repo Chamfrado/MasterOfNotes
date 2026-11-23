@@ -13,6 +13,10 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 ### Alterado
 - **Esta versão atualiza o banco de dados do app.** Antes, ele guarda uma cópia de segurança (`masterofnotes.db.bak-v1`). Depois de atualizar, versões anteriores não abrem mais o banco.
 - A mensagem de banco criado por versão mais nova passa a usar o nome correto do produto, "Master Of Notes".
+- O arquivo `THIRD-PARTY-NOTICES.txt` (na pasta do programa) agora traz os avisos de licença de todos os componentes de código aberto incluídos no app, inclusive as fontes.
+
+### Segurança
+- O processo de publicação de versões foi reforçado: a chave que assina as atualizações fica restrita aos passos que a usam, e as ferramentas de terceiros do build são fixadas por versão exata.
 
 ## [0.1.3] - 2026-11-20
 

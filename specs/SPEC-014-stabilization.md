@@ -12,8 +12,8 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 ## TASKS
 | ID | Tarefa | Dono | Status |
 |---|---|---|---|
-| T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | review |
-| T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | review |
+| T-014-01 | Revisão de segurança (R1) → `docs/testing/evidence/security-review.md` | Agente 4 | done |
+| T-014-02 | Auditoria de dependências e licenças (R2) → `docs/testing/evidence/dependency-audit.md` | Agente 1 | done |
 | T-014-03 | Auditoria Ponytail (R3) | Agente 0 | todo |
 | T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | done |
 | T-014-05 | Revisão da documentação técnica (R5, AC-016) | Agente 0 | todo |
@@ -43,3 +43,4 @@ Criada em 2026-11-20 (coordenador), janela autônoma.
   - Licenças diretas: todas permissivas, sem GPL/AGPL/LGPL nem licença desconhecida. No binário há só 1 MPL-2.0 (`option-ext`), e o bundle tem as fontes OFL-1.1.
   - ❌ O `THIRD-PARTY-NOTICES.txt` cobre só a ONNX Runtime. Faltam os avisos MIT/BSD/ISC/Unicode dos crates e do JS empacotados, a nota de fonte da MPL e o texto da OFL. Ação proposta: gerar com `cargo-about` + `pnpm licenses` no release, aguardando decisão do coordenador.
   - Nenhuma dependência foi atualizada.
+- T-014-01/02 done (Agente 0, 2026-11-23): A1 (chave de assinatura) integrado e vale a partir da 0.1.4. Ação §4.1 da auditoria aplicada sem ferramenta nova: `scripts/gen-notices.mjs` (Node puro) gera no release o `THIRD-PARTY-NOTICES.txt` completo (327 pacotes do executável Windows + JS de produção + fontes OFL; MPL-2.0 com link do código-fonte; pacotes sem arquivo de licença com autores e o texto correspondente). B1–B6 → 0.1.5. §4.2/4.3 (cargo-deny/cargo-audit no CI) ficam no backlog.

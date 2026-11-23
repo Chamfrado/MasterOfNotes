@@ -77,6 +77,10 @@ jobs:
       - name: Fetch ONNX Runtime
         run: node apps/desktop/src-tauri/scripts/fetch-onnxruntime.mjs
 
+      # Full license notices of everything compiled into the installer (dependency-audit.md §4.1).
+      - name: Generate third-party notices
+        run: node apps/desktop/src-tauri/scripts/gen-notices.mjs
+
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
