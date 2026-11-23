@@ -157,18 +157,18 @@ Os motivos mais comuns de *"arquivo UltraStar, linha N: …"*:
 
 | Motivo | O que significa |
 |---|---|
-| *#BPM "…" não é um número positivo* / *#GAP "…" não é um número* | O andamento ou o atraso inicial do cabeçalho está escrito errado. |
+| *o #BPM não é um número positivo* / *o #GAP não é um número* | O andamento ou o atraso inicial do cabeçalho está escrito errado. |
 | *nota antes do #BPM* | As notas começam antes da linha `#BPM:`. Ela precisa vir no cabeçalho, antes das notas. |
-| *início "…"*, *duração "…"* ou *altura "…" não é um número inteiro*; *a nota não tem início* (ou *duração*, ou *altura*) | A linha da nota está incompleta ou tem um valor que não é um número inteiro. |
-| *início "…"*, *duração "…"* ou *altura "…" é um número fora do limite permitido* | Um número da nota é grande demais (provavelmente um erro de digitação ou um arquivo corrompido). |
+| *início:*, *duração:* ou *altura: não é um número inteiro*; *a nota não tem início* (ou *duração*, ou *altura*) | A linha da nota está incompleta ou tem um valor que não é um número inteiro. |
+| *início:*, *duração:* ou *altura: é um número fora do limite permitido* | Um número da nota é grande demais (provavelmente um erro de digitação ou um arquivo corrompido). |
 | *duração … (deve ser maior que zero)* | Uma nota tem duração zero ou negativa. |
 | *altura … (MIDI …) fora da faixa 24–108* | Uma nota está grave ou aguda demais para ser cantada. |
 | *a nota cai fora da música (antes de 0 ms)* | O `#GAP` negativo empurrou uma nota para antes do começo da música. |
-| *cantor "P…" desconhecido* | Num dueto, só existem os cantores P1, P2 e P3. |
-| *quebra de linha sem a batida (modo RELATIVE)*; *"…" não é um número inteiro* | Em arquivos no modo `#RELATIVE`, cada quebra de linha (`-`) precisa trazer o número da batida. |
-| *linha não reconhecida: "…"* | A linha não segue o formato UltraStar. O começo dela aparece entre aspas. |
+| *cantor desconhecido (use P1, P2 ou P3)* | Num dueto, só existem os cantores P1, P2 e P3. |
+| *quebra de linha sem a batida (modo RELATIVE)*; *a batida não é um número inteiro* | Em arquivos no modo `#RELATIVE`, cada quebra de linha (`-`) precisa trazer o número da batida. |
+| *linha não reconhecida* | A linha não segue o formato UltraStar. Abra o arquivo num editor de texto e confira a linha indicada. |
 
-Todas as mensagens aparecem depois de *"Referência inválida:"*. Exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura "x" não é um número inteiro."*
+Todas as mensagens aparecem depois de *"Referência inválida:"*. Exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura: não é um número inteiro."*
 
 Linhas de trecho livre (freestyle) ou falado (rap), o que vem depois do fim (`E`) e linhas de cabeçalho que o app não usa (como `#MP3` e `#VIDEO`) **não são erro**: o app simplesmente as ignora. Se o arquivo só tiver trechos livres ou falados, aparece *a referência não tem notas*.
 

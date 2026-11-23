@@ -238,13 +238,20 @@ pub fn install(
     if !meta.is_file() || !known.iter().any(|m| m.size_bytes == meta.len()) {
         return Err(unknown());
     }
-    let hash = song_analysis::sha256_file(src)?;
-    let model = known.iter().find(|m| m.id == hash).ok_or_else(unknown)?;
-
+    // B1 (security review): hash the private COPY, not the source, so the file cannot be swapped
+    // between the check and the copy.
     std::fs::create_dir_all(models_dir)?;
-    let dest = model_file(models_dir, model.id);
-    let tmp = dest.with_extension("onnx.part");
+    let tmp = models_dir.join("install.onnx.part");
     std::fs::copy(src, &tmp)?;
+    let verified = (std::fs::metadata(&tmp).map(|m| m.len()).ok() == Some(meta.len()))
+        .then(|| song_analysis::sha256_file(&tmp).ok())
+        .flatten()
+        .and_then(|hash| known.iter().find(|m| m.id == hash));
+    let Some(model) = verified else {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(unknown());
+    };
+    let dest = model_file(models_dir, model.id);
     std::fs::rename(&tmp, &dest)?;
 
     let previous = settings::load(conn)?.separation_model;
@@ -559,7 +566,9 @@ mod tests {
             err(install(&mut conn, &models, path, true, &wrong_hash)),
             "model_unknown"
         );
-        assert!(!models.exists(), "nothing copied when refused");
+        // B1: the copy happens before the check; a refusal must leave no file behind.
+        let leftovers = std::fs::read_dir(&models).map(|d| d.count()).unwrap_or(0);
+        assert_eq!(leftovers, 0, "nothing left in models/ when refused");
         assert_eq!(settings::load(&conn).unwrap().separation_model, None);
 
         let m = install(&mut conn, &models, path, true, &good).unwrap();

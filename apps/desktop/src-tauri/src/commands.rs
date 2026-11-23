@@ -69,6 +69,12 @@ pub async fn set_library_folder(
                 format!("A pasta {path} não foi encontrada ou não está acessível."),
             ));
         }
+        // B6 (security review): never index (and serve) a whole drive.
+        if root.parent().is_none() {
+            return Err(AppError::invalid_input(
+                "Escolha uma pasta de músicas, não a unidade inteira.",
+            ));
+        }
         let summary = run_scan(&app, &root, recursive)?;
         let state = app.state::<AppState>();
         settings::write(

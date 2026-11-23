@@ -57,14 +57,13 @@ pub fn import_ultrastar(bytes: &[u8]) -> Result<(MelodyReference, UltraStarInfo)
             let value = value.trim();
             match key.trim().to_ascii_uppercase().as_str() {
                 "BPM" => {
-                    let v = number(value).filter(|v| *v > 0.0).ok_or_else(|| {
-                        line_err(n, format!("#BPM \"{value}\" não é um número positivo"))
-                    })?;
+                    let v = number(value)
+                        .filter(|v| *v > 0.0)
+                        .ok_or_else(|| line_err(n, "o #BPM não é um número positivo"))?;
                     bpm = Some(v);
                 }
                 "GAP" => {
-                    gap_ms = number(value)
-                        .ok_or_else(|| line_err(n, format!("#GAP \"{value}\" não é um número")))?;
+                    gap_ms = number(value).ok_or_else(|| line_err(n, "o #GAP não é um número"))?;
                 }
                 "RELATIVE" => relative = value.eq_ignore_ascii_case("yes"),
                 "TITLE" if !value.is_empty() => info.title = Some(value.to_string()),
@@ -84,7 +83,7 @@ pub fn import_ultrastar(bytes: &[u8]) -> Result<(MelodyReference, UltraStarInfo)
                     "1" => Some(1),
                     "2" => Some(2),
                     "3" => Some(3),
-                    _ => return Err(line_err(n, format!("cantor \"P{p}\" desconhecido"))),
+                    _ => return Err(line_err(n, "cantor desconhecido (use P1, P2 ou P3)")),
                 };
                 info.duet |= player == Some(2);
             }
@@ -138,10 +137,8 @@ pub fn import_ultrastar(bytes: &[u8]) -> Result<(MelodyReference, UltraStarInfo)
             _ => {
                 return Err(line_err(
                     n,
-                    format!(
-                        "linha não reconhecida: \"{}\"",
-                        line.chars().take(40).collect::<String>()
-                    ),
+                    // B3 (security review): never echo file content in errors (read oracle).
+                    "linha não reconhecida",
                 ));
             }
         }
@@ -173,7 +170,7 @@ fn int32(t: &str) -> Result<i64, &'static str> {
 }
 
 fn integer(t: &str, line: usize) -> Result<i64, RefError> {
-    int32(t).map_err(|why| line_err(line, format!("\"{t}\" {why}")))
+    int32(t).map_err(|why| line_err(line, format!("a batida {why}")))
 }
 
 /// Next whitespace-separated integer of a note line, and the text after it.
@@ -183,8 +180,7 @@ fn field<'a>(s: &'a str, line: usize, what: &str) -> Result<(i64, &'a str), RefE
     if end == 0 {
         return Err(line_err(line, format!("a nota não tem {what}")));
     }
-    let v = int32(&s[..end])
-        .map_err(|why| line_err(line, format!("{what} \"{}\" {why}", &s[..end])))?;
+    let v = int32(&s[..end]).map_err(|why| line_err(line, format!("{what}: {why}")))?;
     Ok((v, &s[end..]))
 }
 

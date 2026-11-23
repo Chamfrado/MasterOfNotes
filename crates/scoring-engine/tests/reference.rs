@@ -318,12 +318,12 @@ fn ultrastar_errors_name_the_line_in_portuguese() {
         err("#BPM:300\n: 0 4 x la\n"),
         RefError::UltraStarLine {
             line: 2,
-            reason: "altura \"x\" não é um número inteiro".into()
+            reason: "altura: não é um número inteiro".into()
         }
     );
     assert_eq!(
         err("#BPM:300\n: 0 4 x la\n").to_string(),
-        "arquivo UltraStar, linha 2: altura \"x\" não é um número inteiro"
+        "arquivo UltraStar, linha 2: altura: não é um número inteiro"
     );
     assert_eq!(
         err("#GAP:0\nE\n"),
@@ -336,7 +336,19 @@ fn ultrastar_errors_name_the_line_in_portuguese() {
     // QA B1: an integer beyond i32 is out of range, not "not an integer".
     assert_eq!(
         err("#BPM:300\n: 4294967296 4 0 a\n").to_string(),
-        "arquivo UltraStar, linha 2: início \"4294967296\" é um número fora do limite permitido"
+        "arquivo UltraStar, linha 2: início: é um número fora do limite permitido"
+    );
+    // Security review B3: errors never echo file content (no read oracle via messages).
+    let leak = err("#BPM:300
+segredo-do-arquivo qualquer
+")
+    .to_string();
+    assert_eq!(leak, "arquivo UltraStar, linha 2: linha não reconhecida");
+    assert!(
+        !err("#BPM:segredo
+")
+        .to_string()
+        .contains("segredo")
     );
     for (text, line) in [
         ("#BPM:abc\n", 1),                         // BPM not a number

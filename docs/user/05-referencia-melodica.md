@@ -67,7 +67,7 @@ A referência entra como **experimental**, com o selo **UltraStar**.
 
 *Arquivo de exemplo, de autoria própria.*
 
-Se o arquivo tiver um erro, a mensagem diz **em qual linha** ele está, por exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura "x" não é um número inteiro."* Abra o arquivo num editor de texto e confira essa linha. A lista de mensagens está em [Problemas e FAQ](13-problemas-e-faq.md#referência-melódica).
+Se o arquivo tiver um erro, a mensagem diz **em qual linha** ele está, por exemplo: *"Referência inválida: arquivo UltraStar, linha 12: altura: não é um número inteiro."* Abra o arquivo num editor de texto e confira essa linha. A lista de mensagens está em [Problemas e FAQ](13-problemas-e-faq.md#referência-melódica).
 
 Ao importar, a referência entra como **Referência experimental**: o app ainda não sabe se ela está alinhada com o seu vídeo.
 

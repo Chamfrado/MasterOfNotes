@@ -4,6 +4,16 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-23
+
+### Segurança
+Correções vindas da revisão de segurança independente (nenhuma era explorável sem uma falha anterior na interface):
+- A instalação do modelo de separação confere o arquivo **depois** de copiá-lo para a pasta do app, para que ele não possa ser trocado no meio da instalação.
+- Mensagens de erro de arquivos UltraStar não repetem mais trechos do arquivo; indicam só a linha.
+- A leitura de arquivos de referência nunca passa do limite de 5 MB, mesmo que o arquivo cresça durante a leitura.
+- O app só abre links do site do projeto no GitHub.
+- Não é mais possível escolher uma unidade inteira (ex.: `C:\`) como pasta de músicas.
+
 ## [0.1.4] - 2026-11-20
 
 ### Adicionado

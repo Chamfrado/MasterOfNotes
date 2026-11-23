@@ -168,7 +168,18 @@ fn read_file(file_path: &str, allowed: &[&str]) -> AppResult<(Vec<u8>, String)> 
             "Arquivo grande demais para uma referência melódica (máximo 5 MB).",
         ));
     }
-    Ok((std::fs::read(path)?, ext))
+    // B4: the file may grow after the metadata check; never read more than the limit.
+    let mut bytes = Vec::new();
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(std::fs::File::open(path)?, MAX_FILE_BYTES + 1),
+        &mut bytes,
+    )?;
+    if bytes.len() as u64 > MAX_FILE_BYTES {
+        return Err(AppError::invalid_input(
+            "Arquivo grande demais para uma referência melódica (máximo 5 MB).",
+        ));
+    }
+    Ok((bytes, ext))
 }
 
 pub fn import(
