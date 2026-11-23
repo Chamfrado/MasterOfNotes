@@ -47,7 +47,7 @@ const sourceLabel: Record<MelodyReference["source"], string> = {
   ultrastar: "UltraStar",
 };
 
-export interface RollBox {
+interface RollBox {
   x: number; // 0..1, left edge
   w: number; // 0..1
   y: number; // 0..1, top edge (high notes on top)
@@ -56,7 +56,7 @@ export interface RollBox {
 }
 
 /** Piano-roll geometry for the window [now - before, now + after]; positive offset delays notes (start + offset). */
-export function rollLayout(notes: RefNote[], offsetMs: number, nowMs: number, beforeMs = ROLL_BEFORE_MS, afterMs = ROLL_AFTER_MS): RollBox[] {
+export function rollLayout(notes: RefNote[], offsetMs: number, nowMs: number): RollBox[] {
   if (notes.length === 0) return [];
   let lo = Infinity;
   let hi = -Infinity;
@@ -67,8 +67,8 @@ export function rollLayout(notes: RefNote[], offsetMs: number, nowMs: number, be
   lo -= 2;
   hi += 2;
   const rows = hi - lo;
-  const from = nowMs - beforeMs;
-  const span = beforeMs + afterMs;
+  const from = nowMs - ROLL_BEFORE_MS;
+  const span = ROLL_BEFORE_MS + ROLL_AFTER_MS;
   const out: RollBox[] = [];
   for (const n of notes) {
     const start = n.startMs + offsetMs;

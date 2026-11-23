@@ -3,17 +3,17 @@
 import type { Page } from "@playwright/test";
 import type { AppError } from "../src/lib/ipc";
 
-export type MockReply = { ok: unknown } | { err: AppError };
+type MockReply = { ok: unknown } | { err: AppError };
 /** Replies by command. Change one mid-test with `setReply` (call counts are unreliable:
  * React StrictMode runs mount effects twice in dev). */
 export type MockSpec = Record<string, MockReply>;
-export interface IpcCall {
+interface IpcCall {
   cmd: string;
   args: unknown;
   /** Raw IPC (e.g. upload_song_audio): `args` is the Uint8Array body and the headers come here. */
   options?: InvokeOptions;
 }
-export interface InvokeOptions {
+interface InvokeOptions {
   headers?: Record<string, string>;
 }
 
@@ -29,7 +29,7 @@ declare global {
 }
 
 /** Every <video src> resolves here; specs decide what the "file" returns. */
-export const ASSET_ORIGIN = "http://asset.localhost";
+const ASSET_ORIGIN = "http://asset.localhost";
 
 export async function mockTauri(page: Page, spec: MockSpec): Promise<{ pageErrors: string[] }> {
   const pageErrors: string[] = [];

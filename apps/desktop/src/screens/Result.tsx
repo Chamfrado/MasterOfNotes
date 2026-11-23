@@ -7,7 +7,7 @@ import { useAsync } from "../useAsync";
 
 const percent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 0 });
 
-export interface TrainingAction {
+interface TrainingAction {
   label: string;
   to: Route;
 }

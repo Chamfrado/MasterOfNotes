@@ -19,8 +19,7 @@ export type PlayerEvent =
   | { type: "PAUSE" }
   | { type: "RESUME" }
   | { type: "ENDED" }
-  | { type: "FAIL"; message: string }
-  | { type: "RESET" };
+  | { type: "FAIL"; message: string };
 
 export const initialPlayerState: PlayerState = { status: "idle" };
 
@@ -28,8 +27,6 @@ export function playerReducer(s: PlayerState, e: PlayerEvent): PlayerState {
   switch (e.type) {
     case "FAIL":
       return { status: "error", message: e.message };
-    case "RESET":
-      return s.status === "idle" ? s : initialPlayerState;
     case "LOAD":
       return s.status === "idle" || s.status === "completed" || s.status === "error" ? { status: "loading" } : s;
     case "LOADED":

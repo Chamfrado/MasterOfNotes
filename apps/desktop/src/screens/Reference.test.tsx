@@ -70,7 +70,7 @@ describe("rollLayout", () => {
     { startMs: 20_000, durMs: 100, midi: 62, lyric: null },
   ];
   it("keeps only notes in the window and marks the active one", () => {
-    const boxes = rollLayout(notes, 0, 1200, 2000, 4000); // window 0..5200 ms (span 6000)
+    const boxes = rollLayout(notes, 0, 1200); // window 0..5200 ms (span 6000)
     expect(boxes).toHaveLength(2);
     expect(boxes[0]).toMatchObject({ active: true });
     expect(boxes[0].x).toBeCloseTo((1000 - -800) / 6000);
@@ -79,7 +79,7 @@ describe("rollLayout", () => {
     expect(boxes[1].y).toBeLessThan(boxes[0].y); // higher pitch drawn higher
   });
   it("positive offset delays notes", () => {
-    const [b] = rollLayout(notes, 500, 1200, 2000, 4000);
+    const [b] = rollLayout(notes, 500, 1200);
     expect(b.active).toBe(false); // now starts at 1500
     expect(b.x).toBeCloseTo((1500 - -800) / 6000);
   });

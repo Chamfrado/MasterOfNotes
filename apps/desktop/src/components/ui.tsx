@@ -32,7 +32,7 @@ const buttonVariants: Record<ButtonVariant, string> = {
   ghost: "text-fg hover:bg-surface-2",
   danger: "bg-danger text-accent-fg hover:brightness-110",
 };
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: Ref<HTMLButtonElement>; // React 19: ref is a plain prop, forwarded by the spread
   variant?: ButtonVariant;
   size?: "md" | "lg";
@@ -89,7 +89,7 @@ function Field({
 const controlClass =
   "min-h-12 w-full rounded-md border border-line bg-surface-2 px-4 text-fg placeholder:text-muted aria-invalid:border-danger";
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   hint?: string;
   error?: string;
@@ -110,7 +110,7 @@ export function Input({ label, hint, error, className, id, ...props }: InputProp
   );
 }
 
-export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
+interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label: string;
   hint?: string;
   options: { value: string; label: string }[];
@@ -136,7 +136,7 @@ export function Select({ label, hint, options, className, id, ...props }: Select
   );
 }
 
-export interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> {
+interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "value" | "onChange"> {
   label: string;
   value: number;
   onChange: (value: number) => void;
@@ -307,7 +307,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: (id: numbe
 }
 
 // ---------- NavBar ----------
-export interface NavItem<K extends string> {
+interface NavItem<K extends string> {
   key: K;
   label: string;
 }

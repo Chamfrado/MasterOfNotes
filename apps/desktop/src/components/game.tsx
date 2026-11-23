@@ -1,5 +1,5 @@
 // Karaoke-specific components (SPEC-010 T-010-02). Pure presentation: data comes from ipc.ts types.
-import type { FeedbackLabel, GameMode, LeaderboardRow, LiveFeedback, MicFrame, Standing } from "../lib/ipc";
+import type { Difficulty, FeedbackLabel, GameMode, GameSession, LeaderboardRow, LiveFeedback, MicFrame, Standing } from "../lib/ipc";
 import { Badge, type Tone } from "./ui";
 
 const fmt1 = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
@@ -60,7 +60,7 @@ export function MicMeter({ frame, noiseFloorDbfs }: { frame: MicFrame | null; no
 }
 
 // ---------- PitchIndicator ----------
-export const feedbackText: Record<FeedbackLabel, string> = {
+const feedbackText: Record<FeedbackLabel, string> = {
   excellent: "Excelente",
   veryGood: "Muito bom",
   good: "Bom",
@@ -157,6 +157,13 @@ export function RankingTable({ rows, caption, highlightId }: { rows: Leaderboard
 
 // ---------- Game modes / StandingsTable (SPEC-008) ----------
 export const modeLabel: Record<GameMode, string> = { solo: "Solo", party: "Festa", duel: "Duelo", challenge: "Desafio" };
+export const difficultyLabel: Record<Difficulty, string> = { easy: "Fácil", normal: "Normal", hard: "Difícil" };
+export const difficultyOptions = Object.entries(difficultyLabel).map(([value, label]) => ({ value, label }));
+export const sessionStatusLabel: Record<GameSession["status"], string> = { active: "Em andamento", completed: "Encerrada", abandoned: "Abandonada" };
+/** Winner of a finished party: best eligible average (rank 1). */
+export const partyWinner = (s: GameSession) => (s.status === "completed" ? s.standings.find((x) => x.eligible && x.rank === 1) : undefined);
+export const roundsLeft = (n: number) => (n === 1 ? "falta 1 rodada" : `faltam ${n} rodadas`);
+export const formatMB = (bytes: number) => `${fmt1.format(bytes / 1_048_576)} MB`;
 
 /** Party standings: ranked by AVERAGE among eligible (rounds ≥ minRounds); ineligible listed below, flagged. */
 export function StandingsTable({
@@ -194,7 +201,7 @@ export function StandingsTable({
                 {!r.eligible && (
                   <Badge tone="warning">
                     {minRounds != null && r.rounds < minRounds
-                      ? `Inelegível: ${minRounds - r.rounds === 1 ? "falta 1 rodada" : `faltam ${minRounds - r.rounds} rodadas`}`
+                      ? `Inelegível: ${roundsLeft(minRounds - r.rounds)}`
                       : "Inelegível"}
                   </Badge>
                 )}

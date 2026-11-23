@@ -22,7 +22,6 @@ const events: Record<PlayerEvent["type"], PlayerEvent> = {
   RESUME: { type: "RESUME" },
   ENDED: { type: "ENDED" },
   FAIL: { type: "FAIL", message: "boom" },
-  RESET: { type: "RESET" },
 };
 
 // Every valid transition, as "from:EVENT" → resulting state. Anything not listed must be a no-op.
@@ -41,7 +40,6 @@ const valid: Record<string, PlayerState> = {
 };
 for (const s of Object.keys(states)) {
   valid[`${s}:FAIL`] = { status: "error", message: "boom" };
-  if (s !== "idle") valid[`${s}:RESET`] = { status: "idle" };
 }
 
 describe("playerReducer — full transition table", () => {

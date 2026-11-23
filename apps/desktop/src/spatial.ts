@@ -1,6 +1,6 @@
 // A11Y-05: arrow-key spatial navigation (TV remote / 10-foot). Tab order keeps working as usual.
 
-export type Dir = "up" | "down" | "left" | "right";
+type Dir = "up" | "down" | "left" | "right";
 export interface Box {
   x: number;
   y: number;

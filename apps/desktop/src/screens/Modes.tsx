@@ -1,4 +1,4 @@
-import { modeLabel } from "../components/game";
+import { modeLabel, roundsLeft } from "../components/game";
 import { Button, Card, ErrorState } from "../components/ui";
 import { listSessions, type GameMode } from "../lib/ipc";
 import { useNav } from "../nav";
@@ -40,7 +40,7 @@ export function Modes() {
                     <span>
                       <strong>{s.name ?? modeLabel[s.mode]}</strong>{" "}
                       <span className="text-muted">
-                        · {modeLabel[s.mode]} · {left === 1 ? "falta 1 rodada" : `faltam ${left} rodadas`}
+                        · {modeLabel[s.mode]} · {roundsLeft(left)}
                       </span>
                     </span>
                     <Button variant="primary" onClick={() => navigate({ name: "session", id: s.id })}>

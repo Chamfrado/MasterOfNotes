@@ -1,14 +1,10 @@
-import { modeLabel } from "../components/game";
+import { modeLabel, partyWinner, sessionStatusLabel } from "../components/game";
 import { Badge, ErrorState, LoadingState } from "../components/ui";
-import { listParticipants, listSessions, type GameSession } from "../lib/ipc";
+import { listParticipants, listSessions } from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 
 const dateFmt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium", timeStyle: "short" });
-const statusText: Record<GameSession["status"], string> = { active: "Em andamento", completed: "Encerrada", abandoned: "Abandonada" };
-
-/** Winner for a finished party: best eligible average (rank 1). */
-const winnerOf = (s: GameSession) => (s.status === "completed" ? s.standings.find((x) => x.eligible && x.rank === 1) : undefined);
 
 export function History() {
   const { navigate } = useNav();
@@ -26,7 +22,7 @@ export function History() {
           return (
             <ul className="flex flex-col gap-2">
               {sessions.map((s) => {
-                const w = winnerOf(s);
+                const w = partyWinner(s);
                 return (
                   <li key={s.id}>
                     <button
@@ -41,7 +37,7 @@ export function History() {
                         </span>
                       </span>
                       {w && <span>Vencedor: {names.get(w.participantId) ?? `#${w.participantId}`}</span>}
-                      <Badge tone={s.status === "active" ? "accent" : "neutral"}>{statusText[s.status]}</Badge>
+                      <Badge tone={s.status === "active" ? "accent" : "neutral"}>{sessionStatusLabel[s.status]}</Badge>
                     </button>
                   </li>
                 );

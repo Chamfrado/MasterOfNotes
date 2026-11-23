@@ -45,7 +45,7 @@ export async function shot(target: Page | Locator, id: string, opts: { fullPage?
 // ---------- GIF ----------
 
 /** Minimal PNG decoder for Chromium screenshots (8-bit RGB/RGBA, not interlaced). Inflate is the web DecompressionStream. */
-export async function decodePng(png: Uint8Array): Promise<{ width: number; height: number; rgba: Uint8Array }> {
+async function decodePng(png: Uint8Array): Promise<{ width: number; height: number; rgba: Uint8Array }> {
   const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
   let width = 0;
   let height = 0;
@@ -101,7 +101,7 @@ export async function decodePng(png: Uint8Array): Promise<{ width: number; heigh
 }
 
 /** Box-filter downscale by an exact ratio (0.75 → each 4×4 block becomes 3×3 via area averaging). */
-export function downscale(src: { width: number; height: number; rgba: Uint8Array }, scale: number) {
+function downscale(src: { width: number; height: number; rgba: Uint8Array }, scale: number) {
   const width = Math.round(src.width * scale);
   const height = Math.round(src.height * scale);
   const out = new Uint8Array(width * height * 4);

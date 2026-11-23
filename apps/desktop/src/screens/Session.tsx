@@ -1,6 +1,6 @@
 // SPEC-008: a running or finished session. Rust owns rounds/standings; the UI only reads and drives them.
 import { Fragment, useState } from "react";
-import { ScoreBadge, StandingsTable, formatScore, modeLabel } from "../components/game";
+import { ScoreBadge, StandingsTable, formatScore, modeLabel, partyWinner, roundsLeft, sessionStatusLabel } from "../components/game";
 import { Badge, Button, Card, Dialog, ErrorState, LoadingState, Progress, errorMessage, useToast, type Tone } from "../components/ui";
 import {
   completeSession,
@@ -19,7 +19,7 @@ import { useAsync } from "../useAsync";
 export const currentRound = (s: GameSession): Round | null =>
   s.status !== "active" ? null : ([...s.rounds].sort((a, b) => a.position - b.position).find((r) => r.status === "pending") ?? null);
 
-export interface ChallengeStatus {
+interface ChallengeStatus {
   played: number; // completed + skipped
   total: number;
   average: number | null; // over completed rounds
@@ -37,9 +37,9 @@ export function challengeStatus(s: GameSession): ChallengeStatus {
 }
 
 const statusText: Record<GameSession["status"], { text: string; tone: Tone }> = {
-  active: { text: "Em andamento", tone: "accent" },
-  completed: { text: "Encerrada", tone: "success" },
-  abandoned: { text: "Abandonada", tone: "neutral" },
+  active: { text: sessionStatusLabel.active, tone: "accent" },
+  completed: { text: sessionStatusLabel.completed, tone: "success" },
+  abandoned: { text: sessionStatusLabel.abandoned, tone: "neutral" },
 };
 const roundText: Record<Round["status"], { text: string; tone: Tone }> = {
   pending: { text: "Pendente", tone: "neutral" },
@@ -164,7 +164,7 @@ function View({ initial, names, songs }: { initial: GameSession; names: Map<numb
 
       <Dialog open={confirmEnd} onClose={() => setConfirmEnd(false)} title="Encerrar a partida?">
         <p className="mb-6 text-muted">
-          Ainda {pending === 1 ? "falta 1 rodada" : `faltam ${pending} rodadas`}. O resultado fica com o que foi cantado até agora.
+          Ainda {roundsLeft(pending)}. O resultado fica com o que foi cantado até agora.
         </p>
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={() => setConfirmEnd(false)}>
@@ -186,7 +186,7 @@ function View({ initial, names, songs }: { initial: GameSession; names: Map<numb
 }
 
 function PartyBoard({ s, names }: { s: GameSession; names: Map<number, string> }) {
-  const winner = s.status === "completed" ? s.standings.find((x) => x.eligible && x.rank === 1) : undefined;
+  const winner = partyWinner(s);
   return (
     <section aria-labelledby="standings-title" className="flex flex-col gap-3">
       {winner && (

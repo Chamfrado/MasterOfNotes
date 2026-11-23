@@ -80,7 +80,7 @@ export interface FakeOptions {
   ultrastar?: Record<string, UltraStarFile>;
 }
 /** What import_ultrastar gives for one file: its P1 notes (and whether it was a duet), or the invalid line. */
-export type UltraStarFile = { notes: RefNote[]; duet?: boolean } | { line: number; message: string };
+type UltraStarFile = { notes: RefNote[]; duet?: boolean } | { line: number; message: string };
 /** SPEC-013 R3 (MelodyReference.notice, import result only). */
 export const DUET_NOTICE = "Arquivo de dueto: importamos a parte do primeiro cantor.";
 

@@ -124,19 +124,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, [back, inPlayer]);
 
-  const fullscreen = route.name === "player";
   return (
     <NavContext.Provider value={nav}>
       <ToastProvider>
         <UpdateWatcher />
-        {!fullscreen && (
+        {!inPlayer && (
           <NavBar
             items={navItems}
             current={navItems.some((i) => i.key === route.name) ? (route.name as TopLevel) : null}
             onNavigate={(key) => setStack([{ name: "home" }, ...(key === "home" ? [] : [{ name: key }])])}
           />
         )}
-        <main ref={main} tabIndex={-1} className={fullscreen ? "outline-none" : "mx-auto max-w-7xl p-8 outline-none"}>
+        <main ref={main} tabIndex={-1} className={inPlayer ? "outline-none" : "mx-auto max-w-7xl p-8 outline-none"}>
           <Screen route={route} />
         </main>
       </ToastProvider>

@@ -1,14 +1,8 @@
 import { useState } from "react";
-import { RankingTable } from "../components/game";
+import { RankingTable, difficultyOptions } from "../components/game";
 import { Card, ErrorState, LoadingState, Select } from "../components/ui";
 import { getLeaderboard, getSettings, listSongs, type Difficulty, type Song } from "../lib/ipc";
 import { useAsync } from "../useAsync";
-
-const difficulties: { value: Difficulty; label: string }[] = [
-  { value: "easy", label: "Fácil" },
-  { value: "normal", label: "Normal" },
-  { value: "hard", label: "Difícil" },
-];
 
 export function Ranking({ songId }: { songId?: string }) {
   const [load, reload] = useAsync(() => Promise.all([listSongs(), getSettings()]), []);
@@ -36,7 +30,7 @@ function Board({ songs, initialSong, initialDifficulty }: { songs: Song[]; initi
     <Card className="flex flex-col gap-6">
       <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
         <Select label="Música" value={songId} onChange={(e) => setSongId(e.currentTarget.value)} options={songs.map((s) => ({ value: s.id, label: s.title }))} />
-        <Select label="Dificuldade" value={difficulty} onChange={(e) => setDifficulty(e.currentTarget.value as Difficulty)} options={difficulties} />
+        <Select label="Dificuldade" value={difficulty} onChange={(e) => setDifficulty(e.currentTarget.value as Difficulty)} options={difficultyOptions} />
       </div>
       {rows.status === "loading" && <LoadingState />}
       {rows.status === "error" && <ErrorState error={rows.error} onRetry={reload} />}

@@ -2,6 +2,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useEffect, useRef, useState } from "react";
+import { difficultyOptions, formatMB } from "../components/game";
 import { Button, Card, ErrorState, LoadingState, Select, errorMessage, useToast } from "../components/ui";
 import {
   getSettings,
@@ -16,7 +17,7 @@ import { applyReducedMotion, applyTvMode } from "../display";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
 
-export type SettingsSection = "autoReference";
+type SettingsSection = "autoReference";
 
 export function Settings({ section }: { section?: SettingsSection }) {
   const [load, reload] = useAsync(getSettings, []);
@@ -77,11 +78,7 @@ function Form({ initial, section }: { initial: AppSettings; section?: SettingsSe
           hint="Quanto a afinação pode desviar para contar como acerto. O ranking separa por dificuldade."
           value={s.difficulty}
           onChange={(e) => patch({ difficulty: e.currentTarget.value as AppSettings["difficulty"] })}
-          options={[
-            { value: "easy", label: "Fácil" },
-            { value: "normal", label: "Normal" },
-            { value: "hard", label: "Difícil" },
-          ]}
+          options={difficultyOptions}
         />
         <Select
           label="Painel de feedback no player"
@@ -148,7 +145,6 @@ function Form({ initial, section }: { initial: AppSettings; section?: SettingsSe
   );
 }
 
-const mb = (bytes: number) => `${Math.round(bytes / 1_048_576).toLocaleString("pt-BR")} MB`;
 const day = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" });
 
 /** SPEC-012 R1/R8: third-party separation model, downloaded by the user, checked by SHA-256 in Rust. */
@@ -238,7 +234,7 @@ function AutoReference({
               {known.data.map((m) => (
                 <li key={m.id} className="flex flex-col gap-2 rounded-md bg-surface-2 px-4 py-3">
                   <p className="font-semibold">
-                    {m.name} <span className="font-normal text-muted">· {mb(m.sizeBytes)}</span>
+                    {m.name} <span className="font-normal text-muted">· {formatMB(m.sizeBytes)}</span>
                   </p>
                   <p className="text-sm">Licença: {m.license}</p>
                   <p className="text-sm break-all text-muted">

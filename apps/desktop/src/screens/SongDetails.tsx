@@ -1,6 +1,6 @@
 // SPEC-010 T-010-06: song details. Edit title/artist, file info, playability, reference shortcut, records.
 import { useState, type FormEvent } from "react";
-import { RankingTable, ScoreBadge, formatScore } from "../components/game";
+import { RankingTable, ScoreBadge, difficultyLabel, formatMB, formatScore } from "../components/game";
 import { Badge, Button, Card, ErrorState, Input, LoadingState, Select, errorMessage, useToast } from "../components/ui";
 import {
   getLeaderboard,
@@ -20,8 +20,6 @@ import { formatDuration, referenceLabel } from "./Library";
 import { CODEC_HINT } from "./Player";
 
 const TOP = 5;
-const difficultyText: Record<Difficulty, string> = { easy: "Fácil", normal: "Normal", hard: "Difícil" };
-const mb = (bytes: number) => `${(bytes / 1_048_576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
 const playableText: Record<Song["playable"], string> = {
   yes: "Compatível: o vídeo abre neste computador.",
   unknown: "Ainda não verificado: confirmamos na primeira vez que tocar.",
@@ -105,7 +103,7 @@ function Details({ initial, difficulty }: { initial: Song; difficulty: Difficult
             <dt className="text-muted">Duração</dt>
             <dd>{duration ?? "Desconhecida até tocar"}</dd>
             <dt className="text-muted">Tamanho</dt>
-            <dd>{mb(song.sizeBytes)}</dd>
+            <dd>{formatMB(song.sizeBytes)}</dd>
           </dl>
           <section aria-labelledby="play-title" className="flex flex-col gap-2">
             <h3 id="play-title" className="font-semibold">
@@ -141,7 +139,7 @@ function Records({ song, difficulty }: { song: Song; difficulty: Difficulty }) {
   return (
     <Card className="flex flex-col gap-4">
       <h2 className="font-display text-2xl font-semibold">
-        Recordes <span className="text-base font-normal text-muted">({difficultyText[difficulty]})</span>
+        Recordes <span className="text-base font-normal text-muted">({difficultyLabel[difficulty]})</span>
       </h2>
       {load.status === "loading" && <LoadingState label="Carregando recordes…" />}
       {load.status === "error" && <ErrorState title="Não foi possível carregar os recordes" error={load.error} onRetry={reload} />}
@@ -197,7 +195,7 @@ function PersonalBest({ song, difficulty, singer }: { song: Song; difficulty: Di
   return (
     <p aria-live="polite">
       {best == null
-        ? `${singer.name} ainda não tem pontuação valendo ranking nesta música (${difficultyText[difficulty]}).`
+        ? `${singer.name} ainda não tem pontuação valendo ranking nesta música (${difficultyLabel[difficulty]}).`
         : `${singer.name}: ${formatScore(best)} pontos.`}
     </p>
   );
@@ -230,7 +228,7 @@ function Performances({ song }: { song: Song }) {
                 <span className="flex-1">
                   {p.participantName ?? "Anônimo"}{" "}
                   <span className="text-muted">
-                    · {difficultyText[p.difficulty]} · {dateTime.format(p.createdMs)}
+                    · {difficultyLabel[p.difficulty]} · {dateTime.format(p.createdMs)}
                   </span>
                 </span>
                 {!p.competitive && <Badge tone="warning">Treino</Badge>}

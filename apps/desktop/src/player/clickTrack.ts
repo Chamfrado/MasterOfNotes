@@ -1,16 +1,16 @@
 // T-004-07: click track for the latency probe, played through a media element (same output path as videos).
 
-export const CLICK_FIRST_MS = 1000; // ≥ 500 ms so playback has settled before the first click
-export const CLICK_PERIOD_MS = 750;
+const CLICK_FIRST_MS = 1000; // ≥ 500 ms so playback has settled before the first click
+const CLICK_PERIOD_MS = 750;
 export const CLICK_COUNT = 8;
 const TAIL_MS = 1000;
 const CLICK_LEN_MS = 6;
 const CLICK_HZ = 2000;
 
 /** 16-bit mono PCM WAV with short decaying 2 kHz clicks; returns the bytes and the click times (media time, ms). */
-export function clickTrack(sampleRate = 48_000, firstMs = CLICK_FIRST_MS, periodMs = CLICK_PERIOD_MS, count = CLICK_COUNT) {
-  const clicksMs = Array.from({ length: count }, (_, i) => firstMs + i * periodMs);
-  const totalMs = clicksMs[count - 1] + TAIL_MS;
+export function clickTrack(sampleRate = 48_000) {
+  const clicksMs = Array.from({ length: CLICK_COUNT }, (_, i) => CLICK_FIRST_MS + i * CLICK_PERIOD_MS);
+  const totalMs = clicksMs[CLICK_COUNT - 1] + TAIL_MS;
   const n = Math.ceil((totalMs / 1000) * sampleRate);
   const buf = new ArrayBuffer(44 + n * 2);
   const v = new DataView(buf);

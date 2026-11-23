@@ -4,6 +4,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { useEffect, useRef, useState } from "react";
+import { formatMB } from "../components/game";
 import { Button, Card, Dialog, Progress, errorMessage } from "../components/ui";
 import { useNav } from "../nav";
 
@@ -20,16 +21,14 @@ type Phase =
  * The Rust updater plugin is only registered when the build has a signing pubkey. Without it Tauri rejects with
  * "plugin updater not found" (tauri plugin.rs) or "updater.… not allowed. Plugin not found" (ipc/authority.rs).
  */
-export const updaterUnavailable = (e: unknown) => /plugin updater not found|updater.*plugin not found/i.test(errorMessage(e));
+const updaterUnavailable = (e: unknown) => /plugin updater not found|updater.*plugin not found/i.test(errorMessage(e));
 
 /**
  * No release manifest on the endpoint (404: only pre-releases published, so releases/latest has no latest.json).
  * The plugin reports Error::ReleaseNotFound for any non-2xx answer (tauri-plugin-updater 2.x updater.rs).
  */
-export const noPublishedRelease = (e: unknown) => /valid release JSON/i.test(errorMessage(e));
-export const RELEASES_URL = "https://github.com/Chamfrado/MasterOfNotes/releases";
-
-const mb = (bytes: number) => `${(bytes / 1_048_576).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
+const noPublishedRelease = (e: unknown) => /valid release JSON/i.test(errorMessage(e));
+const RELEASES_URL = "https://github.com/Chamfrado/MasterOfNotes/releases";
 
 export function Updates() {
   const { back } = useNav();
@@ -126,8 +125,8 @@ export function Updates() {
           <div className="flex w-full flex-col gap-2">
             <Progress label="Baixando atualização" value={phase.total ? phase.received : undefined} max={phase.total ?? undefined} />
             <p className="text-sm text-muted">
-              {mb(phase.received)}
-              {phase.total ? ` de ${mb(phase.total)}` : ""}
+              {formatMB(phase.received)}
+              {phase.total ? ` de ${formatMB(phase.total)}` : ""}
             </p>
           </div>
         )}
