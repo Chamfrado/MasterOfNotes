@@ -4,6 +4,8 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-23
+
 ### Corrigido
 - Se o microfone for desconectado ou falhar no meio de uma música, o app agora para a partida e explica o que aconteceu. Antes, o vídeo continuava tocando sem pontuar nada. Na tela **Microfone**, o medidor dá lugar à mensagem de erro.
 

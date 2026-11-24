@@ -52,6 +52,10 @@ O microfone está ouvindo a música das caixas de som. **Use fones de ouvido** o
 
 O mesmo problema, detectado durante a música. Use fones ou baixe o volume.
 
+### A música parou com "A partida foi interrompida. Problema com o microfone…"
+
+O microfone foi desconectado ou deixou de responder no meio da música (cabo solto, fone Bluetooth que desligou, outro programa que tomou o microfone). O app para a partida e **não salva nota nenhuma** dessa vez, porque parte do canto não foi ouvida. Reconecte o microfone, confira o nível em **Microfone** e cante de novo. Se acontecer na tela **Microfone**, a mensagem aparece no lugar do medidor: reconecte e escolha o dispositivo de novo. (Até a versão 0.1.5, o vídeo continuava tocando sem pontuar e sem aviso.)
+
 ### Posso cantar em dupla, com dois microfones ao mesmo tempo?
 
 Não. O app ouve um microfone e uma voz por vez. No **Duelo**, cada pessoa canta na sua vez.

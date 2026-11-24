@@ -6,6 +6,7 @@ Dono: coordenador (Agente 0). Vale para toda versão publicada.
 - 2026-11-20: o proprietário autorizou **releases automáticas** (publicadas pelo coordenador sem pedir confirmação a cada uma) durante a sua ausência de 24 h, desde que todos os portões abaixo passem.
 - Fora dessa janela, publicar continua exigindo o OK do proprietário.
 - 2026-11-23: o proprietário aprovou publicar a 0.1.4 (UltraStar, avisos de licença, workflow endurecido) e a 0.1.5 (correções de segurança B1, B3–B6), com os mesmos portões.
+- 2026-11-23: o proprietário aprovou publicar a 0.1.6 (aviso de falha do microfone; limpeza da auditoria Ponytail), com os mesmos portões.
 
 ## Portões (todos obrigatórios)
 1. **Escopo fechado:** tarefas da versão em `done` nas specs; nada pela metade em `main`.
