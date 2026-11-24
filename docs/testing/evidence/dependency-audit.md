@@ -98,6 +98,14 @@ As três MPL-2.0 de desenvolvimento são ferramentas de teste e de build: não e
 3. **[Baixa] `cargo audit` no CI** (ou o `advisories` do item 2), para avisos novos aparecerem sem auditoria manual.
 4. **[Nenhuma agora] Avisos unmaintained/unsound:** todos fora do build Windows. Reavaliar quando houver versão Linux ou quando o Tauri atualizar `gtk`/`zbus`.
 
+## Reauditoria (2026-11-23, após a v0.1.6)
+- `pnpm audit --prod`: nenhuma vulnerabilidade.
+- `cargo audit`: 2 vulnerabilidades novas, as duas **no build Windows** (via `tauri`):
+  - `cookie` 0.18.2: RUSTSEC-2026-0594, os nonces de cookies privados podem se repetir em processos que fazem fork;
+  - `url` 2.5.8: RUSTSEC-2026-0592, estouro de pilha em `Url::origin()` com URLs `blob:` aninhadas.
+- Corrigido só no `Cargo.lock` (`cargo update -p url -p cookie`): `cookie` 0.18.3, `url` 2.5.9 e `form_urlencoded` 1.2.3. Nenhum `Cargo.toml` mudou.
+- Depois disso: 0 vulnerabilidades. Os 6 avisos da seção 1 continuam iguais, todos fora do build Windows.
+
 ## Reproduzir
 ```sh
 pnpm audit --prod && pnpm audit --dev
