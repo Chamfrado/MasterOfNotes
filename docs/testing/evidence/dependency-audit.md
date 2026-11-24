@@ -89,7 +89,9 @@ As três MPL-2.0 de desenvolvimento são ferramentas de teste e de build: não e
 3. **MPL-2.0 (`option-ext`):** dizer que o crate é MPL-2.0 e onde está o código-fonte (crates.io/GitHub).
 4. **OFL-1.1:** texto da OFL e copyright das duas fontes.
 
-## 4. Ações recomendadas (nenhuma aplicada; dependem da decisão do coordenador)
+## 4. Ações recomendadas
+Situação em 2026-11-23: a ação 1 foi aplicada na v0.1.4 (`gen-notices.mjs` no release.yml); as ações 2 e 3 foram aplicadas na v0.1.7 (seção 5).
+
 1. **[Alta, distribuição] Gerar os avisos completos.** A proposta é o `cargo-about` (ferramenta de build, MIT/Apache, mantida pela Embark). Ele produz o texto das licenças de todos os crates do grafo Windows a partir do `Cargo.lock`, e um trecho do mesmo script acrescenta os pacotes JS de produção (`pnpm licenses list --prod --json` dá o caminho de cada pacote, e o texto sai do arquivo LICENSE).
    - O resultado vira o `THIRD-PARTY-NOTICES.txt` empacotado: a ONNX Runtime continua no topo, depois as seções Rust, JS e fontes, com a nota de fonte da MPL.
    - Duas formas: (a) gerar no release.yml antes do tauri-action, sem nada commitado; ou (b) commitar o arquivo gerado e ter um passo de CI que falha se o `Cargo.lock`/`pnpm-lock.yaml` mudar sem regenerar.
@@ -105,6 +107,13 @@ As três MPL-2.0 de desenvolvimento são ferramentas de teste e de build: não e
   - `url` 2.5.8: RUSTSEC-2026-0592, estouro de pilha em `Url::origin()` com URLs `blob:` aninhadas.
 - Corrigido só no `Cargo.lock` (`cargo update -p url -p cookie`): `cookie` 0.18.3, `url` 2.5.9 e `form_urlencoded` 1.2.3. Nenhum `Cargo.toml` mudou.
 - Depois disso: 0 vulnerabilidades. Os 6 avisos da seção 1 continuam iguais, todos fora do build Windows.
+
+## 5. `cargo deny` no CI (v0.1.7, ações 2 e 3)
+- [deny.toml](../../../deny.toml) checa só o grafo Windows (`targets`), o mesmo que vai no instalador.
+- **Avisos RustSec:** qualquer vulnerabilidade quebra o build. "Unmaintained" só conta para dependências diretas nossas, e os 6 avisos da seção 1 ficam de fora por não estarem no grafo Windows.
+- **Licenças:** a lista permitida é a da ação 2, menos BSD-2-Clause, que nenhum crate usa. A MPL-2.0 só vale por exceção nominal: `option-ext`, mais `cssparser`, `cssparser-macros`, `dtoa-short` e `selectors` (via `dom_query` ← `tauri-utils`). Os nossos crates (`LicenseRef-Proprietary`) também entram por nome.
+- **Job `deny` do CI:** `EmbarkStudios/cargo-deny-action` v2.1.1 (cargo-deny 0.20.2), fixado por SHA. Roda a cada push e toda segunda-feira às 9h UTC.
+- **Conferido localmente** com o binário oficial 0.20.2 (SHA-256 do release conferido): `advisories ok, licenses ok`.
 
 ## Reproduzir
 ```sh

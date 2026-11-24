@@ -27,6 +27,6 @@ Imutáveis, salvo ADR aprovada pelo coordenador (Agente 0). Todo agente, humano 
 
 ## Validação automatizada
 
-- CI (`.github/workflows/ci.yml`) roda typecheck do app, testes TS, `cargo test --workspace`, `cargo clippy -D warnings`, `cargo fmt --check`, o build do Vite e o E2E (Playwright).
+- CI (`.github/workflows/ci.yml`) roda typecheck do app, testes TS, `cargo test --workspace`, `cargo clippy -D warnings`, `cargo fmt --check`, o build do Vite e o E2E (Playwright). Um job à parte roda `cargo deny check advisories licenses` ([deny.toml](../deny.toml)) a cada push e toda segunda-feira.
 - `cargo test -p scoring-engine` inclui a suíte de regressão do algoritmo (Lei 11/12).
 - Busca proibida no CI: `Math.random` fora de `*.test.*` dentro de `apps/desktop/src/**/scor*` (Lei 03). Hoje a pontuação fica toda em Rust, então a busca é só uma trava para código TS futuro.

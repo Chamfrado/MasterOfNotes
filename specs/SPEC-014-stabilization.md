@@ -17,6 +17,7 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 | T-014-03 | Auditoria Ponytail (R3) | Agente 0 | done |
 | T-014-04 | Revisão de arquitetura com Graphify (R4) | Agente 0 | done |
 | T-014-05 | Revisão da documentação técnica (R5, AC-016) | Agente 0 | done |
+| T-014-06 | `cargo deny` (avisos + licenças) no CI, semanal; ações 2–3 da auditoria de dependências (v0.1.7) | Agente 0 | done |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.

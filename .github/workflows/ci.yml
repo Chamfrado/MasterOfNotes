@@ -4,17 +4,31 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 9 * * 1" # weekly: new RustSec advisories show up without a push (deny job only)
 
 # Actions pinned to full commit SHAs (tag in the comment): a moved tag cannot change what runs (T-014-01).
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.ref }} # the weekly run never cancels a push run
   cancel-in-progress: true
 
 jobs:
+  # deny.toml: RustSec advisories and allowed licenses of the shipped (Windows) graph.
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1 (cargo-deny 0.20.2)
+        with:
+          command: check advisories licenses
+
   check:
+    if: github.event_name != 'schedule'
     runs-on: windows-latest
     defaults:
       run:

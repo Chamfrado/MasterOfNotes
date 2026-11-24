@@ -1,0 +1,37 @@
+# `cargo deny check advisories licenses` (CI, dependency-audit.md actions 2-3): a new RustSec
+# advisory or a dependency under a license not listed here fails the build. Only the shipped
+# (Windows) graph is checked.
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+
+[advisories]
+# Unmaintained crates are reported only when we depend on them directly.
+unmaintained = "workspace"
+
+[licenses]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "Unicode-3.0",
+  "Unlicense",
+  "CC0-1.0",
+  "0BSD",
+]
+exceptions = [
+  # Our own crates (workspace license; the repo LICENSE decides).
+  { name = "master-of-notes", allow = ["LicenseRef-Proprietary"] },
+  { name = "audio-engine", allow = ["LicenseRef-Proprietary"] },
+  { name = "game", allow = ["LicenseRef-Proprietary"] },
+  { name = "scoring-engine", allow = ["LicenseRef-Proprietary"] },
+  { name = "song-analysis", allow = ["LicenseRef-Proprietary"] },
+  # MPL-2.0 only by name (dependency-audit.md §2), all unmodified and pulled in by tauri.
+  { name = "option-ext", allow = ["MPL-2.0"] },
+  { name = "cssparser", allow = ["MPL-2.0"] },
+  { name = "cssparser-macros", allow = ["MPL-2.0"] },
+  { name = "dtoa-short", allow = ["MPL-2.0"] },
+  { name = "selectors", allow = ["MPL-2.0"] },
+]
