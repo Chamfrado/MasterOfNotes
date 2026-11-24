@@ -120,7 +120,6 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
   const [tracks, setTracks] = useState<{ path: string; list: MidiTrackInfo[] } | null>(null);
   const [panel, setPanel] = useState<"sing" | "generate" | null>(null);
   const [align, setAlign] = useState<AlignState | null>(null);
-  const [weakVoiceRef, setWeakVoiceRef] = useState<number | null>(null); // id of a generated reference from a weak voice
   const [alignHintRef, setAlignHintRef] = useState<number | null>(null); // id of an imported UltraStar not auto-aligned yet
   const capturing = panel != null;
   const dirty = ref != null && offset !== ref.offsetMs;
@@ -236,9 +235,9 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
         </div>
       </header>
 
-      {/* Always mounted so the warning is announced when it appears; it follows the reference id (gone once replaced). */}
+      {/* Always mounted so the warning is announced when it appears; stored with the reference, gone once validated or replaced. */}
       <div role="status">
-        {!capturing && ref != null && ref.id === weakVoiceRef && (
+        {!capturing && ref != null && ref.status !== "validated" && (ref.voiceLevelDb ?? 0) < WEAK_VOICE_DB && (
           <p className="text-warning">
             A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar.
           </p>
@@ -267,8 +266,7 @@ function Editor({ song, initial, hasModel }: { song: Song; initial: MelodyRefere
             setPanel(null);
             if (wasWorking) toast("Geração cancelada.");
           }}
-          onDone={(r, elapsedMs, voiceLevelDb) => {
-            setWeakVoiceRef(voiceLevelDb < WEAK_VOICE_DB ? r.id : null);
+          onDone={(r, elapsedMs) => {
             done(r, `Referência gerada em ${formatDuration(elapsedMs)}. Pode ter erros: confira sobre o vídeo e valide.`);
           }}
         />
@@ -441,7 +439,7 @@ function AutoGenerate({
 }: {
   song: Song;
   replacing: boolean;
-  onDone: (r: MelodyReference, elapsedMs: number, voiceLevelDb: number) => void;
+  onDone: (r: MelodyReference, elapsedMs: number) => void;
   onCancel: (wasWorking: boolean) => void;
 }) {
   const { navigate } = useNav();
@@ -500,7 +498,7 @@ function AutoGenerate({
       ));
       if (job.current !== j) return; // cancelled meanwhile
       job.current = null;
-      if (out.reference) onDone(out.reference, out.elapsedMs, out.voiceLevelDb);
+      if (out.reference) onDone(out.reference, out.elapsedMs);
       else setState({ step: "failed", reason: out.reason ?? "Nenhuma nota foi encontrada. Nada foi salvo." });
     } catch (e) {
       if (job.current !== j) return; // cancelled: the panel is already closed

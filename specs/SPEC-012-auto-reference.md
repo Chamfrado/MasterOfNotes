@@ -39,9 +39,14 @@ Critérios:
 | T-012-05 | fake-backend + E2E + a11y; QA independente da precisão e dos limites | Agente 4 | done |
 | T-012-06 | Guia do usuário (como obter o modelo, termos, limites, revisar e validar) | Agente 5 | done |
 | T-012-07 | `song-analysis`: QA M1 (andamento diferente → confiança ≤ 0,3, busca por metade) + M4 (buffer de trecho reutilizável, pico menor) | Agente 2 | done |
+| T-012-08 | Nível de voz salvo com a referência extraída (migração 003): o aviso de "voz fraca" (R3) fica enquanto ela estiver ativa e não validada | Coordenador | done |
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), dentro da autorização do proprietário para trabalho autônomo.
+- 2026-11-23 · coordenador · T-012-08 `done` (v0.1.7):
+  - A migração 003 adiciona `melody_references.voice_level_db`, gravado por `store_generated` e exposto como `MelodyReference.voiceLevelDb` (só nas extraídas).
+  - O aviso de voz fraca (< −10 dB) agora vem da referência salva: aparece ao reabrir a tela e some ao validar ou substituir.
+  - Testes: `migration_003_adds_a_null_voice_level_and_keeps_the_rest`, Vitest do aviso ao abrir (experimental sim, validada não) e o E2E "voz fraca" (sai da tela e volta).
 - 2026-11-20 · Agente 2 · T-012-01/02 em `review`. O crate `crates/song-analysis` segue a API do contracts.md §2.5. Extra aprovado pelo coordenador: a variante `AnalysisError::Input`. O limiar de confiança 0,5 é da UI (contracts.md §2.5); no crate ele fica só nos testes. Evidência completa em [docs/testing/auto-reference.md](../docs/testing/auto-reference.md).
 - T-012-04 `review` (Agente 3, 2026-11-20):
   - **Ajustes → Referência automática** (R1/R8): explicação simples; para cada modelo conhecido, nome, tamanho, licença, arquivo e SHA-256, mais "Abrir página do modelo" (`openUrl` da fonte). Avisa que o modelo é de terceiros e que o app nunca baixa nem envia o modelo. Checkbox obrigatório "Li e aceito os termos da fonte; o modelo é de terceiros e o uso é de minha responsabilidade.", que habilita "Escolher arquivo baixado…" (diálogo `.onnx`) → `installSeparationModel(path, true)`. Recusas do Rust aparecem em toast. Com modelo instalado: nome, data e "Remover". A rota `settings` aceita `section: "autoReference"`, que foca o título da seção.

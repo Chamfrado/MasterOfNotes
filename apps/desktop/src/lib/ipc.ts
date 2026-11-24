@@ -136,6 +136,8 @@ export interface MelodyReference {
   revision: number;
   offsetMs: number;
   notes: RefNote[];
+  /** Extracted references only (SPEC-012 R3): voice level in dB measured when generated. */
+  voiceLevelDb?: number;
   /** pt-BR, only on importReference results (e.g. UltraStar duet). Show as a toast. */
   notice?: string | null;
 }

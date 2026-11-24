@@ -124,8 +124,8 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
       return { ...s, duel: { kind: "result", winner, margin: Math.abs(a - b) / 10 } };
     };
     /** reference.rs store(): the new reference is the active one; the previous stays in the history (R5). */
-    const storeRef = (db: Db, songId: string, source: MelodyReference["source"], notes: RefNote[]): MelodyReference => {
-      const r: MelodyReference = { id: db.nextId++, songId, source, status: "experimental", revision: 1, offsetMs: 0, notes };
+    const storeRef = (db: Db, songId: string, source: MelodyReference["source"], notes: RefNote[], voiceLevelDb?: number): MelodyReference => {
+      const r: MelodyReference = { id: db.nextId++, songId, source, status: "experimental", revision: 1, offsetMs: 0, notes, voiceLevelDb };
       db.references.push(r);
       db.activeRefs[songId] = r.id;
       return r;
@@ -294,7 +294,7 @@ export async function installFakeBackend(page: Page, scores: number[], options: 
           await stage("saving");
           return tx((db) => {
             db.generated.shift();
-            return { reference: storeRef(db, String(songId), "extracted", plan.notes as RefNote[]), reason: null, voiceLevelDb: plan.voiceLevelDb, elapsedMs: Date.now() - started };
+            return { reference: storeRef(db, String(songId), "extracted", plan.notes as RefNote[], plan.voiceLevelDb), reason: null, voiceLevelDb: plan.voiceLevelDb, elapsedMs: Date.now() - started };
           });
         } finally {
           if (job === me) job = null;

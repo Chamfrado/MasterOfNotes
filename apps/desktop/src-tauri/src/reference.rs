@@ -37,6 +37,9 @@ pub struct Reference {
     pub revision: i64,
     pub offset_ms: i32,
     pub notes: Vec<RefNote>,
+    /// Extracted references (SPEC-012 R3): vocals/mix level in dB measured when generated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub voice_level_db: Option<f32>,
     /// pt-BR, only on `import_reference` results (e.g. UltraStar duet). Omitted when `None`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notice: Option<String>,
@@ -79,6 +82,7 @@ fn row(r: &rusqlite::Row) -> rusqlite::Result<(Reference, String)> {
             revision: r.get(4)?,
             offset_ms: r.get(5)?,
             notes: Vec::new(),
+            voice_level_db: r.get(7)?,
             notice: None,
         },
         r.get(6)?,
@@ -107,8 +111,7 @@ pub fn parse_stored(notes_json: &str) -> AppResult<scoring_engine::MelodyReferen
     })
 }
 
-const SELECT: &str =
-    "SELECT id, song_id, source, status, revision, offset_ms, notes_json FROM melody_references";
+const SELECT: &str = "SELECT id, song_id, source, status, revision, offset_ms, notes_json, voice_level_db FROM melody_references";
 
 pub fn active(conn: &Connection, song_id: &str) -> AppResult<Option<Reference>> {
     conn.query_row(
@@ -124,10 +127,10 @@ pub fn active(conn: &Connection, song_id: &str) -> AppResult<Option<Reference>> 
 pub fn get_active_by_id(conn: &Connection, id: i64) -> AppResult<Reference> {
     let (r, notes_json, active): (Reference, String, bool) = conn
         .query_row(
-            "SELECT id, song_id, source, status, revision, offset_ms, notes_json, active
+            "SELECT id, song_id, source, status, revision, offset_ms, notes_json, voice_level_db, active
              FROM melody_references WHERE id = ?1",
             [id],
-            |r| row(r).and_then(|(x, n)| Ok((x, n, r.get(7)?))),
+            |r| row(r).and_then(|(x, n)| Ok((x, n, r.get(8)?))),
         )
         .optional()?
         .ok_or_else(|| AppError::new("not_found", "Referência não encontrada."))?;
@@ -206,7 +209,7 @@ pub fn import(
         }
         _ => (scoring_engine::import_midi(&bytes, midi_track), "midi"),
     };
-    let reference = store(conn, song_id, source, &parsed.map_err(ref_err)?)?;
+    let reference = store(conn, song_id, source, &parsed.map_err(ref_err)?, None)?;
     Ok(Reference {
         notice,
         ..reference
@@ -216,19 +219,20 @@ pub fn import(
 const DUET_NOTICE: &str = "Arquivo de dueto: importamos a parte do primeiro cantor.";
 
 /// Detected notes become the new active reference: sung (T-005-07, `source = 'manual'`) or
-/// extracted from the video (SPEC-012, `'extracted'`). Same parser as an imported file.
+/// extracted from the video (SPEC-012, `'extracted'`, with its `voice_level_db`). Same parser as an imported file.
 pub fn store_notes(
     conn: &mut Connection,
     song_id: &str,
     source: &str,
     notes: Vec<scoring_engine::Note>,
+    voice_level_db: Option<f32>,
 ) -> AppResult<Reference> {
     let json = scoring_engine::to_reference_json(&scoring_engine::MelodyReference {
         format_version: scoring_engine::REFERENCE_FORMAT_VERSION,
         notes,
     });
     let parsed = scoring_engine::parse_reference_json(&json).map_err(ref_err)?;
-    store(conn, song_id, source, &parsed)
+    store(conn, song_id, source, &parsed, voice_level_db)
 }
 
 /// Inserts `parsed` as the active experimental reference, deactivating the previous one.
@@ -237,6 +241,7 @@ fn store(
     song_id: &str,
     source: &str,
     parsed: &scoring_engine::MelodyReference,
+    voice_level_db: Option<f32>,
 ) -> AppResult<Reference> {
     let now = now_ms();
     let tx = conn.transaction()?;
@@ -246,14 +251,15 @@ fn store(
         (song_id, now),
     )?;
     tx.execute(
-        "INSERT INTO melody_references (song_id, source, format_version, status, notes_json, created_ms, updated_ms)
-         VALUES (?1, ?2, ?3, 'experimental', ?4, ?5, ?5)",
+        "INSERT INTO melody_references (song_id, source, format_version, status, notes_json, created_ms, updated_ms, voice_level_db)
+         VALUES (?1, ?2, ?3, 'experimental', ?4, ?5, ?5, ?6)",
         (
             song_id,
             source,
             parsed.format_version,
             scoring_engine::to_reference_json(parsed),
             now,
+            voice_level_db,
         ),
     )?;
     let id = tx.last_insert_rowid();

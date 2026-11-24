@@ -314,6 +314,10 @@ test("voz fraca (QA M2): −14 dB salva a referência com aviso de revisão; −
   await generatePanel(page).getByRole("button", { name: "Começar" }).click();
   await expect(warning).toHaveText("A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar.");
   await expect(page.getByText("3 notas", { exact: true })).toBeVisible();
+  // Stored with the reference: still there after leaving the screen and coming back.
+  await openReference(page, "Canção da Manhã");
+  await expect(page.getByText("3 notas", { exact: true })).toBeVisible();
+  await expect(warning).toHaveCount(1);
 
   // Generate again at −8 dB (above the −10 dB cut): the new reference replaces it, without the warning.
   await page.getByRole("button", { name: "Gerar automaticamente" }).click();

@@ -282,16 +282,17 @@ fn remove_file(path: &Path) -> AppResult<()> {
     }
 }
 
-/// Stores the transcribed notes, or explains why nothing was saved.
+/// Stores the transcribed notes with the measured voice level, or explains why nothing was saved.
 pub fn store_generated(
     conn: &mut Connection,
     song_id: &str,
     notes: Vec<Note>,
+    voice_level_db: f32,
 ) -> AppResult<(Option<Reference>, Option<String>)> {
     if notes.len() < MIN_NOTES {
         return Ok((None, Some(REASON_FEW_NOTES.to_owned())));
     }
-    let r = reference::store_notes(conn, song_id, "extracted", notes)?;
+    let r = reference::store_notes(conn, song_id, "extracted", notes, Some(voice_level_db))?;
     Ok((Some(r), None))
 }
 
@@ -450,7 +451,7 @@ pub async fn generate_reference(
         progress(Stage::Transcribing, 1.0);
 
         progress(Stage::Saving, 0.0);
-        let saved = store_generated(&mut lock(state.db()?), &song_id, notes)?;
+        let saved = store_generated(&mut lock(state.db()?), &song_id, notes, voice_level_db)?;
         progress(Stage::Saving, 1.0);
         let out = outcome(saved);
         log::info!(
@@ -684,15 +685,23 @@ mod tests {
             "s1",
             "manual",
             vec![note(0), note(500), note(1000)],
+            None,
         )
         .unwrap();
+        assert_eq!(old.voice_level_db, None);
 
-        let (r, reason) = store_generated(&mut conn, "s1", vec![note(100), note(600)]).unwrap();
+        let (r, reason) =
+            store_generated(&mut conn, "s1", vec![note(100), note(600)], -14.0).unwrap();
         assert_eq!((r, reason.as_deref()), (None, Some(REASON_FEW_NOTES)));
         assert_eq!(reference::active(&conn, "s1").unwrap().unwrap().id, old.id);
 
-        let (r, reason) =
-            store_generated(&mut conn, "s1", vec![note(100), note(600), note(1100)]).unwrap();
+        let (r, reason) = store_generated(
+            &mut conn,
+            "s1",
+            vec![note(100), note(600), note(1100)],
+            -14.0,
+        )
+        .unwrap();
         let r = r.unwrap();
         assert_eq!(reason, None);
         assert_eq!(
@@ -703,6 +712,11 @@ mod tests {
                 r.offset_ms
             ),
             ("extracted", "experimental", 1, 0)
+        );
+        assert_eq!(
+            r.voice_level_db,
+            Some(-14.0),
+            "kept for the weak-voice warning"
         );
         assert_eq!(reference::active(&conn, "s1").unwrap(), Some(r));
     }
@@ -715,6 +729,7 @@ mod tests {
             "s1",
             "json",
             vec![note(100), note(500), note(900)],
+            None,
         )
         .unwrap();
         let r = reference::set_offset(&conn, r.id, -300).unwrap();

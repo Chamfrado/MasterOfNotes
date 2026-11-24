@@ -332,7 +332,7 @@ describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
     withModel();
     vi.mocked(ipc.getReference).mockResolvedValue(null);
     vi.mocked(ipc.generateReference).mockResolvedValue({
-      reference: ref({ id: 21, source: "extracted" }),
+      reference: ref({ id: 21, source: "extracted", voiceLevelDb }),
       reason: null,
       voiceLevelDb,
       elapsedMs: 90_000,
@@ -351,6 +351,16 @@ describe("Gerar automaticamente (SPEC-012 R2-R4)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Importar outra" })); // another reference replaces it
     expect(await screen.findByText("JSON")).toBeInTheDocument();
     expect(screen.queryByText(/A voz deste vídeo está fraca/)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["experimental", true],
+    ["validated", false],
+  ] as const)("stored weak-voice reference, %s: warning shown on open = %s", async (status, warned) => {
+    vi.mocked(ipc.getReference).mockResolvedValue(ref({ source: "extracted", status, voiceLevelDb: -14 }));
+    renderRef();
+    expect(await screen.findByText("Extraída")).toBeInTheDocument();
+    expect(screen.queryByText(/A voz deste vídeo está fraca/) != null).toBe(warned);
   });
 
   it("shows the reason when nothing was saved (instrumental video)", async () => {

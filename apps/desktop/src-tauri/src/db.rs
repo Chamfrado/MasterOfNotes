@@ -11,6 +11,7 @@ use crate::error::{AppError, AppResult};
 pub const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/001_init.sql"),
     include_str!("../migrations/002_ultrastar_source.sql"),
+    include_str!("../migrations/003_reference_voice_level.sql"),
 ];
 
 pub fn open(path: &Path) -> AppResult<Connection> {
@@ -264,7 +265,7 @@ mod tests {
         let before = dump(&Connection::open(&path).unwrap());
         assert_eq!(before.len(), 15, "fixture rows");
 
-        let conn = open(&path).unwrap();
+        let conn = open_with(&path, &MIGRATIONS[..2]).unwrap();
         assert_eq!(version(&conn), 2);
         assert_eq!(
             dump(&conn),
@@ -329,9 +330,31 @@ mod tests {
         // Reopening a v2 database: no new backup, nothing changes.
         drop((conn, bak));
         std::fs::remove_file(dir.path().join("masterofnotes.db.bak-v1")).unwrap();
-        let conn = open(&path).unwrap();
+        let conn = open_with(&path, &MIGRATIONS[..2]).unwrap();
         assert_eq!(version(&conn), 2);
         assert!(!dir.path().join("masterofnotes.db.bak-v2").exists());
+    }
+
+    #[test]
+    fn migration_003_adds_a_null_voice_level_and_keeps_the_rest() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("masterofnotes.db");
+        v013_database(&path);
+        drop(open_with(&path, &MIGRATIONS[..2]).unwrap());
+        let before = dump(&Connection::open(&path).unwrap());
+
+        let conn = open(&path).unwrap();
+        assert_eq!(version(&conn), 3);
+        // Same rows; references gain one trailing NULL column.
+        let expected: Vec<String> = before
+            .iter()
+            .map(|l| match l.strip_prefix("melody_references: ") {
+                Some(row) => format!("melody_references: {}, Null]", &row[..row.len() - 1]),
+                None => l.clone(),
+            })
+            .collect();
+        assert_eq!(dump(&conn), expected);
+        assert!(dir.path().join("masterofnotes.db.bak-v2").exists());
     }
 
     #[test]

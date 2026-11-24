@@ -175,7 +175,7 @@ Settings: `separationModel: { id, name, acceptedMs } | null` (somente leitura vi
 Referência gerada: `source = 'extracted'`, `status = 'experimental'`, ativa (a anterior vai para o histórico), como no import.
 **Erros (AppError.code) da SPEC-012:** `terms_not_accepted`, `model_unknown` (SHA-256 fora da lista), `model_not_installed`, `audio_invalid` (bytes vazios, não múltiplos de 4 ou > 20 min), `audio_token_invalid` (token velho ou de outra música), `busy` (já há uma geração), **`cancelled`** (o usuário cancelou: a promessa de `generate_reference` **rejeita** com esse código, sem salvar nada), `not_found` (inclui alinhar com uma referência inexistente), `analysis_failed` (AnalysisError::Model/Input: modelo ou runtime ONNX indisponível ou com falha; mensagem pt-BR do crate). "Sem voz" **não** é erro: é `AutoReferenceOutcome { reference: null, reason }`.
 
-## 3. Esquema SQLite (migrações 001 e 002)
+## 3. Esquema SQLite (migrações 001 a 003)
 
 Dono da implementação: Agente 1 (`src-tauri/migrations/001_init.sql`). Mudanças de esquema = nova migração, nunca editar migração já integrada.
 
@@ -207,7 +207,8 @@ CREATE TABLE melody_references (
   notes_json TEXT NOT NULL,
   active INTEGER NOT NULL DEFAULT 1,    -- no máximo 1 ativa por música
   created_ms INTEGER NOT NULL,
-  updated_ms INTEGER NOT NULL
+  updated_ms INTEGER NOT NULL,
+  voice_level_db REAL                   -- migração 003: nível da voz (dB) da referência 'extracted'; NULL nas demais
 );
 CREATE UNIQUE INDEX one_active_reference ON melody_references(song_id) WHERE active = 1;
 CREATE TABLE participants (id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE COLLATE NOCASE, created_ms INTEGER NOT NULL);

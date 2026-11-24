@@ -48,7 +48,7 @@ Sem referência não há pontuação competitiva (SPEC-005). Ordem de preferênc
 
 ## Persistência
 
-SQLite em `app_data_dir()/masterofnotes.db`, acesso **só pelo Rust** (`rusqlite`, bundled). Migrações SQL embutidas, aplicadas por `PRAGMA user_version`. Backup automático do arquivo antes de qualquer migração (Lei 14). Esquema: [contracts.md §3](contracts.md#3-esquema-sqlite-migrações-001-e-002).
+SQLite em `app_data_dir()/masterofnotes.db`, acesso **só pelo Rust** (`rusqlite`, bundled). Migrações SQL embutidas, aplicadas por `PRAGMA user_version`. Backup automático do arquivo antes de qualquer migração (Lei 14). Esquema: [contracts.md §3](contracts.md#3-esquema-sqlite-migrações-001-a-003).
 
 ## Vídeo
 

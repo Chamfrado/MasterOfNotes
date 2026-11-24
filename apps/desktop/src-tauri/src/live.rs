@@ -343,7 +343,13 @@ pub fn persist(
         }
         return Ok(PerformanceOutcome {
             exploratory: summary.exploratory,
-            captured_reference: Some(reference::store_notes(conn, &ctx.song_id, "manual", notes)?),
+            captured_reference: Some(reference::store_notes(
+                conn,
+                &ctx.song_id,
+                "manual",
+                notes,
+                None,
+            )?),
             ..not_stored
         });
     }
