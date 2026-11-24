@@ -40,7 +40,7 @@ Atualizada pelo coordenador em 2026-11-23. ✅ executado com evidência · 🟡 
 | AC-011 leaderboard persistente | 007 | `game` + `live` + E2E Ranking | 🟡 roteiro 16, 19 |
 | AC-012 partida Festa | 008 | `game`, telas + E2E Festa (`party.e2e.ts`) | ⏳ roteiro 17–18 |
 | AC-013 persistir após reabrir | 001 | `db::reopen_preserves_data`; dados sobreviveram ao update | ✅ via update 0.1.0 → 0.1.1 (`update-test.md`); roteiro 19 |
-| AC-014 instalador | 009 | `pnpm build` + workflow Release | ✅ NSIS por usuário; v0.1.1–v0.1.6 publicadas e assinadas |
+| AC-014 instalador | 009 | `pnpm build` + workflow Release | ✅ NSIS por usuário; v0.1.1–v0.1.7 publicadas e assinadas |
 | AC-015 update assinado | 009 | assinatura adulterada recusada + update real | ✅ chave de teste (`update-test.md`) **e produção**: 0.1.1 → 0.1.2 pela verificação automática, confirmado pelo proprietário (2026-11-20) |
 | AC-016 docs/specs/leis | 014 | `pnpm check`, CI | ✅ revisão do coordenador na Fase 7 (T-014-05, 2026-11-23): arquitetura, contratos, roadmap, specs e instruções conferidos contra o código |
 

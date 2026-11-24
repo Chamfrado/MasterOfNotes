@@ -21,6 +21,13 @@ Critério de saída: nenhum achado ALTO aberto; os médios corrigidos ou registr
 
 ## STATUS
 Criada em 2026-11-20 (coordenador), janela autônoma.
+- v0.1.7 (Agente 0, 2026-11-24):
+  - T-014-06 done.
+  - Sobras da auditoria Ponytail aplicadas: um hook `useSongEdit` para o formulário de título/artista da Biblioteca e da página da música, e as opções de dev mobile do template removidas do `vite.config`.
+  - Continuam de fora `useBusy` e o hook de início de performance: tocam a sonda de latência, o teste de vazamento e a captura, onde o risco ao áudio não compensa o ganho.
+  - QA independente (Agente 4) do diff da versão: nenhum achado ALTO ou MÉDIO.
+    - BAIXOs aplicados: campos somente leitura enquanto salva; teste da migração 003 confere o conteúdo do `bak-v2` e o caminho direto v1 → v3.
+    - BAIXOs só registrados: o aviso volta se mudar o offset de uma referência fraca já validada (coerente com a SPEC-012); o guia não explica como restaurar o `.bak` num downgrade.
 - T-014-04 done (Agente 0, 2026-11-20): `graphify update .` (local, sem LLM): 2.541 nós, 6.193 arestas, 144 comunidades. Nós mais conectados = utilitários e estruturas centrais esperados (errorMessage, useAsync, useNav, useToast, Session, AppState, AnalysisFrame, Reference). Invariantes conferidas por grep:
   - (1) a UI só chama o backend via `lib/ipc.ts` (zero `invoke` fora dele);
   - (2) `scoring-engine` e `game` sem I/O;
