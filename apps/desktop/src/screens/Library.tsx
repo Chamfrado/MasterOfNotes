@@ -232,30 +232,37 @@ function SongItem({ song, compact, onEdit }: { song: Song; compact: boolean; onE
   );
 }
 
-function EditSongDialog({ song, onClose, onSaved }: { song: Song | null; onClose: () => void; onSaved: () => void }) {
+/** Title/artist form of a song (library dialog and song page): reset when `song` changes. */
+export function useSongEdit(song: Song | null, onSaved: (updated: Song) => void) {
   const toast = useToast();
-  const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
+  const [title, setTitle] = useState(song?.title ?? "");
+  const [artist, setArtist] = useState(song?.artist ?? "");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     setTitle(song?.title ?? "");
     setArtist(song?.artist ?? "");
   }, [song]);
   const titleError = title.trim() ? undefined : "Informe um título.";
+  const changed = song != null && (title.trim() !== song.title || (artist.trim() || null) !== song.artist);
   const save = async (e: FormEvent) => {
     e.preventDefault();
     if (!song || titleError) return;
     setSaving(true);
     try {
-      await updateSong(song.id, { title: title.trim(), artist: artist.trim() || null });
+      const updated = await updateSong(song.id, { title: title.trim(), artist: artist.trim() || null });
       toast("Música atualizada.", "success");
-      onSaved();
+      onSaved(updated);
     } catch (err) {
       toast(errorMessage(err), "error");
     } finally {
       setSaving(false);
     }
   };
+  return { title, setTitle, artist, setArtist, titleError, changed, saving, save };
+}
+
+function EditSongDialog({ song, onClose, onSaved }: { song: Song | null; onClose: () => void; onSaved: () => void }) {
+  const { title, setTitle, artist, setArtist, titleError, saving, save } = useSongEdit(song, onSaved);
   return (
     <Dialog open={song != null} onClose={onClose} title="Editar música">
       <form onSubmit={save} className="flex flex-col gap-5">

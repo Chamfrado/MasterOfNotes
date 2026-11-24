@@ -1,14 +1,13 @@
 // SPEC-010 T-010-06: song details. Edit title/artist, file info, playability, reference shortcut, records.
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { RankingTable, ScoreBadge, difficultyLabel, formatMB, formatScore } from "../components/game";
-import { Badge, Button, Card, ErrorState, Input, LoadingState, Select, errorMessage, useToast } from "../components/ui";
+import { Badge, Button, Card, ErrorState, Input, LoadingState, Select, errorMessage } from "../components/ui";
 import {
   getLeaderboard,
   getSettings,
   listParticipants,
   listPerformances,
   listSongs,
-  updateSong,
   type Difficulty,
   type Participant,
   type PerformanceRow,
@@ -16,7 +15,7 @@ import {
 } from "../lib/ipc";
 import { useNav } from "../nav";
 import { useAsync } from "../useAsync";
-import { formatDuration, referenceLabel } from "./Library";
+import { formatDuration, referenceLabel, useSongEdit } from "./Library";
 import { CODEC_HINT } from "./Player";
 
 const TOP = 5;
@@ -44,29 +43,10 @@ export function SongDetails({ songId }: { songId: string }) {
 
 function Details({ initial, difficulty }: { initial: Song; difficulty: Difficulty }) {
   const { navigate } = useNav();
-  const toast = useToast();
   const [song, setSong] = useState(initial);
-  const [title, setTitle] = useState(initial.title);
-  const [artist, setArtist] = useState(initial.artist ?? "");
-  const [saving, setSaving] = useState(false);
-  const titleError = title.trim() ? undefined : "Informe um título.";
-  const changed = title.trim() !== song.title || (artist.trim() || null) !== song.artist;
+  const { title, setTitle, artist, setArtist, titleError, changed, saving, save } = useSongEdit(song, setSong);
   const ref = referenceLabel[song.referenceStatus];
   const duration = formatDuration(song.durationMs);
-
-  const save = async (e: FormEvent) => {
-    e.preventDefault();
-    if (titleError || !changed) return;
-    setSaving(true);
-    try {
-      setSong(await updateSong(song.id, { title: title.trim(), artist: artist.trim() || null }));
-      toast("Música atualizada.", "success");
-    } catch (err) {
-      toast(errorMessage(err), "error");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   return (
     <div className="flex flex-col gap-8">
