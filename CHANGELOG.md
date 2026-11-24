@@ -4,6 +4,18 @@ Formato: [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versioname
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-23
+
+### Melhorado
+- O aviso de **voz fraca** de uma referência gerada automaticamente agora fica salvo: ele volta sempre que você abre a referência, até validá-la ou trocá-la. Antes, sumia ao sair da tela. Referências geradas em versões anteriores não têm esse aviso.
+
+### Segurança
+- Atualizadas duas bibliotecas internas com falhas conhecidas (`cookie` e `url`). Nenhuma das duas era explorável no uso normal do app.
+
+### Interno
+- O CI passa a checar vulnerabilidades e licenças das dependências a cada mudança e toda semana.
+- Pequenas limpezas de código, sem mudança visível.
+
 ## [0.1.6] - 2026-11-23
 
 ### Corrigido

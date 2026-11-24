@@ -69,8 +69,8 @@ function Details({ initial, difficulty }: { initial: Song; difficulty: Difficult
         <Card className="flex flex-col gap-6">
           <form onSubmit={save} className="flex flex-col gap-4">
             <h2 className="font-display text-2xl font-semibold">Informações</h2>
-            <Input label="Título" value={title} onChange={(e) => setTitle(e.currentTarget.value)} error={titleError} required />
-            <Input label="Artista" hint="Opcional" value={artist} onChange={(e) => setArtist(e.currentTarget.value)} />
+            <Input label="Título" readOnly={saving} value={title} onChange={(e) => setTitle(e.currentTarget.value)} error={titleError} required />
+            <Input label="Artista" hint="Opcional" readOnly={saving} value={artist} onChange={(e) => setArtist(e.currentTarget.value)} />
             <Button type="submit" className="self-start" disabled={saving || !!titleError || !changed}>
               Salvar alterações
             </Button>

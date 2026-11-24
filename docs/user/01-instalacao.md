@@ -17,7 +17,7 @@ Não precisa de internet para usar o app nem de conta ou cadastro.
 > **Sobre a pontuação.** A pontuação foi validada com testes automáticos. A validação com vozes reais de pessoas ainda está em andamento, então a nota pode ser ajustada em versões futuras (veja [Como a pontuação funciona](07-pontuacao.md#até-onde-dá-para-confiar)).
 
 1. Abra a página da versão mais recente: <https://github.com/Chamfrado/MasterOfNotes/releases/latest>. Todas as versões ficam em <https://github.com/Chamfrado/MasterOfNotes/releases>.
-2. Em **Assets**, baixe o arquivo que termina em **`_x64-setup.exe`**, por exemplo **`Master.Of.Notes_0.1.6_x64-setup.exe`** (cerca de 9 MB). O número da versão muda a cada atualização. Os outros arquivos da lista (`.sig`, `latest.json` e o código-fonte) servem para as atualizações automáticas e para desenvolvedores; você não precisa deles.
+2. Em **Assets**, baixe o arquivo que termina em **`_x64-setup.exe`**, por exemplo **`Master.Of.Notes_0.1.7_x64-setup.exe`** (cerca de 9 MB). O número da versão muda a cada atualização. Os outros arquivos da lista (`.sig`, `latest.json` e o código-fonte) servem para as atualizações automáticas e para desenvolvedores; você não precisa deles.
 3. Dê dois cliques no arquivo baixado.
 4. O Windows deve mostrar o aviso **"O Windows protegeu o computador"**. Clique em **Mais informações** e depois em **Executar assim mesmo**.
 5. O instalador abre em português, na tela **Bem-vindo ao Instalador do Master Of Notes**. Clique em **Próximo >** e siga as telas até o fim.

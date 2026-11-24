@@ -120,7 +120,7 @@ Se o vídeo tem a **voz do cantor**, o app pode criar a referência sozinho: ele
 ### Quando funciona
 
 - **Só em vídeos com a voz do cantor, em volume claro.** Num vídeo de karaokê só instrumental, não há voz para separar. Se o app não encontra uma voz clara (vídeo instrumental ou voz baixa demais na mixagem), não salva nada e avisa: *"Não encontramos uma voz clara neste vídeo: pode ser só instrumental ou a voz estar baixa demais. Use Gravar cantando ou importe um MIDI."*
-- **Voz fraca.** Se a voz existe, mas está fraca, o app gera a referência e, logo em seguida, mostra um aviso abaixo do título e dos botões da tela da referência (o aviso some quando você sai da tela, então leia na hora): *"A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar."* Nesse caso, faltam notas com mais frequência.
+- **Voz fraca.** Se a voz existe, mas está fraca, o app gera a referência e, logo em seguida, mostra um aviso abaixo do título e dos botões da tela da referência. O aviso volta sempre que você abre a referência, até validá-la ou trocá-la por outra: *"A voz deste vídeo está fraca: a referência pode ter ficado incompleta. Revise as notas com atenção antes de validar."* Nesse caso, faltam notas com mais frequência.
 - **A voz do vídeo vira o gabarito.** Se o cantor original enfeita, improvisa ou sai da melodia num trecho, a referência gerada copia isso.
 - Coro, segunda voz, muito efeito na voz ou instrumentos com som parecido com o da voz podem gerar notas erradas. Por isso a revisão no fim é obrigatória.
 

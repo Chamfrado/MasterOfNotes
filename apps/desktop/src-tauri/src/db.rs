@@ -354,7 +354,17 @@ mod tests {
             })
             .collect();
         assert_eq!(dump(&conn), expected);
-        assert!(dir.path().join("masterofnotes.db.bak-v2").exists());
+        let bak = Connection::open(dir.path().join("masterofnotes.db.bak-v2")).unwrap();
+        assert_eq!((version(&bak), dump(&bak)), (2, before));
+
+        // 0.1.3 → 0.1.7 in one open: one backup (v1), then 002 and 003.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("masterofnotes.db");
+        v013_database(&path);
+        let conn = open(&path).unwrap();
+        assert_eq!((version(&conn), dump(&conn)), (3, expected));
+        assert!(dir.path().join("masterofnotes.db.bak-v1").exists());
+        assert!(!dir.path().join("masterofnotes.db.bak-v2").exists());
     }
 
     #[test]

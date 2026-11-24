@@ -266,8 +266,8 @@ function EditSongDialog({ song, onClose, onSaved }: { song: Song | null; onClose
   return (
     <Dialog open={song != null} onClose={onClose} title="Editar música">
       <form onSubmit={save} className="flex flex-col gap-5">
-        <Input label="Título" value={title} onChange={(e) => setTitle(e.currentTarget.value)} error={titleError} required />
-        <Input label="Artista" hint="Opcional" value={artist} onChange={(e) => setArtist(e.currentTarget.value)} />
+        <Input label="Título" readOnly={saving} value={title} onChange={(e) => setTitle(e.currentTarget.value)} error={titleError} required />
+        <Input label="Artista" hint="Opcional" readOnly={saving} value={artist} onChange={(e) => setArtist(e.currentTarget.value)} />
         <div className="flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose}>
             Cancelar
